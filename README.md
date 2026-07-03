@@ -7,6 +7,40 @@ PUSH ÖNCESİ DOLDURULACAKLAR:
 5. 5 Temmuz: Sprint Review + Retrospective bölümlerini doldur
 -->
 
+<div align="center">
+
+# ☁️ CloudSentinel
+
+### AI-agent powered cloud cost & security anomaly detection — with a human in the loop
+
+**YZTA Bootcamp 2026 · AI Track · Group 60**
+
+[Product](#information-about-the-product) · [Architecture](docs/architecture.md) · [How to Run](#how-to-run-local) · [Sprint 1](#sprint-1)
+
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.128-009688?logo=fastapi&logoColor=white)
+![Pydantic](https://img.shields.io/badge/Pydantic-v2-E92063?logo=pydantic&logoColor=white)
+![Tests](https://github.com/muratcan-ates/cloudsentinel/actions/workflows/ci.yml/badge.svg)
+![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini-Sprint_2-8E75B2?logo=googlegemini&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Last Commit](https://img.shields.io/github/last-commit/muratcan-ates/cloudsentinel?style=flat-square)
+
+</div>
+
+## 📖 Table of Contents
+
+- [Team Name](#team-name)
+- [Information About the Product](#information-about-the-product)
+  - [Team Members](#team-members)
+  - [Product Name](#product-name) · [Product Description](#product-description) · [Product Features](#product-features) · [Target Audience](#target-audience)
+  - [What Makes CloudSentinel Different](#what-makes-cloudsentinel-different)
+  - [How to Run (Local)](#how-to-run-local)
+  - [Built With](#built-with) · [Project Status](#project-status)
+  - [Requirements Compliance](#requirements-compliance) · [Scope & Limitations](#scope--limitations-by-design)
+  - [Product Backlog URL](#product-backlog-url)
+- [Sprint 1](#sprint-1) · [Sprint 2](#sprint-2) · [Sprint 3](#sprint-3)
+
 # Team Name
 
 Group 60 – Team CloudSentinel
@@ -108,12 +142,73 @@ curl "http://127.0.0.1:8000/costs/summary"
 
 Run the test suite with `.venv/bin/pytest`.
 
+> On Windows, replace `.venv/bin/` with `.venv\Scripts\` in the commands above.
+
 Or run it with Docker:
 
 ```bash
 docker build -t cloudsentinel .
 docker run -p 8000:8000 cloudsentinel
 ```
+
+## Built With
+
+| Technology | Purpose |
+|---|---|
+| **Python 3.12** | Core language (pinned in venv, CI and Docker) |
+| **FastAPI + Uvicorn** | REST API and ASGI server |
+| **Pydantic v2** | Typed request/response models and validation |
+| **pytest + httpx** | Automated test suite (runs on every push via GitHub Actions) |
+| **Docker** | Containerized, deployment-ready packaging |
+| **Gemini** *(Sprint 2)* | LLM layer for the Analyst and Recommender agents |
+| **ClickUp** | Scrum board and product backlog |
+
+## Project Status
+
+| Deliverable | Description | Status |
+|---|---|---|
+| Mock cost dataset | 4 services × 14 days of synthetic costs with 2 planted spikes | ✅ [`data/mock_costs.json`](data/mock_costs.json) |
+| Anomaly detection API | `GET /anomalies` — per-service z-score with typed responses | ✅ [`main.py`](main.py) |
+| Cost summary API | `GET /costs/summary` — per-service spend aggregates and shares | ✅ [`main.py`](main.py) |
+| Test suite | 14 pytest cases: detection, aggregation, validation, edge cases | ✅ [`tests/`](tests/) |
+| Continuous integration | Tests run on every push | ✅ [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
+| Containerization | `python:3.12-slim` image | ✅ [`Dockerfile`](Dockerfile) |
+| Agent & HITL architecture design | Sprint 2–3 technical plan | ✅ [`docs/architecture.md`](docs/architecture.md) |
+| Gemini agents (Analyst + Recommender) | LLM-based anomaly analysis and action proposals | 🔜 Sprint 2 |
+| Human-in-the-loop approval flow | `proposed → approved/rejected → executed` action lifecycle | 🔜 Sprint 2 |
+| Security signals · dashboard · deployment | Same pipeline extended + live demo | 🔜 Sprint 3 |
+
+## Requirements Compliance
+
+Mapping of the official bootcamp scrum-notebook requirements to their evidence in this repository:
+
+| Requirement | Status | Evidence |
+|---|---|---|
+| Team name & roles documented | ✅ | [Team Name](#team-name) · [Team Members](#team-members) |
+| Product name, description, features, target audience | ✅ | [Information About the Product](#information-about-the-product) |
+| Product Backlog board (ClickUp) | 🔄 in setup | [Product Backlog URL](#product-backlog-url) |
+| Sprint Notes (never left empty) | ✅ | [Sprint 1](#sprint-1) |
+| Point estimates & completion logic | ✅ | [Sprint 1](#sprint-1) |
+| Daily Scrum documentation | 🔄 being collected | `ProjectManagement/Sprint1Documents/` |
+| Sprint board screenshots | 🔄 after board setup | `ProjectManagement/Sprint1Documents/` |
+| Product status screenshots | 🔄 being collected | `ProjectManagement/Sprint1Documents/` |
+| Sprint Review & Retrospective | 🗓 due 5 July | [Sprint 1](#sprint-1) |
+| Working product increment | ✅ | [`GET /anomalies`](main.py) · [`GET /costs/summary`](main.py) · [tests](tests/) · CI |
+
+## Scope & Limitations (By Design)
+
+These constraints are intentional Sprint 1 decisions, not oversights:
+
+- **Synthetic mock data only** — real cloud-provider connectors are outside the
+  competition scope; the detection pipeline is data-source agnostic by design.
+- **Read-only endpoints for now** — `/anomalies` and `/costs/summary` only
+  observe; the action-proposal and approval endpoints arrive with the
+  human-in-the-loop flow in Sprint 2
+  (see [docs/architecture.md](docs/architecture.md)).
+- **Security signals not ingested yet** — the scope decision (extend the same
+  pipeline vs. narrow the product to cost) is on the Sprint 1 review agenda.
+- **No live deployment yet** — the app is containerized and deployment-ready;
+  the target platform is decided in Sprint 3.
 
 ## Product Backlog URL
 
@@ -157,3 +252,7 @@ docker run -p 8000:8000 cloudsentinel
 ---
 
 # Sprint 3
+
+---
+
+<div align="center"><sub>Built by Team CloudSentinel — YZTA Bootcamp 2026 · AI Track · Group 60</sub></div>
