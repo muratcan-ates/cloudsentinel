@@ -7,13 +7,13 @@ PUSH ÖNCESİ DOLDURULACAKLAR:
 5. 5 Temmuz: Sprint Review + Retrospective bölümlerini doldur
 -->
 
-# Takım İsmi
+# Team Name
 
-Grup 60 – CloudSentinel Takımı
+Group 60 – Team CloudSentinel
 
-# Ürün İle İlgili Bilgiler
+# Information About the Product
 
-## Takım Elemanları
+## Team Members
 
 <table align="center">
 <tr>
@@ -48,29 +48,29 @@ Grup 60 – CloudSentinel Takımı
 </tr>
 </table>
 
-## Ürün İsmi
+## Product Name
 
 CloudSentinel
 
-## Ürün Açıklaması
+## Product Description
 
-CloudSentinel; bulut maliyet ve güvenlik verilerini izleyen, bu verilerdeki anomalileri tespit eden, tespit edilen anomaliler için yapay zekâ ajanlarıyla aksiyon önerileri üreten ve kritik kararların son onayını operatöre bırakan (human-in-the-loop) agentic bir karar destek sistemidir. Backend FastAPI + Python ile geliştirilmektedir; LLM katmanında Gemini kullanılması planlanmaktadır. MVP aşamasında sistem sentetik (mock) veri üzerinde çalışmaktadır.
+CloudSentinel is an agentic decision-support system that monitors cloud cost and security data, detects anomalies in that data, generates action recommendations for detected anomalies through AI agents, and leaves the final approval of critical actions to a human operator (human-in-the-loop). The backend is being developed with FastAPI + Python; Gemini is planned for the LLM layer. At the MVP stage the system runs on synthetic (mock) data.
 
-## Ürün Özellikleri
+## Product Features
 
-- Bulut maliyet verilerinde anomali tespiti
-- Güvenlik verilerinin ve sinyallerinin izlenmesi
-- Tespit edilen anomaliler için AI ajanlarıyla aksiyon önerisi üretimi
-- Kritik aksiyonlarda insan onayı (human-in-the-loop) akışı
-- REST API (FastAPI) ve otomatik Swagger dokümantasyonu
-- Çoklu ajan orkestrasyonu ile karar mekanizması (ilerleyen sprintlerde)
+- Anomaly detection on cloud cost data
+- Monitoring of security data and signals
+- AI-agent-generated action recommendations for detected anomalies
+- Human-in-the-loop approval flow for critical actions
+- REST API (FastAPI) with automatic Swagger documentation
+- Multi-agent orchestration for decision making (in upcoming sprints)
 
-## Hedef Kitle
+## Target Audience
 
-- Bulut altyapısı işleten DevOps / platform mühendisliği ekipleri
-- Bulut harcamalarını yöneten FinOps uzmanları
-- Güvenlik operasyon (SecOps) ekipleri
-- Bulut maliyetlerini kontrol altında tutmak isteyen KOBİ'ler ve startup'lar
+- DevOps / platform engineering teams operating cloud infrastructure
+- FinOps specialists managing cloud spending
+- Security operations (SecOps) teams
+- SMEs and startups that want to keep their cloud costs under control
 
 ## Product Backlog URL
 
@@ -80,29 +80,29 @@ CloudSentinel; bulut maliyet ve güvenlik verilerini izleyen, bu verilerdeki ano
 
 # Sprint 1
 
-- **Sprint Notları**:
-  - Backend stack'i olarak `FastAPI + Python` kullanılmasına karar verilmiştir (bootcamp kılavuzu gereği).
-  - LLM katmanında `Gemini` kullanılması planlanmıştır.
-  - Proje yönetim aracı olarak `ClickUp` seçilmiştir; `GitHub Projects`, önceki dönemlerde yaşanan veri kaybı deneyimleri nedeniyle tercih edilmemiştir.
-  - Daily Scrum görüşmelerinin `WhatsApp` üzerinden yürütülmesine karar verilmiştir.
-  - Sprint 1 kapsamı, sentetik (mock) veri üzerinde çalışan tek bir anomali tespit endpoint'i olarak sınırlandırılmıştır; Gemini entegrasyonu ve çoklu ajan mimarisi sonraki sprintlere bırakılmıştır.
-  - Kod, commit mesajları ve teknik dokümantasyon `İngilizce`; Scrum defteri `Türkçe` tutulmaktadır.
+- **Sprint Notes**:
+  - `FastAPI + Python` was chosen as the backend stack (required by the bootcamp guide).
+  - `Gemini` is planned for the LLM layer.
+  - `ClickUp` was chosen as the project management tool; `GitHub Projects` was not preferred due to data-loss experiences in previous terms.
+  - It was decided that Daily Scrum meetings would be held over `WhatsApp`.
+  - The scope of Sprint 1 was limited to a single anomaly-detection endpoint running on synthetic (mock) data; Gemini integration and the multi-agent architecture were deferred to later sprints.
+  - Code, commit messages and all project documentation, including this scrum notebook, are kept in `English`.
 
-- **Sprint içinde tamamlanması tahmin edilen puan**: 10 Puan
+- **Expected point completion within the sprint**: 10 points
 
-- **Puan tamamlama mantığı**: Proje boyunca tamamlanması planlanan toplam backlog puanı 36'dır. Sprint 1, takımların geç kurulması nedeniyle kısaltıldığından bu sprint için hedef 10 puan olarak belirlenmiştir. Kalan puanlar Sprint 2 (13 puan) ve Sprint 3 (13 puan) arasında paylaştırılmıştır.
+- **Point Completion Logic**: The total backlog planned for the whole project is 36 points. Since Sprint 1 was shortened due to the late formation of teams, the target for this sprint was set at 10 points. The remaining points are split between Sprint 2 (13 points) and Sprint 3 (13 points).
 
-- **Backlog düzeni ve Story seçimleri**: Backlog, ilk yapılacak story'lere göre sıralanmıştır. Story başına tahmin puanı, sprint toplamının yarısından az tutulmuştur. Sprint 1 story'leri: repo iskeleti ve mock maliyet verisi (3 puan), anomali tespit mantığı (4 puan), `GET /anomalies` endpoint'i ve Swagger dokümantasyonu (3 puan). Story'ler ClickUp üzerinde task'lere bölünmüş ve dört takım üyesine atanmıştır.
+- **Backlog order and story selections**: The backlog is ordered by the stories that will be tackled first. The estimate for each story is kept below half of the sprint total. Sprint 1 stories: repository skeleton and mock cost data (3 points), anomaly detection logic (4 points), `GET /anomalies` endpoint with Swagger documentation (3 points). Stories are split into tasks on ClickUp and assigned across the four team members.
 
-- **Daily Scrum**: Daily Scrum görüşmeleri WhatsApp üzerinden yürütülmektedir. <!-- TODO: SS'leri ekle ve linkle: [Sprint 1 Daily Scrum](ProjectManagement/Sprint1Documents/) -->
+- **Daily Scrum**: Daily Scrum meetings are held over WhatsApp. <!-- TODO: SS'leri ekle ve linkle: [Sprint 1 Daily Scrum](ProjectManagement/Sprint1Documents/) -->
 
-- **Sprint board update**: Sprint board ekran görüntüleri: <!-- TODO: ![ClickUp Board](ProjectManagement/Sprint1Documents/clickup_board.png) -->
+- **Sprint board update**: Sprint board screenshots: <!-- TODO: ![ClickUp Board](ProjectManagement/Sprint1Documents/clickup_board.png) -->
 
-- **Ürün Durumu**: Ekran görüntüleri: <!-- TODO: ![Swagger UI](ProjectManagement/Sprint1Documents/swagger_docs.png) -->
+- **Product Status**: Screenshots: <!-- TODO: ![Swagger UI](ProjectManagement/Sprint1Documents/swagger_docs.png) -->
 
 - **Sprint Review**: <!-- TODO (5 Temmuz): alınan kararlar, çıkan ürünün durumu, bir sonraki sprint'e aktarılan maddeler -->
 
-- **Sprint Review Katılımcıları**: `Tuana Aydın, Muratcan Ateş, Çağla Yurtseven, Mert Kurt` <!-- katılmayan olursa çıkar -->
+- **Sprint Review Participants**: `Tuana Aydın, Muratcan Ateş, Çağla Yurtseven, Mert Kurt` <!-- katılmayan olursa çıkar -->
 
 - **Sprint Retrospective**: <!-- TODO (5 Temmuz): iyi gidenler / geliştirilecekler / aksiyon maddeleri -->
 
