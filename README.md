@@ -99,6 +99,13 @@ curl "http://127.0.0.1:8000/anomalies"
 #   compute 2026-06-29 (z=3.61) and database 2026-07-02 (z=3.60)
 ```
 
+Per-service spending breakdown:
+
+```bash
+curl "http://127.0.0.1:8000/costs/summary"
+# → total spend, per-service totals and each service's share of overall cost
+```
+
 Run the test suite with `.venv/bin/pytest`.
 
 Or run it with Docker:

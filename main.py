@@ -29,6 +29,28 @@ app = FastAPI(
 )
 
 
+class ServiceCostSummary(BaseModel):
+    service: str
+    total_cost: float
+    mean_daily_cost: float
+    min_daily_cost: float
+    max_daily_cost: float
+    share_of_total: float
+
+
+class Period(BaseModel):
+    start: str
+    end: str
+
+
+class CostSummaryReport(BaseModel):
+    currency: str
+    period: Period
+    records_analyzed: int
+    total_cost: float
+    services: list[ServiceCostSummary]
+
+
 class Anomaly(BaseModel):
     service: str
     date: str
@@ -45,9 +67,36 @@ class AnomalyReport(BaseModel):
     anomalies: list[Anomaly]
 
 
-def load_daily_costs() -> list:
+def load_dataset() -> dict:
     with DATA_FILE.open() as f:
-        return json.load(f)["daily_costs"]
+        return json.load(f)
+
+
+def load_daily_costs() -> list:
+    return load_dataset()["daily_costs"]
+
+
+def summarize_costs(records: list) -> list[ServiceCostSummary]:
+    """Aggregate daily records into per-service cost summaries, biggest spender first."""
+    by_service = {}
+    for record in records:
+        by_service.setdefault(record["service"], []).append(record["cost"])
+
+    grand_total = sum(cost for costs in by_service.values() for cost in costs)
+
+    summaries = [
+        ServiceCostSummary(
+            service=service,
+            total_cost=round(sum(costs), 2),
+            mean_daily_cost=round(statistics.mean(costs), 2),
+            min_daily_cost=min(costs),
+            max_daily_cost=max(costs),
+            share_of_total=round(sum(costs) / grand_total, 4) if grand_total else 0.0,
+        )
+        for service, costs in by_service.items()
+    ]
+    summaries.sort(key=lambda s: s.total_cost, reverse=True)
+    return summaries
 
 
 def detect_anomalies(records: list, threshold: float) -> list[Anomaly]:
@@ -79,6 +128,21 @@ def detect_anomalies(records: list, threshold: float) -> list[Anomaly]:
 
     anomalies.sort(key=lambda a: abs(a.z_score), reverse=True)
     return anomalies
+
+
+@app.get("/costs/summary")
+def get_cost_summary() -> CostSummaryReport:
+    """Return per-service cost totals and their share of overall spend."""
+    dataset = load_dataset()
+    records = dataset["daily_costs"]
+    services = summarize_costs(records)
+    return CostSummaryReport(
+        currency=dataset["currency"],
+        period=dataset["period"],
+        records_analyzed=len(records),
+        total_cost=round(sum(s.total_cost for s in services), 2),
+        services=services,
+    )
 
 
 @app.get("/anomalies")
