@@ -72,6 +72,42 @@ CloudSentinel is an agentic decision-support system that monitors cloud cost and
 - Security operations (SecOps) teams
 - SMEs and startups that want to keep their cloud costs under control
 
+## What Makes CloudSentinel Different
+
+Cloud providers and observability tools (AWS Cost Anomaly Detection, GCP cost
+alerts, Datadog Cloud Cost Management) can already *detect* cost anomalies.
+CloudSentinel's differentiator is what happens after detection: AI agents
+reason about each anomaly, propose concrete remediation actions with risk
+levels, and a human operator gives the final approval — closing the
+detect → decide → act loop with human-in-the-loop safety instead of leaving
+the operator alone with a raw alert. The planned agent design is documented
+in [docs/architecture.md](docs/architecture.md).
+
+## How to Run (Local)
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/uvicorn main:app --reload
+```
+
+Then open Swagger at `http://127.0.0.1:8000/docs`, or query directly:
+
+```bash
+curl "http://127.0.0.1:8000/anomalies"
+# → detects the 2 planted spikes in the mock data:
+#   compute 2026-06-29 (z=3.61) and database 2026-07-02 (z=3.60)
+```
+
+Run the test suite with `.venv/bin/pytest`.
+
+Or run it with Docker:
+
+```bash
+docker build -t cloudsentinel .
+docker run -p 8000:8000 cloudsentinel
+```
+
 ## Product Backlog URL
 
 [ClickUp Backlog Board](CLICKUP_LINK) <!-- TODO: gerçek linkle değiştir -->
@@ -87,6 +123,7 @@ CloudSentinel is an agentic decision-support system that monitors cloud cost and
   - It was decided that Daily Scrum meetings would be held over `WhatsApp`.
   - The scope of Sprint 1 was limited to a single anomaly-detection endpoint running on synthetic (mock) data; Gemini integration and the multi-agent architecture were deferred to later sprints.
   - Code, commit messages and all project documentation, including this scrum notebook, are kept in `English`.
+  - Samet Kargın was unable to participate during Sprint 1; the team continues with four active members and the Sprint 1 stories were distributed accordingly.
 
 - **Expected point completion within the sprint**: 10 points
 
