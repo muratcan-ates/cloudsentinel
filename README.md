@@ -1,8 +1,3 @@
-<!--
-PUSH ÖNCESİ DOLDURULACAKLAR:
-1. 5 Temmuz: Sprint Review + Retrospective bölümlerini doldur
--->
-
 <img src="docs/img/banner.png" alt="CloudSentinel — the machine watches, the human decides" width="100%" />
 
 <div align="center">
@@ -250,11 +245,22 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
   More: [cost ledger & footer](ProjectManagement/Sprint1Documents/dashboard_ledger.png) · [typed schemas](ProjectManagement/Sprint1Documents/swagger_schemas.png).
 
-- **Sprint Review**: <!-- TODO (5 Temmuz): alınan kararlar, çıkan ürünün durumu, bir sonraki sprint'e aktarılan maddeler -->
+- **Sprint Review**: Sprint 1 closed with all three committed stories completed (10/10 points). Beyond the committed scope, three teammate pull requests were reviewed and merged during the sprint — per-service cost summary (PR #1), case-insensitive service filter for `/anomalies` (PR #2), and `/health` plus CSV export (PR #3) — and the dashboard was pulled forward from Sprint 3 as a bonus, so every team member shipped reviewed, merged code in Sprint 1. The increment was demoed over the dashboard and Swagger and behaves correctly: 27 automated tests, both planted anomalies detected with zero false positives. Decisions taken: security-signal ingestion stays in scope and will flow through the same detection pipeline in Sprint 3 with mock security events, as designed in [docs/architecture.md](docs/architecture.md); the 36-point plan (10/13/13) was confirmed; the dashboard's cobalt palette will be revisited in Sprint 2 after UI reference research. Carried over to Sprint 2: Gemini integration (Analyst + Recommender agents), the human-in-the-loop action lifecycle, the decision-memory store, and a code packaging refactor.
 
-- **Sprint Review Participants**: `Tuana Aydın, Muratcan Ateş, Çağla Yurtseven, Mert Kurt` <!-- katılmayan olursa çıkar -->
+  | Story | Points | Result |
+  |---|---|---|
+  | Repository skeleton & mock cost data | 3 | ✅ Completed |
+  | Anomaly detection logic (z-score) | 4 | ✅ Completed |
+  | `GET /anomalies` endpoint + Swagger documentation | 3 | ✅ Completed |
+  | Bonus: cost summary (PR #1) · service filter (PR #2) · `/health` & CSV export (PR #3) · dashboard | — | ✅ Delivered |
+  | **Total** | **10 / 10** | |
 
-- **Sprint Retrospective**: <!-- TODO (5 Temmuz): iyi gidenler / geliştirilecekler / aksiyon maddeleri -->
+- **Sprint Review Participants**: `Tuana Aydın, Muratcan Ateş, Çağla Yurtseven, Mert Kurt`
+
+- **Sprint Retrospective**:
+  - **What went well**: a working increment was ready two days before the sprint deadline; scope discipline held with no feature creep; the team switched to a pull-request workflow mid-sprint and all three teammate PRs were reviewed and merged the day they were opened; the scrum notebook, architecture design and evidence pack were kept current throughout the sprint.
+  - **What to improve**: the late team formation compressed delivery into the final days of the sprint (clearly visible in the burndown chart); the project-management board was set up late; in-team design review surfaced that the dashboard's cobalt background is tiring on the eyes.
+  - **Action items**: the Sprint 2 board is filled before planning on July 6; evidence (board and daily screenshots) is captured weekly rather than at sprint end; the Gemini API spike is the first task of Sprint 2; the dashboard palette is revised after UI reference research (owner: Tuana); every member ships at least one reviewed PR per sprint.
 
 ---
 
