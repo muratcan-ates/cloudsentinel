@@ -156,10 +156,21 @@ def get_anomalies(
         allow_inf_nan=False,
         description="Z-score threshold at which a daily cost record is flagged.",
     ),
+    service: str | None = Query(
+        None,
+        description="If set, only return anomalies for this service (case-insensitive).",
+    ),
 ) -> AnomalyReport:
-    """Return cost records that deviate anomalously from their service's mean."""
+    """Return cost records that deviate anomalously from their service's mean.
+
+    Anomaly detection always runs over the full dataset so that each
+    service's mean/stdev is computed from its complete history; the
+    optional `service` filter only narrows what's returned.
+    """
     records = load_daily_costs()
     anomalies = detect_anomalies(records, threshold)
+    if service is not None:
+        anomalies = [a for a in anomalies if a.service.lower() == service.lower()]
     return AnomalyReport(
         threshold=threshold,
         records_analyzed=len(records),
