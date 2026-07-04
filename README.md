@@ -157,7 +157,7 @@ docker run -p 8000:8000 cloudsentinel
 | **Python 3.12** | Core language (pinned in venv, CI and Docker) |
 | **FastAPI + Uvicorn** | REST API and ASGI server |
 | **Pydantic v2** | Typed request/response models and validation |
-| **pytest + httpx** | Automated test suite (17 tests) |
+| **pytest + httpx** | Automated test suite (23 tests) |
 | **Docker** | Containerized, deployment-ready packaging |
 | **Gemini** *(Sprint 2)* | LLM layer for the Analyst and Recommender agents |
 | **ClickUp** | Scrum board and product backlog |
@@ -170,7 +170,7 @@ docker run -p 8000:8000 cloudsentinel
 | Anomaly detection API | `GET /anomalies` — per-service z-score with typed responses | ✅ [`main.py`](main.py) |
 | Cost summary API | `GET /costs/summary` — per-service spend aggregates and shares | ✅ [`main.py`](main.py) |
 | Cyber dashboard | Root-served UI: anomaly feed, cost matrix, live threshold control | ✅ [`static/`](static/) |
-| Test suite | 17 pytest cases: detection, aggregation, validation, dashboard | ✅ [`tests/`](tests/) |
+| Test suite | 23 pytest cases: detection, aggregation, filtering, validation, dashboard | ✅ [`tests/`](tests/) |
 | Continuous integration | Tests run on every push via GitHub Actions | 🔜 Sprint 2 |
 | Containerization | `python:3.12-slim` image | ✅ [`Dockerfile`](Dockerfile) |
 | Agent & HITL architecture design | Sprint 2–3 technical plan | ✅ [`docs/architecture.md`](docs/architecture.md) |
