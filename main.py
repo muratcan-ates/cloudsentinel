@@ -1,9 +1,9 @@
 """CloudSentinel API — anomaly detection over cloud cost data.
 
 Sprint 1 scope: anomaly detection over daily cost records (z-score against
-each service's historical mean), a per-service cost summary, and a dashboard
-served at the root. The data source is synthetic (data/mock_costs.json);
-real providers come in later sprints.
+each service's historical mean), a per-service cost summary with CSV export,
+a liveness check, and a dashboard served at the root. The data source is
+synthetic (data/mock_costs.json); real providers come in later sprints.
 """
 
 import csv
@@ -54,6 +54,10 @@ class CostSummaryReport(BaseModel):
     records_analyzed: int
     total_cost: float
     services: list[ServiceCostSummary]
+
+
+class HealthStatus(BaseModel):
+    status: Literal["ok"]
 
 
 class Anomaly(BaseModel):
@@ -151,12 +155,21 @@ def get_cost_summary() -> CostSummaryReport:
 
 
 @app.get("/health")
-def health_check() -> dict:
+def health_check() -> HealthStatus:
     """Simple liveness check for monitoring/deployment."""
-    return {"status": "ok"}
+    return HealthStatus(status="ok")
 
 
-@app.get("/costs/summary/export")
+@app.get(
+    "/costs/summary/export",
+    response_class=Response,
+    responses={
+        200: {
+            "content": {"text/csv": {}},
+            "description": "CSV download of the per-service cost summary.",
+        }
+    },
+)
 def export_cost_summary_csv() -> Response:
     """Return the per-service cost summary as a downloadable CSV file."""
     records = load_daily_costs()
