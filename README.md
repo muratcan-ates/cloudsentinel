@@ -1,8 +1,6 @@
 <!--
 PUSH ÖNCESİ DOLDURULACAKLAR:
-1. Miro board SS -> ProjectManagement/Sprint1Documents/miro_board.png
-2. Ürün durumu SS (dashboard + Swagger) -> ProjectManagement/Sprint1Documents/
-3. 5 Temmuz: Sprint Review + Retrospective bölümlerini doldur
+1. 5 Temmuz: Sprint Review + Retrospective bölümlerini doldur
 -->
 
 <div align="center">
@@ -234,9 +232,21 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Daily Scrum**: Daily communication runs over WhatsApp; team meetings and huddles are held on Slack. Evidence in [ProjectManagement/Sprint1Documents/](ProjectManagement/Sprint1Documents/): [team formation & GitHub sharing](ProjectManagement/Sprint1Documents/slack_team_github_sharing.jpeg) · [project pitch](ProjectManagement/Sprint1Documents/slack_project_pitch.jpeg) · [meeting scheduling & 2h huddle](ProjectManagement/Sprint1Documents/slack_meeting_and_huddle.jpeg) · [in-team design review request](ProjectManagement/Sprint1Documents/whatsapp_design_review_request.jpeg) · [design feedback & decision](ProjectManagement/Sprint1Documents/whatsapp_design_feedback.jpeg).
 
-- **Sprint board update**: Sprint board screenshots: <!-- TODO: ![Miro Board](ProjectManagement/Sprint1Documents/miro_board.png) -->
+- **Sprint board update**:
 
-- **Product Status**: Screenshots: <!-- TODO: ![Swagger UI](ProjectManagement/Sprint1Documents/swagger_docs.png) -->
+  ![Miro Scrum Board](ProjectManagement/Sprint1Documents/miro_board.jpeg)
+
+  ![Sprint 1 Burndown](ProjectManagement/Sprint1Documents/burndown_sprint1.png)
+
+  Detail: [Done column with per-member assignments](ProjectManagement/Sprint1Documents/miro_board_done_column.jpeg).
+
+- **Product Status**: the increment runs locally — dashboard at `/`, Swagger at `/docs`.
+
+  ![CloudSentinel dashboard](ProjectManagement/Sprint1Documents/dashboard.png)
+
+  ![Swagger UI — four endpoints](ProjectManagement/Sprint1Documents/swagger_docs.png)
+
+  More: [cost ledger & footer](ProjectManagement/Sprint1Documents/dashboard_ledger.png) · [typed schemas](ProjectManagement/Sprint1Documents/swagger_schemas.png).
 
 - **Sprint Review**: <!-- TODO (5 Temmuz): alınan kararlar, çıkan ürünün durumu, bir sonraki sprint'e aktarılan maddeler -->
 
