@@ -1,7 +1,7 @@
 """CloudSentinel API — anomaly detection over cloud cost data.
 
-Sprint 1 scope: a single endpoint that flags daily cost records deviating
-from their service's historical mean, using a z-score threshold. The data
+Sprint 1 scope: anomaly detection over daily cost records (z-score against
+each service's historical mean) plus a per-service cost summary. The data
 source is synthetic (data/mock_costs.json); real providers come in later
 sprints.
 """
