@@ -1,10 +1,9 @@
 <!--
 PUSH ÖNCESİ DOLDURULACAKLAR:
-1. CLICKUP_LINK token'ını gerçek ClickUp board linkiyle değiştir
-2. Daily Scrum SS'leri -> ProjectManagement/Sprint1Documents/ klasörüne ekle ve linkle
-3. ClickUp board SS -> ProjectManagement/Sprint1Documents/clickup_board.png
-4. Ürün durumu SS (Swagger /docs) -> ProjectManagement/Sprint1Documents/swagger_docs.png
-5. 5 Temmuz: Sprint Review + Retrospective bölümlerini doldur
+1. Daily Scrum SS'leri -> ProjectManagement/Sprint1Documents/ klasörüne ekle ve linkle
+2. Miro board SS -> ProjectManagement/Sprint1Documents/miro_board.png
+3. Ürün durumu SS (dashboard + Swagger) -> ProjectManagement/Sprint1Documents/
+4. 5 Temmuz: Sprint Review + Retrospective bölümlerini doldur
 -->
 
 <div align="center">
@@ -160,7 +159,7 @@ docker run -p 8000:8000 cloudsentinel
 | **pytest + httpx** | Automated test suite (23 tests) |
 | **Docker** | Containerized, deployment-ready packaging |
 | **Gemini** *(Sprint 2)* | LLM layer for the Analyst and Recommender agents |
-| **ClickUp** | Scrum board and product backlog |
+| **Miro** | Scrum board and product backlog (official bootcamp template) |
 
 ## Project Status
 
@@ -186,7 +185,7 @@ Mapping of the official bootcamp scrum-notebook requirements to their evidence i
 |---|---|---|
 | Team name & roles documented | ✅ | [Team Name](#team-name) · [Team Members](#team-members) |
 | Product name, description, features, target audience | ✅ | [Information About the Product](#information-about-the-product) |
-| Product Backlog board (ClickUp) | 🔄 in setup | [Product Backlog URL](#product-backlog-url) |
+| Product Backlog board (Miro) | ✅ | [Product Backlog URL](#product-backlog-url) |
 | Sprint Notes (never left empty) | ✅ | [Sprint 1](#sprint-1) |
 | Point estimates & completion logic | ✅ | [Sprint 1](#sprint-1) |
 | Daily Scrum documentation | 🔄 being collected | `ProjectManagement/Sprint1Documents/` |
@@ -212,7 +211,7 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 ## Product Backlog URL
 
-[ClickUp Backlog Board](CLICKUP_LINK) <!-- TODO: gerçek linkle değiştir -->
+[Miro Scrum Board — official bootcamp template](https://miro.com/app/board/uXjVH-p0md4=/?share_link_id=656166042252)
 
 ---
 
@@ -221,7 +220,7 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 - **Sprint Notes**:
   - `FastAPI + Python` was chosen as the backend stack (required by the bootcamp guide).
   - `Gemini` is planned for the LLM layer.
-  - `ClickUp` was chosen as the project management tool; `GitHub Projects` was not preferred due to data-loss experiences in previous terms.
+  - `Miro` (the official bootcamp Scrum template) was chosen as the project management tool; `GitHub Projects` was not preferred due to data-loss experiences in previous terms.
   - It was decided that Daily Scrum meetings would be held over `WhatsApp`.
   - The scope of Sprint 1 was limited to a single anomaly-detection endpoint running on synthetic (mock) data; Gemini integration and the multi-agent architecture were deferred to later sprints.
   - Code, commit messages and all project documentation, including this scrum notebook, are kept in `English`.
@@ -235,7 +234,7 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Daily Scrum**: Daily Scrum meetings are held over WhatsApp. <!-- TODO: SS'leri ekle ve linkle: [Sprint 1 Daily Scrum](ProjectManagement/Sprint1Documents/) -->
 
-- **Sprint board update**: Sprint board screenshots: <!-- TODO: ![ClickUp Board](ProjectManagement/Sprint1Documents/clickup_board.png) -->
+- **Sprint board update**: Sprint board screenshots: <!-- TODO: ![Miro Board](ProjectManagement/Sprint1Documents/miro_board.png) -->
 
 - **Product Status**: Screenshots: <!-- TODO: ![Swagger UI](ProjectManagement/Sprint1Documents/swagger_docs.png) -->
 
