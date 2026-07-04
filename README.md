@@ -155,7 +155,7 @@ docker run -p 8000:8000 cloudsentinel
 | **Python 3.12** | Core language (pinned in venv, CI and Docker) |
 | **FastAPI + Uvicorn** | REST API and ASGI server |
 | **Pydantic v2** | Typed request/response models and validation |
-| **pytest + httpx** | Automated test suite (23 tests) |
+| **pytest + httpx** | Automated test suite (27 tests) |
 | **Docker** | Containerized, deployment-ready packaging |
 | **Gemini** *(Sprint 2)* | LLM layer for the Analyst and Recommender agents |
 | **Miro** | Scrum board and product backlog (official bootcamp template) |
@@ -168,10 +168,11 @@ docker run -p 8000:8000 cloudsentinel
 | Anomaly detection API | `GET /anomalies` — per-service z-score with typed responses | ✅ [`main.py`](main.py) |
 | Cost summary API | `GET /costs/summary` — per-service spend aggregates and shares | ✅ [`main.py`](main.py) |
 | Cyber dashboard | Root-served UI: anomaly feed, cost matrix, live threshold control | ✅ [`static/`](static/) |
-| Test suite | 23 pytest cases: detection, aggregation, filtering, validation, dashboard | ✅ [`tests/`](tests/) |
+| Test suite | 27 pytest cases: detection, aggregation, filtering, export, validation, dashboard | ✅ [`tests/`](tests/) |
 | Continuous integration | Tests run on every push via GitHub Actions | 🔜 Sprint 2 |
 | Containerization | `python:3.12-slim` image | ✅ [`Dockerfile`](Dockerfile) |
 | Agent & HITL architecture design | Sprint 2–3 technical plan | ✅ [`docs/architecture.md`](docs/architecture.md) |
+| Health check & CSV export | `GET /health` liveness · downloadable cost summary (PR #3) | ✅ [`main.py`](main.py) |
 | Gemini agents (Analyst + Recommender) | LLM-based anomaly analysis and action proposals | 🔜 Sprint 2 |
 | Human-in-the-loop approval flow | `proposed → approved/rejected → executed` action lifecycle | 🔜 Sprint 2 |
 | Security signals · deployment | Same pipeline extended + live demo | 🔜 Sprint 3 |
@@ -191,7 +192,7 @@ Mapping of the official bootcamp scrum-notebook requirements to their evidence i
 | Sprint board screenshots | 🔄 after board setup | `ProjectManagement/Sprint1Documents/` |
 | Product status screenshots | 🔄 being collected | `ProjectManagement/Sprint1Documents/` |
 | Sprint Review & Retrospective | 🗓 due 5 July | [Sprint 1](#sprint-1) |
-| Working product increment | ✅ | [`GET /anomalies`](main.py) · [`GET /costs/summary`](main.py) · [tests](tests/) |
+| Working product increment | ✅ | [`GET /anomalies`](main.py) · [`GET /costs/summary`](main.py) · [CSV export & `/health`](main.py) · [tests](tests/) |
 
 ## Scope & Limitations (By Design)
 
@@ -199,8 +200,8 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Synthetic mock data only** — real cloud-provider connectors are outside the
   competition scope; the detection pipeline is data-source agnostic by design.
-- **Read-only endpoints for now** — `/anomalies` and `/costs/summary` only
-  observe; the action-proposal and approval endpoints arrive with the
+- **Read-only endpoints for now** — `/anomalies`, `/costs/summary` (+ CSV
+  export) and `/health` only observe; the action-proposal and approval endpoints arrive with the
   human-in-the-loop flow in Sprint 2
   (see [docs/architecture.md](docs/architecture.md)).
 - **Security signals not ingested yet** — the scope decision (extend the same
