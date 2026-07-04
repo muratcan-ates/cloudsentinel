@@ -3,6 +3,8 @@ PUSH ÖNCESİ DOLDURULACAKLAR:
 1. 5 Temmuz: Sprint Review + Retrospective bölümlerini doldur
 -->
 
+<img src="docs/img/banner.png" alt="CloudSentinel — the machine watches, the human decides" width="100%" />
+
 <div align="center">
 
 # ☁️ CloudSentinel
