@@ -1,9 +1,8 @@
 <!--
 PUSH ÖNCESİ DOLDURULACAKLAR:
-1. Daily Scrum SS'leri -> ProjectManagement/Sprint1Documents/ klasörüne ekle ve linkle
-2. Miro board SS -> ProjectManagement/Sprint1Documents/miro_board.png
-3. Ürün durumu SS (dashboard + Swagger) -> ProjectManagement/Sprint1Documents/
-4. 5 Temmuz: Sprint Review + Retrospective bölümlerini doldur
+1. Miro board SS -> ProjectManagement/Sprint1Documents/miro_board.png
+2. Ürün durumu SS (dashboard + Swagger) -> ProjectManagement/Sprint1Documents/
+3. 5 Temmuz: Sprint Review + Retrospective bölümlerini doldur
 -->
 
 <div align="center">
@@ -232,7 +231,7 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Backlog order and story selections**: The backlog is ordered by the stories that will be tackled first. The estimate for each story is kept below half of the sprint total. Sprint 1 stories: repository skeleton and mock cost data (3 points), anomaly detection logic (4 points), `GET /anomalies` endpoint with Swagger documentation (3 points). Stories are split into tasks on the Miro board and assigned across the four team members.
 
-- **Daily Scrum**: Daily Scrum meetings are held over WhatsApp. <!-- TODO: SS'leri ekle ve linkle: [Sprint 1 Daily Scrum](ProjectManagement/Sprint1Documents/) -->
+- **Daily Scrum**: Daily communication runs over WhatsApp; team meetings and huddles are held on Slack. Evidence in [ProjectManagement/Sprint1Documents/](ProjectManagement/Sprint1Documents/): [team formation & GitHub sharing](ProjectManagement/Sprint1Documents/slack_team_github_sharing.jpeg) · [project pitch](ProjectManagement/Sprint1Documents/slack_project_pitch.jpeg) · [meeting scheduling & 2h huddle](ProjectManagement/Sprint1Documents/slack_meeting_and_huddle.jpeg) · [in-team design review request](ProjectManagement/Sprint1Documents/whatsapp_design_review_request.jpeg) · [design feedback & decision](ProjectManagement/Sprint1Documents/whatsapp_design_feedback.jpeg).
 
 - **Sprint board update**: Sprint board screenshots: <!-- TODO: ![Miro Board](ProjectManagement/Sprint1Documents/miro_board.png) -->
 
