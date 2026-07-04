@@ -158,6 +158,7 @@ def get_anomalies(
     ),
     service: str | None = Query(
         None,
+        min_length=1,
         description="If set, only return anomalies for this service (case-insensitive).",
     ),
 ) -> AnomalyReport:
@@ -169,8 +170,9 @@ def get_anomalies(
     """
     records = load_daily_costs()
     anomalies = detect_anomalies(records, threshold)
-    if service is not None:
-        anomalies = [a for a in anomalies if a.service.lower() == service.lower()]
+    service_filter = service.strip().lower() if service else None
+    if service_filter:
+        anomalies = [a for a in anomalies if a.service.lower() == service_filter]
     return AnomalyReport(
         threshold=threshold,
         records_analyzed=len(records),

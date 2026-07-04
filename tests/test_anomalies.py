@@ -47,6 +47,8 @@ def test_invalid_thresholds_are_rejected():
     for value in ["0", "-1", "abc", "inf", "nan"]:
         response = client.get(f"/anomalies?threshold={value}")
         assert response.status_code == 422, value
+
+
 def test_service_filter_returns_only_matching_service():
     body = client.get("/anomalies?threshold=1.5&service=compute").json()
     assert body["anomaly_count"] > 0
@@ -69,6 +71,17 @@ def test_service_filter_does_not_change_records_analyzed():
     unfiltered = client.get("/anomalies?threshold=1.5").json()
     filtered = client.get("/anomalies?threshold=1.5&service=compute").json()
     assert filtered["records_analyzed"] == unfiltered["records_analyzed"]
+
+
+def test_service_filter_trims_whitespace():
+    body = client.get("/anomalies?threshold=1.5&service=%20compute%20").json()
+    assert body["anomaly_count"] > 0
+    assert all(a["service"] == "compute" for a in body["anomalies"])
+
+
+def test_empty_service_filter_is_rejected():
+    assert client.get("/anomalies?service=").status_code == 422
+
 
 def test_zero_stdev_service_is_skipped():
     records = [
