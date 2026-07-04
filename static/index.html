@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CloudSentinel — Anomaly Watch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=UnifrakturMaguntia&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <canvas id="particles" aria-hidden="true"></canvas>
+  <div class="scanlines" aria-hidden="true"></div>
+
+  <div class="frame">
+    <header>
+      <div class="brand">
+        <div class="omnitrix" aria-hidden="true"><span></span></div>
+        <div class="brand-text">
+          <h1>CLOUD<em>//</em>SENTINEL</h1>
+          <p class="tagline"><span class="fraktur">artificial vigilance</span> · human approval</p>
+        </div>
+      </div>
+      <div class="status-chips">
+        <span class="chip online" id="chip-system">SYSTEM ONLINE</span>
+        <span class="chip">MODE: MOCK DATA</span>
+        <span class="chip">SPRINT I</span>
+      </div>
+    </header>
+
+    <section class="controls panel-edge">
+      <label for="threshold">SCAN SENSITIVITY <small>(z-score threshold)</small></label>
+      <div class="control-row">
+        <input type="range" id="threshold" min="0.5" max="4" step="0.25" value="2" />
+        <output id="threshold-value" for="threshold">2.00</output>
+        <button id="rescan" type="button">RE-SCAN ▸</button>
+      </div>
+    </section>
+
+    <main>
+      <section class="panel" id="anomaly-panel">
+        <h2><span class="blip" aria-hidden="true"></span> ANOMALY SCAN</h2>
+        <p class="panel-sub" id="anomaly-meta">scanning…</p>
+        <div id="anomaly-list" class="stack"></div>
+      </section>
+
+      <section class="panel" id="cost-panel">
+        <h2><span class="blip cyan" aria-hidden="true"></span> COST MATRIX</h2>
+        <p class="panel-sub" id="cost-meta">loading…</p>
+        <div class="total-row">
+          <span class="total-label">TOTAL SPEND</span>
+          <span class="total-value" id="total-cost">—</span>
+        </div>
+        <div id="cost-bars" class="stack"></div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="agent-bar">
+        <span class="agent-dot" aria-hidden="true"></span>
+        AGENT LAYER: <strong>OFFLINE</strong> — Gemini Analyst &amp; Recommender deploy in
+        <span class="fraktur big">Sprint II</span>; every action awaits a human hand.
+      </div>
+      <p class="credits">Team CloudSentinel · Group 60 · YZTA Bootcamp MMXXVI</p>
+    </footer>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -125,7 +125,7 @@ python3 -m venv .venv
 .venv/bin/uvicorn main:app --reload
 ```
 
-Then open Swagger at `http://127.0.0.1:8000/docs`, or query directly:
+Then open the dashboard at `http://127.0.0.1:8000/` (Swagger at `/docs`), or query directly:
 
 ```bash
 curl "http://127.0.0.1:8000/anomalies"
@@ -170,13 +170,14 @@ docker run -p 8000:8000 cloudsentinel
 | Mock cost dataset | 4 services × 14 days of synthetic costs with 2 planted spikes | ✅ [`data/mock_costs.json`](data/mock_costs.json) |
 | Anomaly detection API | `GET /anomalies` — per-service z-score with typed responses | ✅ [`main.py`](main.py) |
 | Cost summary API | `GET /costs/summary` — per-service spend aggregates and shares | ✅ [`main.py`](main.py) |
-| Test suite | 14 pytest cases: detection, aggregation, validation, edge cases | ✅ [`tests/`](tests/) |
+| Cyber dashboard | Root-served UI: anomaly feed, cost matrix, live threshold control | ✅ [`static/`](static/) |
+| Test suite | 17 pytest cases: detection, aggregation, validation, dashboard | ✅ [`tests/`](tests/) |
 | Continuous integration | Tests run on every push | ✅ [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
 | Containerization | `python:3.12-slim` image | ✅ [`Dockerfile`](Dockerfile) |
 | Agent & HITL architecture design | Sprint 2–3 technical plan | ✅ [`docs/architecture.md`](docs/architecture.md) |
 | Gemini agents (Analyst + Recommender) | LLM-based anomaly analysis and action proposals | 🔜 Sprint 2 |
 | Human-in-the-loop approval flow | `proposed → approved/rejected → executed` action lifecycle | 🔜 Sprint 2 |
-| Security signals · dashboard · deployment | Same pipeline extended + live demo | 🔜 Sprint 3 |
+| Security signals · deployment | Same pipeline extended + live demo | 🔜 Sprint 3 |
 
 ## Requirements Compliance
 

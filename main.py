@@ -1,9 +1,9 @@
 """CloudSentinel API — anomaly detection over cloud cost data.
 
 Sprint 1 scope: anomaly detection over daily cost records (z-score against
-each service's historical mean) plus a per-service cost summary. The data
-source is synthetic (data/mock_costs.json); real providers come in later
-sprints.
+each service's historical mean), a per-service cost summary, and a dashboard
+served at the root. The data source is synthetic (data/mock_costs.json);
+real providers come in later sprints.
 """
 
 import json
@@ -12,9 +12,12 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, Query
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 DATA_FILE = Path(__file__).parent / "data" / "mock_costs.json"
+STATIC_DIR = Path(__file__).parent / "static"
 
 # Flagged records at or above this |z-score| are critical; the rest are warnings.
 CRITICAL_Z_SCORE = 3.0
@@ -163,3 +166,12 @@ def get_anomalies(
         anomaly_count=len(anomalies),
         anomalies=anomalies,
     )
+
+
+@app.get("/", include_in_schema=False)
+def dashboard() -> FileResponse:
+    """Serve the CloudSentinel dashboard."""
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
