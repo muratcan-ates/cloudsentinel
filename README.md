@@ -20,7 +20,6 @@ PUSH ÖNCESİ DOLDURULACAKLAR:
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.128-009688?logo=fastapi&logoColor=white)
 ![Pydantic](https://img.shields.io/badge/Pydantic-v2-E92063?logo=pydantic&logoColor=white)
-![Tests](https://github.com/muratcan-ates/cloudsentinel/actions/workflows/ci.yml/badge.svg)
 ![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)
 ![Gemini](https://img.shields.io/badge/Gemini-Sprint_2-8E75B2?logo=googlegemini&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
@@ -158,7 +157,7 @@ docker run -p 8000:8000 cloudsentinel
 | **Python 3.12** | Core language (pinned in venv, CI and Docker) |
 | **FastAPI + Uvicorn** | REST API and ASGI server |
 | **Pydantic v2** | Typed request/response models and validation |
-| **pytest + httpx** | Automated test suite (runs on every push via GitHub Actions) |
+| **pytest + httpx** | Automated test suite (17 tests) |
 | **Docker** | Containerized, deployment-ready packaging |
 | **Gemini** *(Sprint 2)* | LLM layer for the Analyst and Recommender agents |
 | **ClickUp** | Scrum board and product backlog |
@@ -172,7 +171,7 @@ docker run -p 8000:8000 cloudsentinel
 | Cost summary API | `GET /costs/summary` — per-service spend aggregates and shares | ✅ [`main.py`](main.py) |
 | Cyber dashboard | Root-served UI: anomaly feed, cost matrix, live threshold control | ✅ [`static/`](static/) |
 | Test suite | 17 pytest cases: detection, aggregation, validation, dashboard | ✅ [`tests/`](tests/) |
-| Continuous integration | Tests run on every push | ✅ [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
+| Continuous integration | Tests run on every push via GitHub Actions | 🔜 Sprint 2 |
 | Containerization | `python:3.12-slim` image | ✅ [`Dockerfile`](Dockerfile) |
 | Agent & HITL architecture design | Sprint 2–3 technical plan | ✅ [`docs/architecture.md`](docs/architecture.md) |
 | Gemini agents (Analyst + Recommender) | LLM-based anomaly analysis and action proposals | 🔜 Sprint 2 |
@@ -194,7 +193,7 @@ Mapping of the official bootcamp scrum-notebook requirements to their evidence i
 | Sprint board screenshots | 🔄 after board setup | `ProjectManagement/Sprint1Documents/` |
 | Product status screenshots | 🔄 being collected | `ProjectManagement/Sprint1Documents/` |
 | Sprint Review & Retrospective | 🗓 due 5 July | [Sprint 1](#sprint-1) |
-| Working product increment | ✅ | [`GET /anomalies`](main.py) · [`GET /costs/summary`](main.py) · [tests](tests/) · CI |
+| Working product increment | ✅ | [`GET /anomalies`](main.py) · [`GET /costs/summary`](main.py) · [tests](tests/) |
 
 ## Scope & Limitations (By Design)
 
