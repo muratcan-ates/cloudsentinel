@@ -11,7 +11,7 @@ def test_dashboard_served_at_root():
     response = client.get("/")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert "CLOUD" in response.text
+    assert "CloudSentinel" in response.text
 
 
 def test_static_assets_served():

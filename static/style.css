@@ -8,6 +8,7 @@
 
 :root {
   --ink: #0a0e1a;
+  --cobalt: #2430e0;
   --bone: #edeae2;
   --slate: #7e88a0;
   --green: #46e886;
@@ -26,20 +27,59 @@ body {
   min-height: 100vh;
 }
 
-/* the page's single texture: a dithered halftone sky fading out below the masthead */
-body::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 45vh;
-  pointer-events: none;
-  background-image:
-    radial-gradient(rgba(126, 136, 160, 0.05) 1px, transparent 1px),
-    radial-gradient(rgba(126, 136, 160, 0.05) 1px, transparent 1px);
-  background-size: 3px 3px, 6px 6px;
-  -webkit-mask-image: linear-gradient(to bottom, black, transparent);
-  mask-image: linear-gradient(to bottom, black, transparent);
+/* ---------- the poster (masthead as an artwork) ---------- */
+
+.poster {
+  background: var(--cobalt);
+  color: #ffffff;
 }
+
+.poster-frame {
+  position: relative;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 76px clamp(20px, 6vw, 64px) 0;
+  text-align: center;
+}
+
+.poster-corner {
+  position: absolute;
+  top: 26px;
+  font: 500 11px/1.6 "Inter", sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.8);
+}
+.poster-corner.left { left: clamp(20px, 6vw, 64px); }
+.poster-corner.right { right: clamp(20px, 6vw, 64px); }
+
+.poster-kicker {
+  font: 400 14px/1.6 "Inter", sans-serif;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+h1.pixel-black {
+  font-family: "Jacquard 24", "UnifrakturMaguntia", serif;
+  font-weight: 400;
+  font-size: clamp(38px, 11.5vw, 148px);
+  line-height: 0.95;
+  color: #ffffff;
+  margin-top: 4px;
+}
+h1 .period { color: var(--green); }
+
+.poster-tag { margin-top: 2px; }
+.poster-tag .fraktur { font-size: 23px; color: rgba(255, 255, 255, 0.92); }
+
+.dither-art {
+  display: block;
+  width: min(720px, 92%);
+  margin: 30px auto 0;
+  image-rendering: pixelated;
+}
+
+.poster .edition { padding: 26px 0 30px; }
 
 ::selection { background: var(--cyan); color: var(--ink); }
 :focus-visible { outline: 1px solid var(--cyan); outline-offset: 3px; }
@@ -48,7 +88,7 @@ body::before {
   position: relative;
   max-width: 960px;
   margin: 0 auto;
-  padding: clamp(48px, 10vh, 96px) clamp(20px, 6vw, 64px) 64px;
+  padding: 40px clamp(20px, 6vw, 64px) 64px;
 }
 
 .microcap {
@@ -60,35 +100,11 @@ body::before {
 
 .fraktur { font-family: "UnifrakturMaguntia", serif; color: var(--bone); }
 
-/* ---------- masthead ---------- */
-
-.masthead { text-align: center; }
-
-.dateline { margin-bottom: 28px; }
-
-h1 {
-  font: 600 clamp(28px, 6vw, 44px)/1.1 "Inter", sans-serif;
-  letter-spacing: 0.06em;
-  color: var(--bone);
-}
-h1 .period { color: var(--green); }
-
-.tagline { margin-top: 10px; color: var(--slate); font-size: 16px; }
-.tagline .fraktur { font-size: 20px; }
-
-/* the double rule — used exactly once on the page */
-.double-rule {
-  height: 5px;
-  border-top: 1px solid var(--hair);
-  border-bottom: 1px solid var(--hair);
-  margin: 28px 0 16px;
-}
-
 .edition {
   font: 500 11px/1.6 "Inter", sans-serif;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--slate);
+  color: rgba(255, 255, 255, 0.85);
 }
 .edition::before {
   content: "";
@@ -105,8 +121,7 @@ h1 .period { color: var(--green); }
 /* ---------- colophon (controls) ---------- */
 
 .colophon {
-  margin: 64px 0 0;
-  border-top: 1px solid var(--hair);
+  margin: 24px 0 0;
   padding-top: 24px;
 }
 .colophon .hint { text-transform: none; letter-spacing: 0.02em; font-weight: 400; }
