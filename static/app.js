@@ -1,13 +1,14 @@
-/* CloudSentinel dashboard — fetches /anomalies and /costs/summary, renders the panels,
-   and drifts a field of pixel squares in the background. */
+/* CloudSentinel ledger — fetches /anomalies and /costs/summary and typesets the panels. */
 
 const thresholdInput = document.getElementById("threshold");
 const thresholdValue = document.getElementById("threshold-value");
 const rescanButton = document.getElementById("rescan");
-const systemChip = document.getElementById("chip-system");
+const editionLine = document.getElementById("chip-system");
+const anomalyList = document.getElementById("anomaly-list");
+const costBars = document.getElementById("cost-bars");
 
-const fmtMoney = (value, currency) =>
-  `${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+const fmtNumber = (value) =>
+  value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 async function fetchJson(url) {
   const response = await fetch(url);
@@ -16,84 +17,88 @@ async function fetchJson(url) {
 }
 
 function renderAnomalies(report) {
-  const list = document.getElementById("anomaly-list");
-  const meta = document.getElementById("anomaly-meta");
-  meta.textContent =
+  document.getElementById("anomaly-meta").textContent =
     `${report.records_analyzed} records scanned · threshold ${report.threshold.toFixed(2)} · ` +
     `${report.anomaly_count} anomal${report.anomaly_count === 1 ? "y" : "ies"} detected`;
 
-  list.innerHTML = "";
+  anomalyList.innerHTML = "";
   if (report.anomalies.length === 0) {
-    list.innerHTML = `<div class="all-clear">ALL CLEAR — NO PHANTOMS IN THE MACHINE</div>`;
+    anomalyList.innerHTML = `<p class="all-quiet">All quiet.</p>`;
     return new Set();
   }
 
   for (const anomaly of report.anomalies) {
-    const card = document.createElement("div");
-    card.className = `anomaly-card ${anomaly.severity}`;
-    card.innerHTML = `
+    const entry = document.createElement("article");
+    entry.className = `entry ${anomaly.severity}`;
+    entry.innerHTML = `
+      <span class="sq" aria-hidden="true"></span>
       <div>
-        <div class="anomaly-service">${anomaly.service}</div>
-        <div class="anomaly-date">${anomaly.date}</div>
-        <div class="anomaly-cost">${anomaly.cost.toFixed(2)} <small>vs mean ${anomaly.service_mean.toFixed(2)}</small></div>
+        <p class="service">${anomaly.service}</p>
+        <p class="date">${anomaly.date}</p>
+        <p class="figures">${fmtNumber(anomaly.cost)} <span class="dim">vs mean ${fmtNumber(anomaly.service_mean)}</span></p>
       </div>
-      <div class="anomaly-z">z ${anomaly.z_score.toFixed(2)}</div>
-      <div class="anomaly-badge">[ ${anomaly.severity.toUpperCase()} ] ${
-        anomaly.severity === "critical" ? "OPERATOR REVIEW REQUIRED" : "WATCHLISTED"
-      }</div>`;
-    list.appendChild(card);
+      <div class="entry-rail">
+        <p class="z">${anomaly.z_score.toFixed(2)}</p>
+        <p class="sev-word">${anomaly.severity}</p>
+      </div>`;
+    anomalyList.appendChild(entry);
   }
   return new Set(report.anomalies.map((a) => a.service));
 }
 
-function renderCosts(report, hauntedServices) {
-  const meta = document.getElementById("cost-meta");
-  meta.textContent = `${report.period.start} → ${report.period.end} · ${report.services.length} services`;
+function renderCosts(report, flaggedServices) {
+  document.getElementById("cost-meta").textContent =
+    `${report.period.start} → ${report.period.end} · ${report.services.length} services`;
 
-  document.getElementById("total-cost").textContent = fmtMoney(report.total_cost, report.currency);
+  document.getElementById("total-cost").innerHTML =
+    `${fmtNumber(report.total_cost)} <small>${report.currency}</small>`;
 
-  const bars = document.getElementById("cost-bars");
-  bars.innerHTML = "";
-  for (const service of report.services) {
-    const haunted = hauntedServices.has(service.service);
+  costBars.innerHTML = "";
+  report.services.forEach((service, index) => {
+    const flagged = flaggedServices.has(service.service);
+    const share = (service.share_of_total * 100).toFixed(1);
     const row = document.createElement("div");
-    row.className = `cost-row${haunted ? " haunted" : ""}`;
+    row.className = "cost-row";
     row.innerHTML = `
-      <div class="cost-head">
-        <span class="cost-name">${service.service}${
-          haunted ? '<span class="phantom">⌁ phantom traced</span>' : ""
+      <div class="cost-line">
+        <span class="idx">${String(index + 1).padStart(2, "0")}</span>
+        <span class="service">${service.service}${
+          flagged
+            ? '<span class="phantom-sq" aria-hidden="true"></span><span class="phantom-note">phantom traced</span>'
+            : ""
         }</span>
-        <span class="cost-nums"><b>${fmtMoney(service.total_cost, report.currency)}</b> · ${(service.share_of_total * 100).toFixed(1)}%</span>
+        <span class="amount">${fmtNumber(service.total_cost)} <small>${report.currency}</small> <span class="share">· ${share}%</span></span>
       </div>
       <div class="bar"><div class="bar-fill" style="width:0%"></div></div>`;
-    bars.appendChild(row);
+    costBars.appendChild(row);
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
-        row.querySelector(".bar-fill").style.width = `${(service.share_of_total * 100).toFixed(1)}%`;
+        row.querySelector(".bar-fill").style.width = `${share}%`;
       })
     );
-  }
+  });
 }
 
 async function scan() {
   const threshold = parseFloat(thresholdInput.value).toFixed(2);
   thresholdValue.textContent = threshold;
+  anomalyList.style.opacity = "0.35";
+  costBars.style.opacity = "0.35";
   try {
     const [anomalies, costs] = await Promise.all([
       fetchJson(`/anomalies?threshold=${threshold}`),
       fetchJson("/costs/summary"),
     ]);
-    const haunted = renderAnomalies(anomalies);
-    renderCosts(costs, haunted);
-    systemChip.textContent = "SYSTEM ONLINE";
-    systemChip.classList.remove("alert");
-    systemChip.classList.add("online");
+    renderCosts(costs, renderAnomalies(anomalies));
+    editionLine.textContent = "SYSTEM ONLINE — MOCK DATA — SPRINT I";
+    editionLine.classList.remove("down");
   } catch (error) {
-    systemChip.textContent = "LINK LOST";
-    systemChip.classList.remove("online");
-    systemChip.classList.add("alert");
-    document.getElementById("anomaly-list").innerHTML =
-      `<div class="error-box">SIGNAL LOST — ${error.message}</div>`;
+    editionLine.textContent = "LINK LOST — MOCK DATA — SPRINT I";
+    editionLine.classList.add("down");
+    anomalyList.innerHTML = `<p class="error-note">Signal lost — ${error.message}.</p>`;
+  } finally {
+    anomalyList.style.opacity = "1";
+    costBars.style.opacity = "1";
   }
 }
 
@@ -103,54 +108,4 @@ thresholdInput.addEventListener("input", () => {
 thresholdInput.addEventListener("change", scan);
 rescanButton.addEventListener("click", scan);
 
-/* ---------- pixel particle field ---------- */
-
-const canvas = document.getElementById("particles");
-const ctx = canvas.getContext("2d");
-const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-let squares = [];
-
-function resizeCanvas() {
-  canvas.width = document.documentElement.clientWidth;
-  canvas.height = document.documentElement.clientHeight;
-}
-
-function seedSquares() {
-  const count = Math.min(70, Math.floor(canvas.width / 18));
-  squares = Array.from({ length: count }, () => ({
-    x: Math.random() * canvas.width,
-    y: Math.random() * canvas.height,
-    size: 2 + Math.floor(Math.random() * 6),
-    speed: 0.15 + Math.random() * 0.5,
-    cyan: Math.random() < 0.12,
-    phase: Math.random() * Math.PI * 2,
-  }));
-}
-
-function drawSquares(time) {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  for (const square of squares) {
-    const flicker = 0.35 + 0.65 * Math.abs(Math.sin(square.phase + time / 900));
-    ctx.fillStyle = square.cyan
-      ? `rgba(77, 227, 255, ${0.5 * flicker})`
-      : `rgba(57, 255, 20, ${0.45 * flicker})`;
-    ctx.fillRect(Math.round(square.x), Math.round(square.y), square.size, square.size);
-    square.y -= square.speed;
-    if (square.y < -10) {
-      square.y = canvas.height + 10;
-      square.x = Math.random() * canvas.width;
-    }
-  }
-  if (!reducedMotion) requestAnimationFrame(drawSquares);
-}
-
-window.addEventListener("resize", () => {
-  resizeCanvas();
-  seedSquares();
-});
-
-resizeCanvas();
-seedSquares();
-drawSquares(0);
 scan();
