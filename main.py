@@ -6,13 +6,15 @@ served at the root. The data source is synthetic (data/mock_costs.json);
 real providers come in later sprints.
 """
 
+import csv
+import io
 import json
 import statistics
 from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -145,6 +147,53 @@ def get_cost_summary() -> CostSummaryReport:
         records_analyzed=len(records),
         total_cost=round(sum(s.total_cost for s in services), 2),
         services=services,
+    )
+
+
+@app.get("/health")
+def health_check() -> dict:
+    """Simple liveness check for monitoring/deployment."""
+    return {"status": "ok"}
+
+
+@app.get("/costs/summary/export")
+def export_cost_summary_csv() -> Response:
+    """Return the per-service cost summary as a downloadable CSV file."""
+    records = load_daily_costs()
+    services = summarize_costs(records)
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+
+    writer.writerow(
+        [
+            "service",
+            "total_cost",
+            "mean_daily_cost",
+            "min_daily_cost",
+            "max_daily_cost",
+            "share_of_total",
+        ]
+    )
+
+    for service in services:
+        writer.writerow(
+            [
+                service.service,
+                service.total_cost,
+                service.mean_daily_cost,
+                service.min_daily_cost,
+                service.max_daily_cost,
+                service.share_of_total,
+            ]
+        )
+
+    return Response(
+        content=buffer.getvalue(),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=cost_summary.csv"
+        },
     )
 
 

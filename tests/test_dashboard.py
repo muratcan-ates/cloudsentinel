@@ -22,4 +22,9 @@ def test_static_assets_served():
 def test_dashboard_hidden_from_openapi_schema():
     paths = client.get("/openapi.json").json()["paths"]
     assert "/" not in paths
-    assert set(paths) == {"/anomalies", "/costs/summary"}
+    assert set(paths) == {
+        "/anomalies",
+        "/costs/summary",
+        "/costs/summary/export",
+        "/health"
+    }
