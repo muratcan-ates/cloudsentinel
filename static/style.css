@@ -1,110 +1,123 @@
-/* CloudSentinel — THE SENTINEL LEDGER
-   The dashboard as the front page of a quiet broadsheet printed in cobalt ink.
-   No boxes, no glows, no animation loops: type scale, hairlines and whitespace
-   carry the hierarchy.
+/* CloudSentinel — one-surface cobalt broadsheet.
+   The whole page lives on artificial-isabel cobalt: white type, hairlines and
+   whitespace carry hierarchy; pixel-blackletter display words and roman
+   numerals thread the poster language through the data itself.
 
    Green appears exactly 4 times: nameplate period, status square, slider
    thumb, threshold numeral. To add one, remove one. */
 
 :root {
-  --ink: #0a0e1a;
   --cobalt: #2430e0;
-  --bone: #edeae2;
-  --slate: #7e88a0;
+  --paper: #ffffff;
+  --dim: rgba(255, 255, 255, 0.72);
+  --faint: rgba(255, 255, 255, 0.4);
+  --hair: rgba(255, 255, 255, 0.22);
   --green: #46e886;
-  --verm: #e5605c;
-  --cyan: #79e8f2;
-  --hair: rgba(237, 234, 226, 0.14);
+  --verm: #ff7a70;
+  --cyan: #86eef7;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  background: var(--ink);
-  color: var(--bone);
+  background: var(--cobalt);
+  color: var(--paper);
   font: 400 15px/1.6 "Inter", system-ui, sans-serif;
   position: relative;
   min-height: 100vh;
 }
 
-/* ---------- the poster (masthead as an artwork) ---------- */
-
-.poster {
-  background: var(--cobalt);
-  color: #ffffff;
+/* ambient dither — the page's single texture, everywhere and barely there */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 3px 3px, 7px 7px;
+  background-position: 0 0, 2px 4px;
 }
 
-.poster-frame {
-  position: relative;
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 76px clamp(20px, 6vw, 64px) 0;
-  text-align: center;
-}
-
-.poster-corner {
-  position: absolute;
-  top: 26px;
-  font: 500 11px/1.6 "Inter", sans-serif;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.8);
-}
-.poster-corner.left { left: clamp(20px, 6vw, 64px); }
-.poster-corner.right { right: clamp(20px, 6vw, 64px); }
-
-.poster-kicker {
-  font: 400 14px/1.6 "Inter", sans-serif;
-  letter-spacing: 0.04em;
-  color: rgba(255, 255, 255, 0.85);
-}
-
-h1.pixel-black {
-  font-family: "Jacquard 24", "UnifrakturMaguntia", serif;
-  font-weight: 400;
-  font-size: clamp(38px, 11.5vw, 148px);
-  line-height: 0.95;
-  color: #ffffff;
-  margin-top: 4px;
-}
-h1 .period { color: var(--green); }
-
-.poster-tag { margin-top: 2px; }
-.poster-tag .fraktur { font-size: 23px; color: rgba(255, 255, 255, 0.92); }
-
-.dither-art {
-  display: block;
-  width: min(720px, 92%);
-  margin: 30px auto 0;
-  image-rendering: pixelated;
-}
-
-.poster .edition { padding: 26px 0 30px; }
-
-::selection { background: var(--cyan); color: var(--ink); }
+::selection { background: var(--paper); color: var(--cobalt); }
 :focus-visible { outline: 1px solid var(--cyan); outline-offset: 3px; }
 
 .page {
   position: relative;
   max-width: 960px;
   margin: 0 auto;
-  padding: 40px clamp(20px, 6vw, 64px) 64px;
+  padding: 0 clamp(20px, 6vw, 64px) 72px;
 }
 
 .microcap {
   font: 500 11px/1.6 "Inter", sans-serif;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--slate);
+  color: var(--dim);
 }
 
-.fraktur { font-family: "UnifrakturMaguntia", serif; color: var(--bone); }
+.fraktur { font-family: "UnifrakturMaguntia", serif; }
 
-.edition {
+.pixel-black {
+  font-family: "Jacquard 24", "UnifrakturMaguntia", serif;
+  font-weight: 400;
+}
+
+/* ---------- masthead ---------- */
+
+.masthead {
+  position: relative;
+  text-align: center;
+  padding-top: 84px;
+}
+
+.corner {
+  position: absolute;
+  top: 28px;
   font: 500 11px/1.6 "Inter", sans-serif;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--dim);
+}
+.corner.left { left: 0; }
+.corner.right { right: 0; }
+
+@media (max-width: 560px) {
+  .masthead { padding-top: 96px; }
+  .corner.right { top: 48px; }
+}
+
+.kicker {
+  font-size: 15px;
+  letter-spacing: 0.03em;
+  color: var(--dim);
+}
+.kicker .k-fr { font-size: 1.5em; color: var(--paper); }
+.k-em {
+  font-family: "Instrument Serif", serif;
+  font-style: italic;
+  font-size: 1.25em;
+  color: var(--paper);
+}
+
+h1 {
+  font-size: clamp(38px, 11.5vw, 148px);
+  line-height: 0.95;
+  color: var(--paper);
+  margin-top: 6px;
+}
+h1 .period { color: var(--green); }
+
+.masthead-tag { margin-top: 2px; }
+.masthead-tag .fraktur { font-size: 23px; color: var(--paper); }
+
+.edition {
+  margin-top: 30px;
+  font: 500 11px/1.6 "Inter", sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
 }
 .edition::before {
   content: "";
@@ -121,7 +134,8 @@ h1 .period { color: var(--green); }
 /* ---------- colophon (controls) ---------- */
 
 .colophon {
-  margin: 24px 0 0;
+  margin-top: 56px;
+  border-top: 1px solid var(--hair);
   padding-top: 24px;
 }
 .colophon .hint { text-transform: none; letter-spacing: 0.02em; font-weight: 400; }
@@ -139,7 +153,7 @@ input[type="range"] {
   appearance: none;
   -webkit-appearance: none;
   height: 2px;
-  background: rgba(237, 234, 226, 0.25);
+  background: var(--faint);
   outline-offset: 6px;
 }
 input[type="range"]::-webkit-slider-thumb {
@@ -175,20 +189,20 @@ button {
   font: 500 11px/1.6 "Inter", sans-serif;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--slate);
+  color: var(--dim);
   text-decoration: underline;
   text-underline-offset: 3px;
   cursor: pointer;
   transition: color 0.15s ease;
 }
-button:hover { color: var(--bone); }
+button:hover { color: var(--paper); }
 
 /* ---------- ledger columns ---------- */
 
 main {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  margin-top: 72px;
+  margin-top: 64px;
 }
 
 .ledger-col { padding-right: 48px; min-width: 0; }
@@ -198,7 +212,7 @@ main {
 }
 
 @media (max-width: 880px) {
-  main { grid-template-columns: 1fr; margin-top: 56px; }
+  main { grid-template-columns: 1fr; margin-top: 48px; }
   .ledger-col { padding-right: 0; }
   .col-rule {
     border-left: none;
@@ -211,21 +225,28 @@ main {
 .section-head {
   display: flex;
   align-items: baseline;
-  gap: 16px;
+  gap: 18px;
   border-bottom: 1px solid var(--hair);
   padding-bottom: 12px;
 }
 .numeral {
   font-family: "Instrument Serif", serif;
   font-style: italic;
-  font-size: 40px;
+  font-size: 38px;
   line-height: 1;
-  color: var(--slate);
+  color: var(--dim);
+}
+.section-word {
+  font-family: "Jacquard 24", "UnifrakturMaguntia", serif;
+  font-weight: 400;
+  font-size: 36px;
+  line-height: 1;
+  color: var(--paper);
 }
 
 .meta {
   font-size: 12px;
-  color: var(--slate);
+  color: var(--dim);
   letter-spacing: 0.04em;
   margin: 14px 0 6px;
 }
@@ -244,25 +265,25 @@ main {
 
 .sq { display: inline-block; width: 8px; height: 8px; margin-top: 7px; }
 .entry.critical .sq { background: var(--verm); }
-.entry.warning .sq { border: 1px solid var(--slate); }
+.entry.warning .sq { border: 1px solid var(--faint); }
 
 .entry .service {
   font-weight: 500;
   font-size: 13px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--bone);
+  color: var(--paper);
 }
-.entry .date { font-size: 12px; color: var(--slate); margin-top: 2px; }
+.entry .date { font-size: 12px; color: var(--dim); margin-top: 2px; }
 .entry .figures { margin-top: 8px; font-variant-numeric: tabular-nums; }
-.entry .dim { color: var(--slate); font-size: 13px; }
+.entry .dim { color: var(--dim); font-size: 13px; }
 
 .entry-rail { text-align: right; }
 .entry-rail .z {
   font-family: "Instrument Serif", serif;
   font-size: 36px;
   line-height: 1.1;
-  color: var(--bone);
+  color: var(--paper);
   font-variant-numeric: tabular-nums;
 }
 .entry.critical .z { color: var(--verm); }
@@ -270,7 +291,7 @@ main {
   font-family: "Instrument Serif", serif;
   font-style: italic;
   font-size: 16px;
-  color: var(--slate);
+  color: var(--dim);
 }
 .entry.critical .sev-word { color: var(--verm); }
 
@@ -278,7 +299,7 @@ main {
   font-family: "Instrument Serif", serif;
   font-style: italic;
   font-size: 28px;
-  color: var(--bone);
+  color: var(--paper);
   text-align: center;
   padding: 64px 0;
 }
@@ -301,7 +322,7 @@ main {
   font-size: clamp(48px, 8vw, 84px);
   letter-spacing: -0.02em;
   line-height: 1.05;
-  color: var(--bone);
+  color: var(--paper);
   border-bottom: 1px solid var(--hair);
   padding-bottom: 24px;
   font-variant-numeric: tabular-nums;
@@ -311,7 +332,7 @@ main {
   font-size: 0.22em;
   font-weight: 500;
   letter-spacing: 0.14em;
-  color: var(--slate);
+  color: var(--dim);
   vertical-align: 12%;
 }
 
@@ -323,14 +344,14 @@ main {
   gap: 12px;
   margin-bottom: 9px;
 }
-.idx { font-size: 11px; color: var(--slate); font-variant-numeric: tabular-nums; }
+.idx { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
 .cost-line .service {
   flex: 1;
   font-weight: 500;
   font-size: 13px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--bone);
+  color: var(--paper);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -341,21 +362,21 @@ main {
   font-size: 10px;
   font-weight: 400;
   letter-spacing: 0.1em;
-  color: var(--slate);
+  color: var(--dim);
 }
 .amount {
   font-variant-numeric: tabular-nums;
   font-size: 15px;
-  color: var(--bone);
+  color: var(--paper);
   white-space: nowrap;
 }
-.amount small { font-size: 60%; font-weight: 500; letter-spacing: 0.06em; color: var(--slate); }
-.amount .share { color: var(--slate); font-size: 13px; }
+.amount small { font-size: 60%; font-weight: 500; letter-spacing: 0.06em; color: var(--dim); }
+.amount .share { color: var(--dim); font-size: 13px; }
 
-.bar { height: 2px; background: rgba(237, 234, 226, 0.12); }
+.bar { height: 2px; background: rgba(255, 255, 255, 0.18); }
 .bar-fill {
   height: 100%;
-  background: var(--bone);
+  background: var(--paper);
   width: 0;
   transition: width 600ms cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -365,11 +386,18 @@ main {
 footer {
   margin-top: 96px;
   border-top: 1px solid var(--hair);
-  padding-top: 24px;
+  padding-top: 40px;
+  text-align: center;
 }
-.agent-line { color: var(--slate); font-size: 15px; }
-.agent-line .fraktur { font-size: 19px; }
-.credits { margin-top: 20px; text-align: center; }
+.hands-mini {
+  display: block;
+  width: min(340px, 72%);
+  margin: 0 auto 24px;
+  image-rendering: pixelated;
+}
+.agent-line { color: var(--dim); font-size: 15px; max-width: 560px; margin: 0 auto; }
+.agent-line .fraktur { font-size: 19px; color: var(--paper); }
+.credits { margin-top: 22px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; }

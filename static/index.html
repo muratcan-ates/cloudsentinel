@@ -13,23 +13,16 @@
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-  <header class="poster">
-    <div class="poster-frame">
-      <p class="poster-corner left">I / III</p>
-      <p class="poster-corner right">Anomaly Watch — MMXXVI</p>
-      <p class="poster-kicker">the machine watches — the human decides</p>
-      <h1 class="pixel-black">cloudsentinel<span class="period">.</span></h1>
-      <p class="poster-tag"><span class="fraktur">artificial vigilance</span></p>
-      <img
-        class="dither-art"
-        src="/static/img/hands-dither.png"
-        alt="Dithered detail of Michelangelo's Creation of Adam — two hands about to touch"
-      />
-      <p class="edition" id="chip-system">SYSTEM ONLINE — MOCK DATA — SPRINT I</p>
-    </div>
-  </header>
-
   <div class="page">
+    <header class="masthead">
+      <p class="corner left">I / III</p>
+      <p class="corner right">Anomaly Watch — MMXXVI</p>
+      <p class="kicker">the machine <span class="fraktur k-fr">watches</span> — the human <em class="k-em">decides</em></p>
+      <h1 class="pixel-black">cloudsentinel<span class="period">.</span></h1>
+      <p class="masthead-tag"><span class="fraktur">artificial vigilance</span></p>
+      <p class="edition" id="chip-system">SYSTEM ONLINE — MOCK DATA — SPRINT I</p>
+    </header>
+
     <section class="colophon">
       <label class="microcap" for="threshold">Sensitivity <span class="hint">— z-score threshold</span></label>
       <div class="colophon-row">
@@ -43,7 +36,7 @@
       <section class="ledger-col">
         <header class="section-head">
           <span class="numeral">I</span>
-          <h2 class="microcap">Anomalies</h2>
+          <h2 class="section-word">anomalies</h2>
         </header>
         <p class="meta" id="anomaly-meta">scanning…</p>
         <div id="anomaly-list" class="fadeable"></div>
@@ -52,7 +45,7 @@
       <section class="ledger-col col-rule">
         <header class="section-head">
           <span class="numeral">II</span>
-          <h2 class="microcap">Cost Ledger</h2>
+          <h2 class="section-word">cost ledger</h2>
         </header>
         <p class="meta" id="cost-meta">loading…</p>
         <div class="hero">
@@ -64,8 +57,13 @@
     </main>
 
     <footer>
+      <img
+        class="hands-mini"
+        src="/static/img/hands-dither.png"
+        alt="Dithered detail of Michelangelo's Creation of Adam — two hands about to touch"
+      />
       <p class="agent-line">
-        Agent layer: offline — Gemini Analyst &amp; Recommender deploy in
+        Agent layer: <em class="k-em">offline</em> — Gemini Analyst &amp; Recommender deploy in
         <span class="fraktur">Sprint II</span>; every action awaits a human hand.
       </p>
       <p class="microcap credits">Team CloudSentinel · Group 60 · YZTA Bootcamp MMXXVI</p>
