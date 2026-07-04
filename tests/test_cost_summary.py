@@ -1,8 +1,13 @@
 """Tests for the cost summary endpoint and aggregation logic."""
 
+import csv
+import io
+
 from fastapi.testclient import TestClient
 
 from main import app, load_daily_costs, summarize_costs
+
+
 
 client = TestClient(app)
 
@@ -50,3 +55,54 @@ def test_compute_service_exact_aggregates():
 
 def test_summarize_costs_empty_input():
     assert summarize_costs([]) == []
+
+
+def test_health_check():
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_export_returns_csv_content_type():
+    response = client.get("/costs/summary/export")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    assert response.headers["content-disposition"] == (
+        "attachment; filename=cost_summary.csv"
+    )
+
+
+def test_export_csv_has_header_and_matching_row_count():
+    response = client.get("/costs/summary/export")
+
+    rows = list(csv.DictReader(io.StringIO(response.text)))
+    expected_headers = [
+        "service",
+        "total_cost",
+        "mean_daily_cost",
+        "min_daily_cost",
+        "max_daily_cost",
+        "share_of_total",
+    ]
+
+    assert rows
+    assert list(rows[0].keys()) == expected_headers
+    assert len(rows) == len(summarize_costs(load_daily_costs()))
+
+
+def test_export_csv_compute_row_matches_json_summary():
+    csv_response = client.get("/costs/summary/export")
+    json_response = client.get("/costs/summary")
+
+    csv_rows = list(csv.DictReader(io.StringIO(csv_response.text)))
+    compute_csv = next(row for row in csv_rows if row["service"] == "compute")
+
+    compute_json = next(
+        service
+        for service in json_response.json()["services"]
+        if service["service"] == "compute"
+    )
+
+    assert float(compute_csv["total_cost"]) == compute_json["total_cost"]
