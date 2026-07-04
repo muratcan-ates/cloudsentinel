@@ -7,8 +7,6 @@ from fastapi.testclient import TestClient
 
 from main import app, load_daily_costs, summarize_costs
 
-
-
 client = TestClient(app)
 
 
