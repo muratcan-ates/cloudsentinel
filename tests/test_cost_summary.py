@@ -37,5 +37,16 @@ def test_summarize_costs_per_service_bounds():
         assert summary.min_daily_cost <= summary.mean_daily_cost <= summary.max_daily_cost
 
 
+def test_compute_service_exact_aggregates():
+    compute = next(
+        s for s in summarize_costs(load_daily_costs()) if s.service == "compute"
+    )
+    assert compute.total_cost == 2771.7
+    assert compute.mean_daily_cost == 197.98
+    assert compute.min_daily_cost == 117.5
+    assert compute.max_daily_cost == 1183.4
+    assert compute.share_of_total == 0.5701
+
+
 def test_summarize_costs_empty_input():
     assert summarize_costs([]) == []
