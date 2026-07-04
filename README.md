@@ -266,4 +266,6 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 ---
 
+<img src="docs/img/banner_hands.png" alt="every action awaits a human hand" width="100%" />
+
 <div align="center"><sub>Built by Team CloudSentinel — YZTA Bootcamp 2026 · AI Track · Group 60</sub></div>
