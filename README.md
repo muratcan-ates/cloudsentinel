@@ -28,7 +28,7 @@
   - [Product Name](#product-name) · [Product Description](#product-description) · [Product Features](#product-features) · [Target Audience](#target-audience)
   - [What Makes CloudSentinel Different](#what-makes-cloudsentinel-different)
   - [How to Run (Local)](#how-to-run-local)
-  - [Built With](#built-with) · [Project Status](#project-status)
+  - [Built With](#built-with) · [Project Status](#project-status--sprint-1-deliverables) · [Roadmap](#roadmap-sprint-2-3)
   - [Requirements Compliance](#requirements-compliance) · [Scope & Limitations](#scope--limitations-by-design)
   - [Product Backlog URL](#product-backlog-url)
 - [Sprint 1](#sprint-1) · [Sprint 2](#sprint-2) · [Sprint 3](#sprint-3)
@@ -155,7 +155,7 @@ docker run -p 8000:8000 cloudsentinel
 | **Gemini** *(Sprint 2)* | LLM layer for the Analyst and Recommender agents |
 | **Miro** | Scrum board and product backlog (official bootcamp template) |
 
-## Project Status
+## Project Status — Sprint 1 Deliverables
 
 | Deliverable | Description | Status |
 |---|---|---|
@@ -164,13 +164,22 @@ docker run -p 8000:8000 cloudsentinel
 | Cost summary API | `GET /costs/summary` — per-service spend aggregates and shares | ✅ [`main.py`](main.py) |
 | Cyber dashboard | Root-served UI: anomaly feed, cost matrix, live threshold control | ✅ [`static/`](static/) |
 | Test suite | 27 pytest cases: detection, aggregation, filtering, export, validation, dashboard | ✅ [`tests/`](tests/) |
-| Continuous integration | Tests run on every push via GitHub Actions | 🔜 Sprint 2 |
 | Containerization | `python:3.12-slim` image | ✅ [`Dockerfile`](Dockerfile) |
 | Agent & HITL architecture design | Sprint 2–3 technical plan | ✅ [`docs/architecture.md`](docs/architecture.md) |
 | Health check & CSV export | `GET /health` liveness · downloadable cost summary (PR #3) | ✅ [`main.py`](main.py) |
-| Gemini agents (Analyst + Recommender) | LLM-based anomaly analysis and action proposals | 🔜 Sprint 2 |
-| Human-in-the-loop approval flow | `proposed → approved/rejected → executed` action lifecycle | 🔜 Sprint 2 |
-| Security signals · deployment | Same pipeline extended + live demo | 🔜 Sprint 3 |
+
+## Roadmap (Sprint 2-3)
+
+Planned next, in line with [docs/architecture.md](docs/architecture.md) and the sprint point plan:
+
+| Planned work | Sprint |
+|---|---|
+| Gemini agents — Analyst (anomaly explanation) & Recommender (action proposals) | Sprint 2 |
+| Human-in-the-loop action lifecycle (`proposed → approved/rejected → executed`) | Sprint 2 |
+| Continuous integration — tests on every push | Sprint 2 |
+| Dashboard palette revision after UI reference research | Sprint 2 |
+| Security-signal ingestion through the same detection pipeline (mock events) | Sprint 3 |
+| Deployment, live demo & 3-minute product video | Sprint 3 |
 
 ## Requirements Compliance
 
@@ -199,10 +208,11 @@ These constraints are intentional Sprint 1 decisions, not oversights:
   export) and `/health` only observe; the action-proposal and approval endpoints arrive with the
   human-in-the-loop flow in Sprint 2
   (see [docs/architecture.md](docs/architecture.md)).
-- **Security signals not ingested yet** — the scope decision (extend the same
-  pipeline vs. narrow the product to cost) is on the Sprint 1 review agenda.
-- **No live deployment yet** — the app is containerized and deployment-ready;
-  the target platform is decided in Sprint 3.
+- **Security signals arrive in Sprint 3** — the Sprint 1 review decided to
+  extend the same detection pipeline with mock security events in Sprint 3
+  (see the Sprint Review notes).
+- **Deployment lands in Sprint 3** — the app is already containerized and
+  deployment-ready; the target platform is chosen during Sprint 3.
 
 ## Product Backlog URL
 
@@ -266,9 +276,13 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 # Sprint 2
 
+*Sprint 2 runs July 6 – July 19; planning outputs land here on July 6.*
+
 ---
 
 # Sprint 3
+
+*The final sprint runs July 20 – August 2 and closes with deployment, the live demo and the 3-minute product video.*
 
 ---
 
