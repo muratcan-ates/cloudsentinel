@@ -183,10 +183,10 @@ Mapping of the official bootcamp scrum-notebook requirements to their evidence i
 | Product Backlog board (Miro) | ✅ | [Product Backlog URL](#product-backlog-url) |
 | Sprint Notes (never left empty) | ✅ | [Sprint 1](#sprint-1) |
 | Point estimates & completion logic | ✅ | [Sprint 1](#sprint-1) |
-| Daily Scrum documentation | 🔄 being collected | `ProjectManagement/Sprint1Documents/` |
-| Sprint board screenshots | 🔄 after board setup | `ProjectManagement/Sprint1Documents/` |
-| Product status screenshots | 🔄 being collected | `ProjectManagement/Sprint1Documents/` |
-| Sprint Review & Retrospective | 🗓 due 5 July | [Sprint 1](#sprint-1) |
+| Daily Scrum documentation | ✅ | [Slack & WhatsApp evidence](ProjectManagement/Sprint1Documents/) |
+| Sprint board screenshots | ✅ | [Miro board](ProjectManagement/Sprint1Documents/miro_board.jpeg) · [burndown](ProjectManagement/Sprint1Documents/burndown_sprint1.png) |
+| Product status screenshots | ✅ | [dashboard](ProjectManagement/Sprint1Documents/dashboard.png) · [Swagger](ProjectManagement/Sprint1Documents/swagger_docs.png) |
+| Sprint Review & Retrospective | ✅ | [Sprint 1](#sprint-1) |
 | Working product increment | ✅ | [`GET /anomalies`](main.py) · [`GET /costs/summary`](main.py) · [CSV export & `/health`](main.py) · [tests](tests/) |
 
 ## Scope & Limitations (By Design)
