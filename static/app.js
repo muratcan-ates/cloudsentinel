@@ -18,7 +18,10 @@ const auditList = document.getElementById("audit-list");
 
 const state = {
   anomalies: [],
+  allAnomalies: [], // unfiltered set — feeds the all-services trend marks
   costs: null,
+  daily: null,
+  sortMode: "cost",
   selectedIndex: 0,
   decisions: [],
   decisionMemory: new Map(), // id → {status, resolvedAt}; survives re-scans and filters
@@ -171,7 +174,11 @@ function renderCosts(report, flaggedServices) {
     `${fmtNumber(report.total_cost)} <small>${escapeHtml(report.currency)}</small>`;
 
   costBars.innerHTML = "";
-  report.services.forEach((service, index) => {
+  const ordered =
+    state.sortMode === "az"
+      ? [...report.services].sort((a, b) => a.service.localeCompare(b.service))
+      : [...report.services].sort((a, b) => b.total_cost - a.total_cost);
+  ordered.forEach((service, index) => {
     const flagged = flaggedServices.has(service.service);
     const share = (service.share_of_total * 100).toFixed(1);
     const row = document.createElement("div");
@@ -194,6 +201,101 @@ function renderCosts(report, flaggedServices) {
       })
     );
   });
+}
+
+/* ---------- SVG helpers (static ink — no animation) ---------- */
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function svgEl(tag, attrs) {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
+  return el;
+}
+
+function seriesPoints(values, width, height, pad) {
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const step = values.length > 1 ? (width - pad * 2) / (values.length - 1) : 0;
+  return values.map((value, i) => ({
+    x: pad + i * step,
+    y: height - pad - ((value - min) / range) * (height - pad * 2),
+  }));
+}
+
+function drawSeries(svg, values, { spikes = [], area = false } = {}) {
+  svg.replaceChildren();
+  const [, , width, height] = svg.getAttribute("viewBox").split(" ").map(Number);
+  const pad = 6;
+  [0.25, 0.5, 0.75].forEach((ratio) =>
+    svg.append(svgEl("line", { class: "grid", x1: 0, x2: width, y1: Math.round(height * ratio), y2: Math.round(height * ratio) }))
+  );
+  const points = seriesPoints(values, width, height, pad);
+  const path = points.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  if (area) {
+    svg.append(svgEl("path", { class: "area", d: `${path} L ${points[points.length - 1].x.toFixed(1)},${height} L ${points[0].x.toFixed(1)},${height} Z` }));
+  }
+  svg.append(svgEl("path", { class: "line", d: path }));
+  for (const spike of spikes) {
+    const point = points[spike.index];
+    if (point) svg.append(svgEl("circle", { class: `spike ${spike.severity}`, cx: point.x.toFixed(1), cy: point.y.toFixed(1), r: 3 }));
+  }
+  return points;
+}
+
+function renderTrend() {
+  const svg = document.getElementById("cost-trend");
+  const readout = document.getElementById("trend-readout");
+  const note = document.getElementById("trend-note");
+  if (!state.daily || state.daily.totals.length === 0) {
+    svg.replaceChildren();
+    svg.onmousemove = null;
+    svg.onmouseleave = null;
+    readout.textContent = "—";
+    note.textContent = "";
+    return;
+  }
+  const { dates, totals, currency } = state.daily;
+  // Dots come from the unfiltered anomaly set — the totals line always shows
+  // all services, so its marks must too (the service filter only narrows
+  // sections I/III/IV). Per-date max severity wins.
+  const severityByDate = new Map();
+  for (const anomaly of state.allAnomalies) {
+    const current = severityByDate.get(anomaly.date);
+    if (current !== "critical") severityByDate.set(anomaly.date, anomaly.severity);
+  }
+  const spikes = dates
+    .map((date, index) => ({ index, severity: severityByDate.get(date) }))
+    .filter((spike) => spike.severity);
+  const points = drawSeries(svg, totals, { spikes, area: true });
+
+  const peakIndex = totals.indexOf(Math.max(...totals));
+  const defaultReadout = `peak ${dates[peakIndex]} — ${fmtNumber(totals[peakIndex])} ${currency}`;
+  readout.textContent = defaultReadout;
+
+  const half = Math.floor(totals.length / 2);
+  const firstHalf = totals.slice(0, half).reduce((sum, v) => sum + v, 0);
+  const secondHalf = totals.slice(half).reduce((sum, v) => sum + v, 0);
+  const delta = firstHalf ? ((secondHalf - firstHalf) / firstHalf) * 100 : 0;
+  note.textContent = `spend ${delta >= 0 ? "rose" : "fell"} ${Math.abs(delta).toFixed(1)}% versus the first half of the period`;
+
+  const probe = svgEl("line", { class: "probe", x1: 0, x2: 0, y1: 0, y2: 96, visibility: "hidden" });
+  svg.append(probe);
+  svg.onmousemove = (event) => {
+    const rect = svg.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 460;
+    let nearest = 0;
+    points.forEach((p, i) => { if (Math.abs(p.x - x) < Math.abs(points[nearest].x - x)) nearest = i; });
+    probe.setAttribute("x1", points[nearest].x.toFixed(1));
+    probe.setAttribute("x2", points[nearest].x.toFixed(1));
+    probe.setAttribute("visibility", "visible");
+    readout.textContent = `${dates[nearest]} — ${fmtNumber(totals[nearest])} ${currency}`;
+  };
+  svg.onmouseleave = () => {
+    probe.setAttribute("visibility", "hidden");
+    readout.textContent = defaultReadout;
+  };
 }
 
 function renderInvestigation() {
@@ -243,6 +345,12 @@ function renderInvestigation() {
       <div class="evidence ${anomaly.severity === "critical" ? "critical" : ""}"><p class="microcap">Deviation — z ${anomaly.z_score.toFixed(2)}</p><p class="ev-fig">${deviation >= 0 ? "+" : "−"}${fmtNumber(Math.abs(deviation))}</p></div>
     </div>
 
+    <div class="spark-block" id="spark-block" hidden>
+      <p class="microcap">Fourteen-day evidence <span class="hint">— daily spend, ${escapeHtml(anomaly.service)}</span></p>
+      <svg class="spark-svg" id="spark-svg" viewBox="0 0 460 56" preserveAspectRatio="none" role="img" aria-label="Daily spend for ${escapeHtml(anomaly.service)} with the anomaly day marked"></svg>
+      <p class="meta" id="spark-stats"></p>
+    </div>
+
     <div class="inv-columns">
       <div class="inv-block">
         <p class="microcap">What happened</p>
@@ -266,6 +374,22 @@ function renderInvestigation() {
            <button class="row-action" type="button" data-decision="approve" data-decision-index="${state.selectedIndex}" aria-label="approve the ${escapeHtml(anomaly.service)} proposal for execution">approve for execution →</button>`
         : `<span class="dec-status">${decision ? escapeHtml(statusWord(decision)) : ""}</span>`}
     </div>`;
+
+  const series = state.daily?.services.find(
+    (s) => s.service.toLowerCase() === String(anomaly.service).toLowerCase()
+  );
+  if (series && series.values.length) {
+    const block = document.getElementById("spark-block");
+    block.hidden = false;
+    const anomalyIndex = state.daily.dates.indexOf(anomaly.date);
+    drawSeries(document.getElementById("spark-svg"), series.values, {
+      spikes: anomalyIndex >= 0 ? [{ index: anomalyIndex, severity: anomaly.severity }] : [],
+    });
+    const mean = series.values.reduce((sum, v) => sum + v, 0) / series.values.length;
+    document.getElementById("spark-stats").textContent =
+      `min ${fmtNumber(Math.min(...series.values))} · mean ${fmtNumber(mean)} · ` +
+      `max ${fmtNumber(Math.max(...series.values))} — anomaly day marked`;
+  }
 }
 
 function statusWord(decision) {
@@ -325,6 +449,7 @@ function renderAudit() {
 
 function renderAll(report) {
   renderCosts(state.costs, renderAnomalies(report));
+  renderTrend();
   renderSummary();
   renderInvestigation();
   renderDecisions();
@@ -375,10 +500,17 @@ async function scan() {
     `/anomalies?threshold=${threshold}` +
     (serviceFilter.value ? `&service=${encodeURIComponent(serviceFilter.value)}` : "");
   try {
-    const [anomalies, costs] = await Promise.all([fetchJson(anomalyUrl), fetchJson("/costs/summary")]);
+    const [anomalies, costs, daily, unfiltered] = await Promise.all([
+      fetchJson(anomalyUrl),
+      fetchJson("/costs/summary"),
+      fetchJson("/costs/daily"),
+      serviceFilter.value ? fetchJson(`/anomalies?threshold=${threshold}`) : null,
+    ]);
     if (sequence !== scanSequence) return;
     state.costs = costs;
+    state.daily = daily;
     state.anomalies = anomalies.anomalies;
+    state.allAnomalies = unfiltered ? unfiltered.anomalies : anomalies.anomalies;
     populateServiceFilter();
     reconcileDecisions();
     renderAll(anomalies);
@@ -427,6 +559,16 @@ document.addEventListener("click", (event) => {
   const decisionAction = event.target.closest("[data-decision]");
   if (decisionAction) {
     updateDecision(Number(decisionAction.dataset.decisionIndex), decisionAction.dataset.decision);
+    return;
+  }
+
+  const sortButton = event.target.closest("[data-sort]");
+  if (sortButton) {
+    state.sortMode = sortButton.dataset.sort;
+    document.querySelectorAll("[data-sort]").forEach((button) =>
+      button.setAttribute("aria-pressed", String(button.dataset.sort === state.sortMode))
+    );
+    if (state.costs) renderCosts(state.costs, new Set(state.anomalies.map((a) => a.service)));
     return;
   }
 

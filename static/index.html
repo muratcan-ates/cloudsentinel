@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Jacquard+24&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=UnifrakturMaguntia&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/static/style.css?v=s2.1" />
+  <link rel="stylesheet" href="/static/style.css?v=s2.3" />
 </head>
 <body>
   <div class="page">
@@ -76,6 +76,16 @@
           <p class="microcap">Total Spend</p>
           <p class="hero-figure" id="total-cost">—</p>
         </div>
+        <div class="trend-block">
+          <p class="microcap">Spend trend <span class="hint">— daily total, all services</span></p>
+          <svg id="cost-trend" class="trend-svg" viewBox="0 0 460 96" preserveAspectRatio="none" role="img" aria-label="Daily total spend trend with anomaly days marked"></svg>
+          <p class="meta trend-readout" id="trend-readout" aria-live="off">—</p>
+          <p class="meta" id="trend-note"></p>
+        </div>
+        <p class="meta sort-row">sort —
+          <button class="row-action" type="button" data-sort="cost" aria-pressed="true">cost</button> /
+          <button class="row-action" type="button" data-sort="az" aria-pressed="false">a–z</button>
+        </p>
         <div id="cost-bars" class="fadeable"></div>
       </section>
 
@@ -126,6 +136,6 @@
     </footer>
   </div>
 
-  <script src="/static/app.js?v=s2.1"></script>
+  <script src="/static/app.js?v=s2.3"></script>
 </body>
 </html>

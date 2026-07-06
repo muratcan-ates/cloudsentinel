@@ -620,6 +620,33 @@ button:disabled:hover {
   .confidence { text-align: left; }
 }
 
+/* trend chart + evidence sparkline — static ink, no motion */
+
+.trend-block { margin: 26px 0 6px; }
+.trend-svg,
+.spark-svg { display: block; width: 100%; margin-top: 12px; overflow: visible; }
+.trend-svg { height: 96px; }
+.spark-svg { height: 56px; }
+.trend-svg .grid,
+.spark-svg .grid { stroke: var(--hair); stroke-width: 1; }
+.trend-svg .area { fill: rgba(255, 255, 255, 0.07); }
+.trend-svg .line,
+.spark-svg .line { fill: none; stroke: var(--paper); stroke-width: 1.5; }
+.trend-svg .spike.critical,
+.spark-svg .spike.critical { fill: var(--verm); }
+.trend-svg .spike.warning,
+.spark-svg .spike.warning { fill: var(--cobalt); stroke: var(--faint); stroke-width: 1; }
+.trend-svg .probe { stroke: var(--faint); stroke-width: 1; }
+.trend-readout { min-height: 1.5em; font-variant-numeric: tabular-nums; }
+.sort-row { margin: 26px 0 0; }
+.sort-row .row-action[aria-pressed="true"] { color: var(--paper); }
+
+.spark-block {
+  margin-bottom: 26px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--hair);
+}
+
 /* decision inbox */
 
 .decision {

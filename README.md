@@ -132,6 +132,13 @@ curl "http://127.0.0.1:8000/costs/summary"
 # → total spend, per-service totals and each service's share of overall cost
 ```
 
+Daily trend series (powers the dashboard's spend-trend chart and per-signal evidence sparkline):
+
+```bash
+curl "http://127.0.0.1:8000/costs/daily"
+# → aligned per-service daily series, date axis and daily totals
+```
+
 Run the test suite with `.venv/bin/pytest`.
 
 > On Windows, replace `.venv/bin/` with `.venv\Scripts\` in the commands above.
@@ -150,7 +157,7 @@ docker run -p 8000:8000 cloudsentinel
 | **Python 3.12** | Core language (pinned in venv, CI and Docker) |
 | **FastAPI + Uvicorn** | REST API and ASGI server |
 | **Pydantic v2** | Typed request/response models and validation |
-| **pytest + httpx** | Automated test suite (27 tests) |
+| **pytest + httpx** | Automated test suite (33 tests) |
 | **Docker** | Containerized, deployment-ready packaging |
 | **Gemini** *(Sprint 2)* | LLM layer for the Analyst and Recommender agents |
 | **Miro** | Scrum board and product backlog (official bootcamp template) |
@@ -205,7 +212,7 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 - **Synthetic mock data only** — real cloud-provider connectors are outside the
   competition scope; the detection pipeline is data-source agnostic by design.
 - **Read-only endpoints for now** — `/anomalies`, `/costs/summary` (+ CSV
-  export) and `/health` only observe; the action-proposal and approval endpoints arrive with the
+  export), `/costs/daily` and `/health` only observe; the action-proposal and approval endpoints arrive with the
   human-in-the-loop flow in Sprint 2
   (see [docs/architecture.md](docs/architecture.md)).
 - **Security signals arrive in Sprint 3** — the Sprint 1 review decided to
