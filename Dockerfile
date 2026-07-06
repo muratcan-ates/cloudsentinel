@@ -7,6 +7,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY main.py models.py detection.py ./
 COPY data/ data/
+COPY static/ static/
 
 EXPOSE 8000
 
