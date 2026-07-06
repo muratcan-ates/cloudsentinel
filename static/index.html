@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Jacquard+24&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=UnifrakturMaguntia&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/style.css?v=s2.1" />
 </head>
 <body>
   <div class="page">
@@ -20,20 +20,43 @@
       <p class="kicker">the machine <span class="fraktur k-fr">watches</span> — the human <em class="k-em">decides</em></p>
       <h1 class="pixel-black">cloudsentinel<span class="period">.</span></h1>
       <p class="masthead-tag"><span class="fraktur">artificial vigilance</span></p>
-      <p class="edition" id="chip-system">SYSTEM ONLINE — MOCK DATA — SPRINT I</p>
+      <p class="edition" id="chip-system">SYSTEM ONLINE — MOCK DATA — SPRINT II</p>
     </header>
+
+    <section class="summary-strip" aria-label="Operations summary">
+      <a class="sum" href="#sec-costs">
+        <p class="microcap">Total spend</p>
+        <p class="sum-fig" id="sum-total">—</p>
+        <p class="sum-sub" id="sum-total-sub">monitored period</p>
+      </a>
+      <a class="sum" href="#sec-anomalies">
+        <p class="microcap">Open signals</p>
+        <p class="sum-fig" id="sum-signals">—</p>
+        <p class="sum-sub">at current sensitivity</p>
+      </a>
+      <a class="sum" href="#sec-decisions">
+        <p class="microcap">Awaiting the hand</p>
+        <p class="sum-fig" id="sum-pending">—</p>
+        <p class="sum-sub">no action runs unapproved</p>
+      </a>
+    </section>
 
     <section class="colophon">
       <label class="microcap" for="threshold">Sensitivity <span class="hint">— z-score threshold</span></label>
       <div class="colophon-row">
         <input type="range" id="threshold" min="0.5" max="4" step="0.25" value="2" />
         <output id="threshold-value" for="threshold">2.00</output>
+        <label class="microcap select-label" for="service-filter">Service
+          <select id="service-filter" aria-label="Filter signals by service">
+            <option value="">all</option>
+          </select>
+        </label>
         <button id="rescan" type="button">Re-scan →</button>
       </div>
     </section>
 
     <main>
-      <section class="ledger-col">
+      <section class="ledger-col" id="sec-anomalies">
         <header class="section-head">
           <span class="numeral">I</span>
           <h2 class="section-word">anomalies</h2>
@@ -42,10 +65,11 @@
         <div id="anomaly-list" class="fadeable"></div>
       </section>
 
-      <section class="ledger-col col-rule">
+      <section class="ledger-col col-rule" id="sec-costs">
         <header class="section-head">
           <span class="numeral">II</span>
           <h2 class="section-word">cost ledger</h2>
+          <a class="head-action" href="/costs/summary/export" download>export csv ↓</a>
         </header>
         <p class="meta" id="cost-meta">loading…</p>
         <div class="hero">
@@ -53,6 +77,37 @@
           <p class="hero-figure" id="total-cost">—</p>
         </div>
         <div id="cost-bars" class="fadeable"></div>
+      </section>
+
+      <section class="ledger-wide" id="sec-investigation" aria-labelledby="inv-heading">
+      <header class="section-head">
+        <span class="numeral">III</span>
+        <h2 class="section-word" id="inv-heading">investigation</h2>
+      </header>
+      <p class="meta">evidence trail per signal — agent narrative demo-simulated until the Sprint II endpoints land</p>
+      <div class="inv-layout">
+        <nav class="inv-rail" id="signal-rail" aria-label="Open signals"></nav>
+        <article class="inv-detail" id="inv-detail" aria-live="polite"></article>
+      </div>
+      </section>
+
+      <section class="ledger-wide" id="sec-decisions" aria-labelledby="dec-heading">
+      <header class="section-head">
+        <span class="numeral">IV</span>
+        <h2 class="section-word" id="dec-heading">decision inbox</h2>
+      </header>
+      <p class="meta" id="decision-meta">a proposed action stays inert until an operator accepts or rejects it</p>
+      <div id="decision-list" aria-live="polite"></div>
+      </section>
+
+      <section class="ledger-wide" id="sec-ledger" aria-labelledby="led-heading">
+      <header class="section-head">
+        <span class="numeral">V</span>
+        <h2 class="section-word" id="led-heading">decision ledger</h2>
+      </header>
+      <p class="meta">every review remains visible — why it was proposed, who decided, what followed</p>
+      <blockquote class="ledger-quote">“No critical action without an accountable human decision.”</blockquote>
+      <ol id="audit-list" class="audit-list"></ol>
       </section>
     </main>
 
@@ -63,13 +118,14 @@
         alt="Dithered detail of Michelangelo's Creation of Adam — two hands about to touch"
       />
       <p class="agent-line">
-        Agent layer: <em class="k-em">offline</em> — Gemini Analyst &amp; Recommender deploy in
+        Agent layer: <em class="k-em">in rehearsal</em> — Gemini Analyst &amp; Recommender go live within
         <span class="fraktur">Sprint</span> <em class="k-em">II</em>; every action awaits a human hand.
       </p>
       <p class="microcap credits">Team CloudSentinel · Group 60 · YZTA Bootcamp MMXXVI</p>
+      <p class="microcap credits">cost &amp; anomaly feed live from the API — agent narrative &amp; approvals demo-simulated</p>
     </footer>
   </div>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=s2.1"></script>
 </body>
 </html>
