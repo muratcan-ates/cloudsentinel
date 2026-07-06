@@ -10,7 +10,7 @@ import json
 import statistics
 from pathlib import Path
 
-from models import Anomaly, ServiceCostSummary
+from models import Anomaly, DailyServiceSeries, ServiceCostSummary
 
 DATA_FILE = Path(__file__).parent / "data" / "mock_costs.json"
 
@@ -48,6 +48,32 @@ def summarize_costs(records: list) -> list[ServiceCostSummary]:
     ]
     summaries.sort(key=lambda s: s.total_cost, reverse=True)
     return summaries
+
+
+def build_daily_series(records: list) -> dict:
+    """Align daily records into per-service series over the sorted date range.
+
+    Dates missing for a service contribute 0 so every series has the same
+    length as the date axis; costs on the same service+date accumulate.
+    """
+    dates = sorted({record["date"] for record in records})
+    date_index = {date: i for i, date in enumerate(dates)}
+    by_service = {}
+    for record in records:
+        values = by_service.setdefault(record["service"], [0.0] * len(dates))
+        values[date_index[record["date"]]] += record["cost"]
+
+    services = [
+        DailyServiceSeries(service=service, values=[round(v, 2) for v in values])
+        for service, values in sorted(by_service.items())
+    ]
+    # Totals derive from the published (rounded) values so the column-sum
+    # invariant holds even for sub-cent inputs.
+    totals = [
+        round(sum(series.values[i] for series in services), 2)
+        for i in range(len(dates))
+    ]
+    return {"dates": dates, "services": services, "totals": totals}
 
 
 def detect_anomalies(records: list, threshold: float) -> list[Anomaly]:

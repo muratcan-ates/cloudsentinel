@@ -31,6 +31,19 @@ class HealthStatus(BaseModel):
     status: Literal["ok"]
 
 
+class DailyServiceSeries(BaseModel):
+    service: str
+    values: list[float]
+
+
+class DailyCostReport(BaseModel):
+    currency: str
+    period: Period
+    dates: list[str]
+    services: list[DailyServiceSeries]
+    totals: list[float]
+
+
 class Anomaly(BaseModel):
     service: str
     date: str

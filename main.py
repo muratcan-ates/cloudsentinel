@@ -2,8 +2,8 @@
 
 Sprint 1 scope: anomaly detection over daily cost records (z-score against
 each service's historical mean), a per-service cost summary with CSV export,
-a liveness check, and a dashboard served at the root. Models live in
-models.py, data loading and detection logic in detection.py.
+a daily trend series, a liveness check, and a dashboard served at the root.
+Models live in models.py, data loading and detection logic in detection.py.
 """
 
 import csv
@@ -15,12 +15,13 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from detection import (
+    build_daily_series,
     detect_anomalies,
     load_daily_costs,
     load_dataset,
     summarize_costs,
 )
-from models import AnomalyReport, CostSummaryReport, HealthStatus
+from models import AnomalyReport, CostSummaryReport, DailyCostReport, HealthStatus
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -46,6 +47,20 @@ def get_cost_summary() -> CostSummaryReport:
         records_analyzed=len(records),
         total_cost=round(sum(s.total_cost for s in services), 2),
         services=services,
+    )
+
+
+@app.get("/costs/daily")
+def get_daily_costs() -> DailyCostReport:
+    """Return aligned per-service daily cost series for trend visualisations."""
+    dataset = load_dataset()
+    series = build_daily_series(dataset["daily_costs"])
+    return DailyCostReport(
+        currency=dataset["currency"],
+        period=dataset["period"],
+        dates=series["dates"],
+        services=series["services"],
+        totals=series["totals"],
     )
 
 

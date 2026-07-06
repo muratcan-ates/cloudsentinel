@@ -24,6 +24,7 @@ def test_dashboard_hidden_from_openapi_schema():
     assert "/" not in paths
     assert set(paths) == {
         "/anomalies",
+        "/costs/daily",
         "/costs/summary",
         "/costs/summary/export",
         "/health"
