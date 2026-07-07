@@ -10,7 +10,7 @@ import csv
 import io
 from pathlib import Path
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -25,6 +25,33 @@ from models import AnomalyReport, CostSummaryReport, DailyCostReport, HealthStat
 
 STATIC_DIR = Path(__file__).parent / "static"
 
+# Content-Security-Policy for the public dashboard. script-src is locked to
+# 'self' (the dashboard has no inline scripts, eval, or event handlers), so a
+# reflected/stored string can never execute as script. style-src keeps
+# 'unsafe-inline' because the dashboard applies inline style attributes and
+# loads Google Fonts; injected data is still HTML-escaped in app.js.
+CONTENT_SECURITY_POLICY = "; ".join(
+    [
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com",
+        "img-src 'self' data:",
+        "connect-src 'self'",
+        "frame-ancestors 'none'",
+        "base-uri 'none'",
+        "form-action 'self'",
+        "object-src 'none'",
+    ]
+)
+SECURITY_HEADERS = {
+    "Content-Security-Policy": CONTENT_SECURITY_POLICY,
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "geolocation=(), camera=(), microphone=(), interest-cohort=()",
+}
+
 app = FastAPI(
     title="CloudSentinel API",
     description=(
@@ -33,6 +60,15 @@ app = FastAPI(
     ),
     version="0.1.0",
 )
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """Attach hardening headers to every response (dashboard, static, API)."""
+    response = await call_next(request)
+    for header, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(header, value)
+    return response
 
 
 @app.get("/costs/summary")
