@@ -7,3 +7,6 @@ tests/
 docs/
 ProjectManagement/
 README.md
+.env
+*.env
+!.env.example

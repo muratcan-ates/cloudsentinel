@@ -306,14 +306,28 @@ def generate_with_fallback(
 def get_provider() -> LLMProvider:
     """Pick the provider from the environment.
 
-    ``SENTINEL_FAKE_LLM=1`` (from the shell or ``.env``) forces the fake;
-    a missing ``GEMINI_API_KEY`` also falls back to it (with a warning) so
-    the app degrades instead of crashing.
+    Any truthy ``SENTINEL_FAKE_LLM`` value (from the shell or ``.env``)
+    forces the fake; a missing ``GEMINI_API_KEY`` also falls back to it
+    (with a warning) so the app degrades instead of crashing. The live
+    provider announces itself in the log so nobody burns the shared
+    daily quota without noticing.
     """
     load_dotenv()  # never overrides variables already set in the shell
-    if os.environ.get("SENTINEL_FAKE_LLM") == "1":
+    flag = os.environ.get("SENTINEL_FAKE_LLM", "").strip().lower()
+    if flag in {"1", "true", "yes", "on"}:
         return FakeProvider()
+    if flag:
+        logger.warning(
+            "SENTINEL_FAKE_LLM=%r is not a recognized truthy value; "
+            "treating it as OFF (use 1/true/yes/on to force the fake provider)",
+            flag,
+        )
     if not os.environ.get("GEMINI_API_KEY"):
         logger.warning("GEMINI_API_KEY not set, using FakeProvider")
         return FakeProvider()
+    logger.warning(
+        "using LIVE GeminiProvider (model=%s) — requests count against the "
+        "shared free-tier daily quota",
+        DEFAULT_MODEL,
+    )
     return GeminiProvider()

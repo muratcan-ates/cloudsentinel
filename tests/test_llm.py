@@ -349,3 +349,23 @@ def test_wrap_untrusted_blocks_cross_token_reassembly():
     )
     assert DATA_DELIMITER_OPEN not in inner
     assert DATA_DELIMITER_CLOSE not in inner
+
+
+def test_get_provider_accepts_common_truthy_fake_flags(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy-key-for-test")
+    monkeypatch.setattr("app.llm.load_dotenv", lambda: None)
+    for value in ("1", "true", "TRUE", "yes", "on"):
+        monkeypatch.setenv("SENTINEL_FAKE_LLM", value)
+        assert isinstance(get_provider(), FakeProvider), value
+
+
+def test_get_provider_warns_on_unrecognized_flag_value(monkeypatch, caplog):
+    import logging
+
+    monkeypatch.setenv("SENTINEL_FAKE_LLM", "maybe")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setattr("app.llm.load_dotenv", lambda: None)
+    with caplog.at_level(logging.WARNING, logger="cloudsentinel.llm"):
+        provider = get_provider()
+    assert isinstance(provider, FakeProvider)  # no key -> still degrades to fake
+    assert any("not a recognized truthy value" in r.message for r in caplog.records)
