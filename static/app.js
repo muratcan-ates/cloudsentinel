@@ -5,6 +5,14 @@
    keeps the audit trail. Nothing ever executes without an operator decision,
    and execution is simulated by design. */
 
+/* Palette preview: ?theme=mission|paper|cobalt flips the token set for
+   review without changing the default — the palette decision is the
+   team's, not this file's. */
+const themeParam = new URLSearchParams(location.search).get("theme");
+if (["mission", "paper", "cobalt"].includes(themeParam)) {
+  document.documentElement.dataset.theme = themeParam;
+}
+
 const thresholdInput = document.getElementById("threshold");
 const thresholdValue = document.getElementById("threshold-value");
 const serviceFilter = document.getElementById("service-filter");
@@ -29,6 +37,7 @@ const state = {
   recommendBusy: new Set(), // event ids with a recommend request in flight
   hitlBusy: new Set(), // action ids with a decision request in flight
   actions: [], // live HITL actions from GET /actions — feeds section IV
+  auditExpanded: false, // section V shows the newest entries until asked
   audit: [
     { time: "scan", title: "Cost Agent completed the scheduled scan", copy: "Every monitored service was compared against its historical baseline." },
     { time: "scan", title: "Anomaly policy applied", copy: "Signals at or above the configured z-score threshold entered the review queue." },
@@ -157,6 +166,9 @@ function renderAnomalies(report) {
         <p class="service">${escapeHtml(anomaly.service)}</p>
         <p class="date">${escapeHtml(anomaly.date)}</p>
         <p class="figures">${fmtNumber(anomaly.cost)} <span class="dim">vs mean ${fmtNumber(anomaly.service_mean)}</span></p>
+        ${anomaly.service_mean > 0
+          ? `<p class="ratio-note">${(anomaly.cost / anomaly.service_mean).toFixed(1)}× the usual daily spend</p>`
+          : ""}
       </div>
       <div class="entry-rail">
         <p class="z">${anomaly.z_score.toFixed(2)}</p>
@@ -180,11 +192,12 @@ function renderCosts(report, flaggedServices) {
     state.sortMode === "az"
       ? [...report.services].sort((a, b) => a.service.localeCompare(b.service))
       : [...report.services].sort((a, b) => b.total_cost - a.total_cost);
+  const biggestSpend = Math.max(...report.services.map((s) => s.total_cost));
   ordered.forEach((service, index) => {
     const flagged = flaggedServices.has(service.service);
     const share = (service.share_of_total * 100).toFixed(1);
     const row = document.createElement("div");
-    row.className = "cost-row";
+    row.className = `cost-row${service.total_cost === biggestSpend ? " top-spender" : ""}`;
     row.innerHTML = `
       <div class="cost-line">
         <span class="idx">${String(index + 1).padStart(2, "0")}</span>
@@ -205,45 +218,129 @@ function renderCosts(report, flaggedServices) {
   });
 }
 
-/* ---------- SVG helpers (static ink — no animation) ---------- */
+/* ---------- SVG helpers (precise static ink) ---------- */
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-function svgEl(tag, attrs) {
+function svgEl(tag, attrs, text) {
   const el = document.createElementNS(SVG_NS, tag);
   for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
+  if (text != null) el.textContent = text;
   return el;
 }
 
-function seriesPoints(values, width, height, pad) {
+const fmtShort = (value) =>
+  Math.abs(value) >= 1000 ? `$${(value / 1000).toFixed(1)}k` : `$${Math.round(value)}`;
+
+/* Round tick steps to 1/2/5 × 10^n so axis labels read as human numbers. */
+function niceTicks(min, max, count = 3) {
+  if (min === max) { min -= 1; max += 1; }
+  const rawStep = (max - min) / count;
+  const power = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const error = rawStep / power;
+  const step = power * (error >= 7.5 ? 10 : error >= 3.5 ? 5 : error >= 1.5 ? 2 : 1);
+  const ticks = [];
+  for (let v = Math.ceil(min / step) * step; v <= max + step / 1e6; v += step) {
+    ticks.push(v);
+  }
+  return ticks;
+}
+
+function buildScale(values, width, height, { left, right, top, bottom }) {
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;
-  const step = values.length > 1 ? (width - pad * 2) / (values.length - 1) : 0;
-  return values.map((value, i) => ({
-    x: pad + i * step,
-    y: height - pad - ((value - min) / range) * (height - pad * 2),
-  }));
+  const innerWidth = width - left - right;
+  return {
+    min,
+    max,
+    x: (index) =>
+      left + (values.length > 1 ? (index * innerWidth) / (values.length - 1) : innerWidth / 2),
+    y: (value) => height - bottom - ((value - min) / range) * (height - top - bottom),
+  };
 }
 
-function drawSeries(svg, values, { spikes = [], area = false } = {}) {
+function drawEmptyChart(svg, width, height) {
+  svg.replaceChildren(
+    svgEl(
+      "text",
+      { class: "tick-label", x: (width / 2).toFixed(1), y: (height / 2).toFixed(1), "text-anchor": "middle" },
+      "not enough data to draw"
+    )
+  );
+  return { points: [], scale: null };
+}
+
+/* One renderer for both charts:
+   - axes: y ticks + hairline grid + $ labels, sparse x date labels (trend)
+   - band: mean ± sigma envelope + dashed baseline (sparkline) */
+function drawSeries(svg, values, { spikes = [], area = false, axes = null, band = null } = {}) {
   svg.replaceChildren();
   const [, , width, height] = svg.getAttribute("viewBox").split(" ").map(Number);
-  const pad = 6;
-  [0.25, 0.5, 0.75].forEach((ratio) =>
-    svg.append(svgEl("line", { class: "grid", x1: 0, x2: width, y1: Math.round(height * ratio), y2: Math.round(height * ratio) }))
-  );
-  const points = seriesPoints(values, width, height, pad);
-  const path = points.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-  if (area) {
-    svg.append(svgEl("path", { class: "area", d: `${path} L ${points[points.length - 1].x.toFixed(1)},${height} L ${points[0].x.toFixed(1)},${height} Z` }));
+  if (!values || values.length < 2) return drawEmptyChart(svg, width, height);
+
+  const pad = axes
+    ? { left: 40, right: 8, top: 10, bottom: 18 }
+    : { left: 6, right: 6, top: 8, bottom: 8 };
+  const scale = buildScale(values, width, height, pad);
+
+  if (axes) {
+    for (const tick of niceTicks(scale.min, scale.max)) {
+      const y = scale.y(tick).toFixed(1);
+      svg.append(
+        svgEl("line", { class: "grid", x1: pad.left, x2: width - pad.right, y1: y, y2: y }),
+        svgEl("text", { class: "tick-label", x: pad.left - 6, y: Number(y) + 3, "text-anchor": "end" }, fmtShort(tick))
+      );
+    }
+    const dateCount = axes.dates.length;
+    const labelIndexes = [...new Set([0, Math.round((dateCount - 1) / 3), Math.round(((dateCount - 1) * 2) / 3), dateCount - 1])];
+    for (const index of labelIndexes) {
+      svg.append(
+        svgEl(
+          "text",
+          { class: "tick-label", x: scale.x(index).toFixed(1), y: height - 4, "text-anchor": index === 0 ? "start" : index === dateCount - 1 ? "end" : "middle" },
+          axes.dates[index].slice(5)
+        )
+      );
+    }
   }
+
+  if (band) {
+    const topY = scale.y(Math.min(band.mean + band.sigma, scale.max));
+    const bottomY = scale.y(Math.max(band.mean - band.sigma, scale.min));
+    svg.append(
+      svgEl("rect", { class: "band", x: pad.left, width: width - pad.left - pad.right, y: topY.toFixed(1), height: Math.max(bottomY - topY, 0).toFixed(1) }),
+      svgEl("line", { class: "baseline", x1: pad.left, x2: width - pad.right, y1: scale.y(band.mean).toFixed(1), y2: scale.y(band.mean).toFixed(1) })
+    );
+  }
+
+  const points = values.map((value, index) => ({ x: scale.x(index), y: scale.y(value) }));
+  const path = points.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+
+  if (area) {
+    const defs = svgEl("defs", {});
+    const gradient = svgEl("linearGradient", { id: "trend-fill", x1: 0, y1: 0, x2: 0, y2: 1 });
+    const stopHi = svgEl("stop", { offset: "0" });
+    const stopLo = svgEl("stop", { offset: "1" });
+    stopHi.style.stopColor = "var(--chart-area-hi)";
+    stopLo.style.stopColor = "var(--chart-area-lo)";
+    gradient.append(stopHi, stopLo);
+    defs.append(gradient);
+    const floor = height - pad.bottom;
+    svg.append(
+      defs,
+      svgEl("path", { class: "area", d: `${path} L ${points[points.length - 1].x.toFixed(1)},${floor} L ${points[0].x.toFixed(1)},${floor} Z` })
+    );
+  }
+
   svg.append(svgEl("path", { class: "line", d: path }));
   for (const spike of spikes) {
     const point = points[spike.index];
-    if (point) svg.append(svgEl("circle", { class: `spike ${spike.severity}`, cx: point.x.toFixed(1), cy: point.y.toFixed(1), r: 3 }));
+    if (point) {
+      svg.append(svgEl("circle", { class: `spike ${spike.severity}`, cx: point.x.toFixed(1), cy: point.y.toFixed(1), r: 3.5 }));
+    }
   }
-  return points;
+  return { points, scale };
 }
 
 function renderTrend() {
@@ -270,11 +367,18 @@ function renderTrend() {
   const spikes = dates
     .map((date, index) => ({ index, severity: severityByDate.get(date) }))
     .filter((spike) => spike.severity);
-  const points = drawSeries(svg, totals, { spikes, area: true });
+  const { points } = drawSeries(svg, totals, { spikes, area: true, axes: { dates } });
 
   const peakIndex = totals.indexOf(Math.max(...totals));
+  const low = Math.min(...totals);
   const defaultReadout = `peak ${dates[peakIndex]} — ${fmtNumber(totals[peakIndex])} ${currency}`;
   readout.textContent = defaultReadout;
+  svg.setAttribute(
+    "aria-label",
+    `Daily total spend from ${dates[0]} to ${dates[dates.length - 1]}, ranging ` +
+      `${fmtNumber(low)} to ${fmtNumber(totals[peakIndex])} ${currency}; ` +
+      `${spikes.length} anomaly day${spikes.length === 1 ? "" : "s"} marked.`
+  );
 
   const half = Math.floor(totals.length / 2);
   const firstHalf = totals.slice(0, half).reduce((sum, v) => sum + v, 0);
@@ -282,20 +386,38 @@ function renderTrend() {
   const delta = firstHalf ? ((secondHalf - firstHalf) / firstHalf) * 100 : 0;
   note.textContent = `spend ${delta >= 0 ? "rose" : "fell"} ${Math.abs(delta).toFixed(1)}% versus the first half of the period`;
 
-  const probe = svgEl("line", { class: "probe", x1: 0, x2: 0, y1: 0, y2: 96, visibility: "hidden" });
-  svg.append(probe);
+  if (!points.length) return;
+  const [, , viewWidth, viewHeight] = svg.getAttribute("viewBox").split(" ").map(Number);
+  const probe = svgEl("line", { class: "probe", x1: 0, x2: 0, y1: 10, y2: viewHeight - 18, visibility: "hidden" });
+  const balloon = svgEl("g", { class: "balloon", visibility: "hidden" });
+  const balloonRect = svgEl("rect", { width: 108, height: 34, x: 0, y: 0 });
+  const balloonMain = svgEl("text", { x: 8, y: 14 });
+  const balloonSub = svgEl("text", { class: "balloon-sub", x: 8, y: 27 });
+  balloon.append(balloonRect, balloonMain, balloonSub);
+  svg.append(probe, balloon);
+
   svg.onmousemove = (event) => {
     const rect = svg.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * 460;
+    const x = ((event.clientX - rect.left) / rect.width) * viewWidth;
     let nearest = 0;
     points.forEach((p, i) => { if (Math.abs(p.x - x) < Math.abs(points[nearest].x - x)) nearest = i; });
-    probe.setAttribute("x1", points[nearest].x.toFixed(1));
-    probe.setAttribute("x2", points[nearest].x.toFixed(1));
+    const point = points[nearest];
+    probe.setAttribute("x1", point.x.toFixed(1));
+    probe.setAttribute("x2", point.x.toFixed(1));
     probe.setAttribute("visibility", "visible");
-    readout.textContent = `${dates[nearest]} — ${fmtNumber(totals[nearest])} ${currency}`;
+    const severity = severityByDate.get(dates[nearest]);
+    balloonMain.textContent = `${fmtNumber(totals[nearest])} ${currency}`;
+    balloonSub.textContent = `${dates[nearest]}${severity ? ` · ${severity} anomaly` : ""}`;
+    // flip the balloon when the probe nears the right edge
+    const flip = point.x > viewWidth - 124;
+    const bx = flip ? point.x - 116 : point.x + 8;
+    const by = Math.max(10, Math.min(point.y - 17, viewHeight - 54));
+    balloon.setAttribute("transform", `translate(${bx.toFixed(1)}, ${by.toFixed(1)})`);
+    balloon.setAttribute("visibility", "visible");
   };
   svg.onmouseleave = () => {
     probe.setAttribute("visibility", "hidden");
+    balloon.setAttribute("visibility", "hidden");
     readout.textContent = defaultReadout;
   };
 }
@@ -354,7 +476,7 @@ function renderInvestigation() {
 
     <div class="spark-block" id="spark-block" hidden>
       <p class="microcap">Fourteen-day evidence <span class="hint">— daily spend, ${escapeHtml(anomaly.service)}</span></p>
-      <svg class="spark-svg" id="spark-svg" viewBox="0 0 460 56" preserveAspectRatio="none" role="img" aria-label="Daily spend for ${escapeHtml(anomaly.service)} with the anomaly day marked"></svg>
+      <svg class="spark-svg" id="spark-svg" viewBox="0 0 460 64" preserveAspectRatio="none" role="img" aria-label="Daily spend for ${escapeHtml(anomaly.service)} with the anomaly day marked"></svg>
       <p class="meta" id="spark-stats"></p>
     </div>
 
@@ -395,13 +517,24 @@ function renderInvestigation() {
     const block = document.getElementById("spark-block");
     block.hidden = false;
     const anomalyIndex = state.daily.dates.indexOf(anomaly.date);
-    drawSeries(document.getElementById("spark-svg"), series.values, {
-      spikes: anomalyIndex >= 0 ? [{ index: anomalyIndex, severity: anomaly.severity }] : [],
-    });
     const mean = series.values.reduce((sum, v) => sum + v, 0) / series.values.length;
-    document.getElementById("spark-stats").textContent =
-      `min ${fmtNumber(Math.min(...series.values))} · mean ${fmtNumber(mean)} · ` +
-      `max ${fmtNumber(Math.max(...series.values))} — anomaly day marked`;
+    const sigma = Math.sqrt(
+      series.values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / series.values.length
+    );
+    const spark = document.getElementById("spark-svg");
+    drawSeries(spark, series.values, {
+      spikes: anomalyIndex >= 0 ? [{ index: anomalyIndex, severity: anomaly.severity }] : [],
+      band: { mean, sigma },
+    });
+    spark.setAttribute(
+      "aria-label",
+      `Daily spend for ${anomaly.service}: mean ${fmtNumber(mean)} with a one-sigma band; the anomaly day is marked.`
+    );
+    document.getElementById("spark-stats").innerHTML =
+      `<span class="spark-legend"><span>min ${fmtNumber(Math.min(...series.values))}</span>` +
+      `<span>mean ${fmtNumber(mean)}</span>` +
+      `<span>max ${fmtNumber(Math.max(...series.values))}</span>` +
+      `<span>band ±σ · anomaly day marked</span></span>`;
   }
 }
 
@@ -418,6 +551,11 @@ function renderRecommendationBlock(anomaly, action, analysis) {
         <p class="rec-title">${escapeHtml(action.title)}</p>
         <p class="rec-facts">${preferred ? `stance ${escapeHtml(detail.preferred)} · est. saving ${fmtNumber(saving ?? 0)} / month · risk ${escapeHtml(preferred.risk)} · rollback ${escapeHtml(preferred.rollback)}` : `stance ${escapeHtml(detail.preferred || "—")}`}</p>
         ${detail.escalation_reason ? `<p class="meta">debate-lite: ${escapeHtml(detail.escalation_reason)}</p>` : ""}
+        ${detail.transcript
+          ? `<details class="transcript"><summary>skeptic reviewed this</summary>
+               <p class="body">${escapeHtml(detail.transcript.skeptic_rationale || "")} — ${detail.transcript.agreed ? "agreed with the draft stance" : `revised the stance to ${escapeHtml(detail.transcript.final_preferred || "")}`}.</p>
+             </details>`
+          : ""}
         <p class="meta">filed to the decision inbox — state ${escapeHtml(action.state)}</p>
       </div>`;
   }
@@ -479,9 +617,21 @@ function renderDecisions() {
         <p class="dec-copy">observed ${escapeHtml(anomaly.date || "—")} · z ${anomaly.z_score != null ? Number(anomaly.z_score).toFixed(2) : "—"} · triage ${escapeHtml(analysisReport.triage || "—")} — ${escapeHtml(analysisReport.summary || "no analyst summary recorded")}</p>
         <p class="dec-facts"><span>stance ${escapeHtml(detail.preferred || "—")}</span><span>risk ${escapeHtml(preferred ? preferred.risk : "—")}</span><span>est. saving ${fmtNumber(saving ?? 0)} / month</span><span>confidence ${confidence.score != null ? Math.round(confidence.score * 100) : "—"}%</span></p>
         ${preferred ? `<p class="meta">rollback ${escapeHtml(preferred.rollback)}</p>` : ""}
-        ${detail.escalation_reason ? `<p class="meta">debate-lite: ${escapeHtml(detail.escalation_reason)}${detail.transcript ? ` — skeptic ${detail.transcript.agreed ? "agreed" : "revised the stance"}` : ""}</p>` : ""}
+        ${detail.escalation_reason ? `<p class="meta">debate-lite: ${escapeHtml(detail.escalation_reason)}</p>` : ""}
+        ${detail.transcript
+          ? `<details class="transcript"><summary>skeptic reviewed this</summary>
+               <p class="body">${escapeHtml(detail.transcript.skeptic_rationale || "")} — ${detail.transcript.agreed ? "agreed with the draft stance" : `revised the stance to ${escapeHtml(detail.transcript.final_preferred || "")}`}.</p>
+             </details>`
+          : ""}
       </div>
       <div class="dec-rail">
+        <span class="chip ${action.decided_by === "system:timeout" ? "expired" : action.state}">${
+          action.state === "executed"
+            ? "executed — simulation"
+            : action.decided_by === "system:timeout"
+              ? "expired"
+              : escapeHtml(action.state)
+        }</span>
         <p class="dec-status">${escapeHtml(actionStatusLine(action))}</p>
         ${action.state === "proposed" && !busy ? `
           <button class="row-action" type="button" data-hitl="reject" data-action-id="${action.id}" aria-label="reject the ${escapeHtml(anomaly.service || "")} proposal">reject ×</button>
@@ -494,8 +644,11 @@ function renderDecisions() {
   });
 }
 
+const AUDIT_VISIBLE_LIMIT = 8;
+
 function renderAudit() {
-  auditList.innerHTML = state.audit
+  const visible = state.auditExpanded ? state.audit : state.audit.slice(0, AUDIT_VISIBLE_LIMIT);
+  auditList.innerHTML = visible
     .map(
       (item) => `
     <li class="audit-item">
@@ -508,6 +661,14 @@ function renderAudit() {
     </li>`
     )
     .join("");
+  if (state.audit.length > AUDIT_VISIBLE_LIMIT) {
+    auditList.insertAdjacentHTML(
+      "beforeend",
+      `<li class="audit-more"><button class="row-action" type="button" data-audit-toggle>${
+        state.auditExpanded ? "show recent only ↑" : `show all ${state.audit.length} entries ↓`
+      }</button></li>`
+    );
+  }
 }
 
 function renderAll(report) {
@@ -609,8 +770,11 @@ async function scan() {
   const sequence = ++scanSequence;
   const threshold = parseFloat(thresholdInput.value).toFixed(2);
   thresholdValue.textContent = threshold;
-  anomalyList.style.opacity = "0.35";
-  costBars.style.opacity = "0.35";
+  const skeleton = `<div class="skeleton-row"></div><div class="skeleton-row short"></div><div class="skeleton-row"></div>`;
+  if (!state.anomalies.length) anomalyList.innerHTML = skeleton;
+  if (!state.costs) costBars.innerHTML = skeleton;
+  anomalyList.style.opacity = "0.55";
+  costBars.style.opacity = "0.55";
   const anomalyUrl =
     `/anomalies?threshold=${threshold}` +
     (serviceFilter.value ? `&service=${encodeURIComponent(serviceFilter.value)}` : "");
@@ -629,7 +793,7 @@ async function scan() {
     state.allAnomalies = unfiltered ? unfiltered.anomalies : anomalies.anomalies;
     populateServiceFilter();
     renderAll(anomalies);
-    editionLine.textContent = "SYSTEM ONLINE — MOCK DATA — SPRINT II";
+    editionLine.textContent = `SYSTEM ONLINE — LAST SCAN ${utcNow()} — MOCK DATA`;
     editionLine.classList.remove("down");
   } catch (error) {
     if (sequence !== scanSequence) return;
@@ -696,7 +860,26 @@ document.addEventListener("click", (event) => {
   const evidenceRequest = event.target.closest("[data-request-evidence]");
   if (evidenceRequest) {
     runAnalyst();
+    return;
   }
+
+  const auditToggle = event.target.closest("[data-audit-toggle]");
+  if (auditToggle) {
+    state.auditExpanded = !state.auditExpanded;
+    renderAudit();
+  }
+});
+
+/* keyboard: walk the signal rail with the arrow keys */
+signalRail.addEventListener("keydown", (event) => {
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+  if (!state.anomalies.length) return;
+  event.preventDefault();
+  const delta = event.key === "ArrowDown" ? 1 : -1;
+  state.selectedIndex =
+    (state.selectedIndex + delta + state.anomalies.length) % state.anomalies.length;
+  renderInvestigation();
+  signalRail.querySelector(".signal-option.is-selected")?.focus();
 });
 
 async function runAnalyst() {
