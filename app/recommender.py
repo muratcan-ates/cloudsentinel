@@ -39,7 +39,7 @@ from app.llm import (
     get_provider,
     wrap_untrusted,
 )
-from models import (
+from app.models import (
     ConfidenceReport,
     RecommendationResponse,
     RecommendedOptionOut,

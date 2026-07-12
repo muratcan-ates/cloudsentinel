@@ -9,7 +9,7 @@ from main import app
 
 client = TestClient(app)
 
-MOCK_DATA = json.loads((Path(__file__).parent.parent / "data" / "mock_costs.json").read_text())
+MOCK_DATA = json.loads((Path(__file__).parent.parent / "app" / "data" / "mock_costs.json").read_text())
 
 
 def get_report():

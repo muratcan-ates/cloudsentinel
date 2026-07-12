@@ -37,8 +37,8 @@ from app.llm import (
     get_provider,
     wrap_untrusted,
 )
-from detection import CRITICAL_Z_SCORE, load_daily_costs
-from models import AnalysisResponse, ConfidenceReport
+from app.detection import CRITICAL_Z_SCORE, load_daily_costs
+from app.models import AnalysisResponse, ConfidenceReport
 
 logger = logging.getLogger("cloudsentinel.analyst")
 

@@ -3,7 +3,8 @@
 Sprint 1 scope: anomaly detection over daily cost records (z-score against
 each service's historical mean), a per-service cost summary with CSV export,
 a daily trend series, a liveness check, and a dashboard served at the root.
-Models live in models.py, data loading and detection logic in detection.py.
+All application code lives in the app/ package (models, detection, agents,
+persistence); this module is the thin ASGI entry point.
 """
 
 import csv
@@ -25,14 +26,14 @@ from app.analyst import router as analyst_router
 from app.decisions import router as decisions_router
 from app.pulse import router as pulse_router
 from app.recommender import router as recommender_router
-from detection import (
+from app.detection import (
     build_daily_series,
     detect_anomalies,
     load_daily_costs,
     load_dataset,
     summarize_costs,
 )
-from models import AnomalyReport, CostSummaryReport, DailyCostReport, HealthStatus
+from app.models import AnomalyReport, CostSummaryReport, DailyCostReport, HealthStatus
 
 STATIC_DIR = Path(__file__).parent / "static"
 

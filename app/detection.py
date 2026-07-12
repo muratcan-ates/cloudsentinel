@@ -10,7 +10,7 @@ import json
 import statistics
 from pathlib import Path
 
-from models import Anomaly, DailyServiceSeries, ServiceCostSummary
+from app.models import Anomaly, DailyServiceSeries, ServiceCostSummary
 
 DATA_FILE = Path(__file__).parent / "data" / "mock_costs.json"
 

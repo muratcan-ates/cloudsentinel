@@ -12,7 +12,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, Query
 
 from app import db
-from models import DecisionListReport, DecisionRecord
+from app.models import DecisionListReport, DecisionRecord
 
 router = APIRouter(tags=["memory"])
 

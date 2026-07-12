@@ -23,8 +23,8 @@ from fastapi import APIRouter, Depends, Query
 from app import db
 from app.analyst import analyze_event
 from app.recommender import recommend_for_event
-from detection import detect_anomalies, load_daily_costs
-from models import PulseChainLink, PulseReport
+from app.detection import detect_anomalies, load_daily_costs
+from app.models import PulseChainLink, PulseReport
 
 logger = logging.getLogger("cloudsentinel.pulse")
 

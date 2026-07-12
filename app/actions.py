@@ -26,7 +26,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query
 
 from app import db
-from models import ActionDecisionRequest, ActionListReport, ActionRecord, ActionState
+from app.models import ActionDecisionRequest, ActionListReport, ActionRecord, ActionState
 
 logger = logging.getLogger("cloudsentinel.actions")
 
