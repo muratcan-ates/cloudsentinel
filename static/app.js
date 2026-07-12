@@ -1,8 +1,9 @@
 /* CloudSentinel ledger — fetches /anomalies and /costs/summary and typesets the panels.
-   Section III's "request deeper analysis" now runs the live Analyst agent
-   (POST /anomalies/{id}/analyze); the recommendation blocks in III–V stay on
-   the demo narrative until the Recommender endpoint lands, and nothing ever
-   executes without an operator decision. */
+   The full agent chain runs live: section III triages with the Analyst and
+   files Recommender proposals, section IV is the real HITL inbox
+   (approve / reject / simulated execute against /actions), and section V
+   keeps the audit trail. Nothing ever executes without an operator decision,
+   and execution is simulated by design. */
 
 const thresholdInput = document.getElementById("threshold");
 const thresholdValue = document.getElementById("threshold-value");
@@ -25,8 +26,9 @@ const state = {
   selectedIndex: 0,
   analyses: new Map(), // event id → Analyst agent report; survives re-renders
   analystBusy: new Set(), // event ids with an analyze request in flight
-  decisions: [],
-  decisionMemory: new Map(), // id → {status, resolvedAt}; survives re-scans and filters
+  recommendBusy: new Set(), // event ids with a recommend request in flight
+  hitlBusy: new Set(), // action ids with a decision request in flight
+  actions: [], // live HITL actions from GET /actions — feeds section IV
   audit: [
     { time: "scan", title: "Cost Agent completed the scheduled scan", copy: "Every monitored service was compared against its historical baseline." },
     { time: "scan", title: "Anomaly policy applied", copy: "Signals at or above the configured z-score threshold entered the review queue." },
@@ -34,7 +36,8 @@ const state = {
   ],
 };
 
-/* Demo narrative until the Sprint II Analyst/Recommender endpoints exist. */
+/* Pre-analysis placeholder for section III: shown only until the Analyst
+   runs on a signal; live agent output replaces it. */
 const detailsByService = {
   compute: {
     asset: "prod-api-cluster / i-0a9c2",
@@ -97,35 +100,32 @@ function detailFor(service) {
   return detailsByService[String(service || "").trim().toLowerCase()] || detailsByService.network;
 }
 
-function decisionId(anomaly) {
-  return `${String(anomaly.service).toLowerCase()}-${anomaly.date}`;
+let actionsSequence = 0; // last-writer-wins: a stale /actions response must never overwrite a newer one
+
+async function loadActions() {
+  const sequence = ++actionsSequence;
+  try {
+    const report = await fetchJson("/actions");
+    if (sequence !== actionsSequence) return; // superseded by a newer reload
+    state.actions = report.actions;
+  } catch {
+    if (sequence !== actionsSequence) return;
+    state.actions = []; // the inbox degrades to its empty state
+  }
 }
 
-function reconcileDecisions() {
-  state.decisions = state.anomalies.map((anomaly) => {
-    const detail = detailFor(anomaly.service);
-    const id = decisionId(anomaly);
-    const remembered = state.decisionMemory.get(id);
-    return {
-      id,
-      status: remembered ? remembered.status : "pending",
-      resolvedAt: remembered ? remembered.resolvedAt : null,
-      severity: anomaly.severity,
-      service: anomaly.service,
-      date: anomaly.date,
-      title: detail.proposal,
-      asset: detail.asset,
-      risk: detail.risk,
-      savings: detail.savings,
-      confidence: detail.confidence,
-    };
-  });
+function actionForEvent(eventId) {
+  if (eventId == null) return undefined;
+  // the newest non-rejected action mirrors the backend's reuse lane
+  return [...state.actions]
+    .reverse()
+    .find((action) => action.event_id === eventId && action.state !== "rejected");
 }
 
 /* ---------- renderers ---------- */
 
 function renderSummary() {
-  const pending = state.decisions.filter((d) => d.status === "pending").length;
+  const pending = state.actions.filter((a) => a.state === "proposed").length;
   document.getElementById("sum-signals").textContent = String(state.anomalies.length);
   document.getElementById("sum-pending").textContent = String(pending);
   if (state.costs) {
@@ -325,8 +325,7 @@ function renderInvestigation() {
   const detail = detailFor(anomaly.service);
   const currency = state.costs ? state.costs.currency : "USD";
   const deviation = anomaly.cost - anomaly.service_mean;
-  const decision = state.decisions[state.selectedIndex];
-  const pending = decision && decision.status === "pending";
+  const action = actionForEvent(anomaly.id);
   const analysis = anomaly.id != null ? state.analyses.get(anomaly.id) : undefined;
   const analystTag = analysis
     ? analysis.source === "fallback"
@@ -372,11 +371,7 @@ function renderInvestigation() {
         <p class="body">${escapeHtml(analysis ? analysis.probable_cause : detail.security)}</p>
         ${analysis ? `<p class="meta">${escapeHtml(analysis.confidence.rationale)}</p>` : ""}
       </div>
-      <div class="inv-block recommendation" style="grid-column: 1 / -1;">
-        <p class="microcap">Recommended action — demo narrative</p>
-        <p class="rec-title">${escapeHtml(detail.proposal)}</p>
-        <p class="rec-facts">saving ${escapeHtml(detail.savings)} · risk ${escapeHtml(detail.risk)} · rollback ${escapeHtml(detail.rollback)}</p>
-      </div>
+      ${renderRecommendationBlock(anomaly, action, analysis)}
     </div>
 
     <div class="inv-actions">
@@ -385,10 +380,12 @@ function renderInvestigation() {
           ? "analyst working…"
           : analysis ? "re-run analyst →" : "run analyst agent →"
       }</button>
-      ${pending
-        ? `<button class="row-action" type="button" data-decision="reject" data-decision-index="${state.selectedIndex}" aria-label="reject the ${escapeHtml(anomaly.service)} proposal">reject proposal ×</button>
-           <button class="row-action" type="button" data-decision="approve" data-decision-index="${state.selectedIndex}" aria-label="approve the ${escapeHtml(anomaly.service)} proposal for execution">approve for execution →</button>`
-        : `<span class="dec-status">${decision ? escapeHtml(statusWord(decision)) : ""}</span>`}
+      ${analysis && !action
+        ? `<button class="row-action" type="button" data-request-recommend ${state.recommendBusy.has(anomaly.id) ? "disabled" : ""}>${
+            state.recommendBusy.has(anomaly.id) ? "recommender working…" : "file recommendation →"
+          }</button>`
+        : ""}
+      ${action ? `<a class="row-action" href="#sec-decisions">decide in the inbox ↓</a>` : ""}
     </div>`;
 
   const series = state.daily?.services.find(
@@ -408,40 +405,90 @@ function renderInvestigation() {
   }
 }
 
-function statusWord(decision) {
-  if (decision.status === "approved") return `approved — demo only${decision.resolvedAt ? " · " + decision.resolvedAt : ""}`;
-  if (decision.status === "rejected") return `rejected${decision.resolvedAt ? " · " + decision.resolvedAt : ""}`;
-  return "awaiting the hand";
+function renderRecommendationBlock(anomaly, action, analysis) {
+  if (action) {
+    const detail = action.detail || {};
+    const preferred = (detail.options || []).find((o) => o.stance === detail.preferred);
+    const savings = detail.savings || {};
+    const saving =
+      detail.preferred === "BOLD" ? savings.bold_monthly : savings.cautious_monthly;
+    return `
+      <div class="inv-block recommendation" style="grid-column: 1 / -1;">
+        <p class="microcap">Recommended action — Recommender agent${detail.source === "fallback" ? " (fallback)" : ""}</p>
+        <p class="rec-title">${escapeHtml(action.title)}</p>
+        <p class="rec-facts">${preferred ? `stance ${escapeHtml(detail.preferred)} · est. saving ${fmtNumber(saving ?? 0)} / month · risk ${escapeHtml(preferred.risk)} · rollback ${escapeHtml(preferred.rollback)}` : `stance ${escapeHtml(detail.preferred || "—")}`}</p>
+        ${detail.escalation_reason ? `<p class="meta">debate-lite: ${escapeHtml(detail.escalation_reason)}</p>` : ""}
+        <p class="meta">filed to the decision inbox — state ${escapeHtml(action.state)}</p>
+      </div>`;
+  }
+  if (analysis) {
+    return `
+      <div class="inv-block recommendation" style="grid-column: 1 / -1;">
+        <p class="microcap">Recommended action</p>
+        <p class="body">Triage complete — file the recommendation to get two options (cautious / bold) with computed savings into the decision inbox.</p>
+      </div>`;
+  }
+  const demo = detailFor(anomaly.service);
+  return `
+      <div class="inv-block recommendation" style="grid-column: 1 / -1;">
+        <p class="microcap">Recommended action — demo narrative</p>
+        <p class="rec-title">${escapeHtml(demo.proposal)}</p>
+        <p class="rec-facts">saving ${escapeHtml(demo.savings)} · risk ${escapeHtml(demo.risk)} · rollback ${escapeHtml(demo.rollback)}</p>
+      </div>`;
+}
+
+function actionStatusLine(action) {
+  if (action.state === "proposed") return "awaiting the hand";
+  if (action.state === "approved") return `approved · ${action.decided_by || "operator"} — ready for simulated execution`;
+  if (action.state === "executed") return "executed — SIMULATION";
+  if (action.decided_by === "system:timeout") return "expired — proposal timed out unanswered";
+  return `rejected · ${action.decided_by || "operator"}`;
 }
 
 function renderDecisions() {
-  const pending = state.decisions.filter((d) => d.status === "pending").length;
+  const pending = state.actions.filter((a) => a.state === "proposed").length;
   document.getElementById("decision-meta").textContent = pending
-    ? `${pending} proposal${pending === 1 ? "" : "s"} awaiting an accountable hand — nothing executes automatically`
-    : "a proposed action stays inert until an operator accepts or rejects it";
+    ? `${pending} proposal${pending === 1 ? "" : "s"} awaiting an accountable hand — nothing executes automatically, execution is always simulated`
+    : "a proposed action stays inert until an operator accepts or rejects it — file one from an investigated signal";
 
   decisionList.innerHTML = "";
-  if (state.decisions.length === 0) {
-    decisionList.innerHTML = `<p class="all-quiet">No open proposal — no anomaly on watch.</p>`;
+  if (state.actions.length === 0) {
+    decisionList.innerHTML = `<p class="all-quiet">No filed proposal — investigate a signal and file a recommendation.</p>`;
     return;
   }
 
-  state.decisions.forEach((decision, index) => {
-    const resolved = decision.status !== "pending";
+  state.actions.forEach((action) => {
+    const detail = action.detail || {};
+    const anomaly = detail.anomaly || {};
+    const analysisReport = detail.analysis || {};
+    const savings = detail.savings || {};
+    const confidence = detail.confidence || {};
+    const preferred = (detail.options || []).find((o) => o.stance === detail.preferred);
+    const saving =
+      detail.preferred === "BOLD" ? savings.bold_monthly : savings.cautious_monthly;
+    const busy = state.hitlBusy.has(action.id);
+    const severity = anomaly.severity || "warning";
+    const resolved = action.state === "rejected" || action.state === "executed";
     const card = document.createElement("article");
-    card.className = `decision ${decision.severity} ${resolved ? "resolved" : ""} ${decision.status}`;
+    card.className = `decision ${severity} ${resolved ? "resolved" : ""} ${action.state}`;
+    // evidence pack: anomaly + triage + reasoning + options on ONE card
     card.innerHTML = `
       <span class="sq" aria-hidden="true"></span>
       <div>
-        <p class="dec-title">${escapeHtml(decision.service)} — ${escapeHtml(decision.title)}</p>
-        <p class="dec-copy">observed ${escapeHtml(decision.date)} · proposal generated by the demo Recommender narrative.</p>
-        <p class="dec-facts"><span>asset ${escapeHtml(decision.asset)}</span><span>risk ${escapeHtml(decision.risk)}</span><span>saving ${escapeHtml(decision.savings)}</span><span>confidence ${decision.confidence}%</span></p>
+        <p class="dec-title">${escapeHtml(anomaly.service || "service")} — ${escapeHtml(action.title)}</p>
+        <p class="dec-copy">observed ${escapeHtml(anomaly.date || "—")} · z ${anomaly.z_score != null ? Number(anomaly.z_score).toFixed(2) : "—"} · triage ${escapeHtml(analysisReport.triage || "—")} — ${escapeHtml(analysisReport.summary || "no analyst summary recorded")}</p>
+        <p class="dec-facts"><span>stance ${escapeHtml(detail.preferred || "—")}</span><span>risk ${escapeHtml(preferred ? preferred.risk : "—")}</span><span>est. saving ${fmtNumber(saving ?? 0)} / month</span><span>confidence ${confidence.score != null ? Math.round(confidence.score * 100) : "—"}%</span></p>
+        ${preferred ? `<p class="meta">rollback ${escapeHtml(preferred.rollback)}</p>` : ""}
+        ${detail.escalation_reason ? `<p class="meta">debate-lite: ${escapeHtml(detail.escalation_reason)}${detail.transcript ? ` — skeptic ${detail.transcript.agreed ? "agreed" : "revised the stance"}` : ""}</p>` : ""}
       </div>
       <div class="dec-rail">
-        <p class="dec-status">${escapeHtml(statusWord(decision))}</p>
-        ${resolved ? "" : `
-          <button class="row-action" type="button" data-decision="reject" data-decision-index="${index}" aria-label="reject the ${escapeHtml(decision.service)} proposal">reject ×</button>
-          <button class="row-action" type="button" data-decision="approve" data-decision-index="${index}" aria-label="approve the ${escapeHtml(decision.service)} proposal for execution">approve →</button>`}
+        <p class="dec-status">${escapeHtml(actionStatusLine(action))}</p>
+        ${action.state === "proposed" && !busy ? `
+          <button class="row-action" type="button" data-hitl="reject" data-action-id="${action.id}" aria-label="reject the ${escapeHtml(anomaly.service || "")} proposal">reject ×</button>
+          <button class="row-action" type="button" data-hitl="approve" data-action-id="${action.id}" aria-label="approve the ${escapeHtml(anomaly.service || "")} proposal for execution">approve →</button>` : ""}
+        ${action.state === "approved" && !busy ? `
+          <button class="row-action" type="button" data-hitl="execute" data-action-id="${action.id}" aria-label="run the simulated execution of the ${escapeHtml(anomaly.service || "")} action">execute — simulation →</button>` : ""}
+        ${busy ? `<p class="meta">recording…</p>` : ""}
       </div>`;
     decisionList.appendChild(card);
   });
@@ -474,24 +521,76 @@ function renderAll(report) {
 
 /* ---------- actions ---------- */
 
-function updateDecision(index, action) {
-  const decision = state.decisions[index];
-  if (!decision || decision.status !== "pending") return;
-  decision.status = action === "approve" ? "approved" : "rejected";
-  decision.resolvedAt = utcNow();
-  state.decisionMemory.set(decision.id, { status: decision.status, resolvedAt: decision.resolvedAt });
-  state.audit.unshift({
-    time: decision.resolvedAt,
-    title: action === "approve" ? "Operator approved a proposal (demo)" : "Operator rejected a proposal",
-    copy:
-      action === "approve"
-        ? `The ${decision.service} proposal is recorded as approved in the interface. Execution stays disabled until the Sprint II action endpoint is connected.`
-        : `The ${decision.service} proposal was closed with no infrastructure action.`,
-  });
-  renderSummary();
-  renderInvestigation();
+async function decideAction(actionId, verb) {
+  if (state.hitlBusy.has(actionId)) return;
+  state.hitlBusy.add(actionId);
   renderDecisions();
-  renderAudit();
+  try {
+    const response = await fetch(`/actions/${actionId}/${verb}`, {
+      method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const record = await response.json();
+    const service = record.detail?.anomaly?.service || "the flagged service";
+    const titles = {
+      approve: `Operator approved the ${service} proposal`,
+      reject: `Operator rejected the ${service} proposal`,
+      execute: `Simulated execution completed for ${service}`,
+    };
+    const copies = {
+      approve: "The action is approved and ready for simulated execution — nothing runs on real infrastructure.",
+      reject: "The proposal was closed with no infrastructure action.",
+      execute: "SIMULATION only: the state machine recorded the execution; no real resource was touched.",
+    };
+    state.audit.unshift({ time: utcNow(), title: titles[verb], copy: copies[verb] });
+  } catch (error) {
+    state.audit.unshift({
+      time: utcNow(),
+      title: "Decision request failed",
+      copy: `${error.message} — the inbox reloads with the authoritative state.`,
+    });
+  } finally {
+    state.hitlBusy.delete(actionId);
+    await loadActions();
+    renderSummary();
+    renderInvestigation();
+    renderDecisions();
+    renderAudit();
+  }
+}
+
+async function fileRecommendation() {
+  const anomaly = state.anomalies[state.selectedIndex];
+  if (!anomaly || anomaly.id == null || state.recommendBusy.has(anomaly.id)) return;
+  state.recommendBusy.add(anomaly.id);
+  renderInvestigation();
+  try {
+    const response = await fetch(`/anomalies/${anomaly.id}/recommend`, { method: "POST" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const recommendation = await response.json();
+    state.audit.unshift({
+      time: utcNow(),
+      title: `Recommender filed a ${recommendation.preferred} proposal for ${anomaly.service}`,
+      copy:
+        `Category ${recommendation.category} · est. saving ${recommendation.preferred === "BOLD" ? recommendation.savings.bold_monthly : recommendation.savings.cautious_monthly} / month` +
+        `${recommendation.escalation_reason ? " · debate-lite: " + recommendation.escalation_reason : ""}` +
+        `${recommendation.source === "fallback" ? " · rule-based fallback (LLM unavailable)" : ""}.`,
+    });
+  } catch (error) {
+    state.audit.unshift({
+      time: utcNow(),
+      title: "Recommender request failed",
+      copy: `${error.message} — no proposal was filed.`,
+    });
+  } finally {
+    state.recommendBusy.delete(anomaly.id);
+    await loadActions();
+    renderSummary();
+    renderInvestigation();
+    renderDecisions();
+    renderAudit();
+  }
 }
 
 function populateServiceFilter() {
@@ -521,6 +620,7 @@ async function scan() {
       fetchJson("/costs/summary"),
       fetchJson("/costs/daily"),
       serviceFilter.value ? fetchJson(`/anomalies?threshold=${threshold}`) : null,
+      loadActions(),
     ]);
     if (sequence !== scanSequence) return;
     state.costs = costs;
@@ -528,7 +628,6 @@ async function scan() {
     state.anomalies = anomalies.anomalies;
     state.allAnomalies = unfiltered ? unfiltered.anomalies : anomalies.anomalies;
     populateServiceFilter();
-    reconcileDecisions();
     renderAll(anomalies);
     editionLine.textContent = "SYSTEM ONLINE — MOCK DATA — SPRINT II";
     editionLine.classList.remove("down");
@@ -572,9 +671,15 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const decisionAction = event.target.closest("[data-decision]");
-  if (decisionAction) {
-    updateDecision(Number(decisionAction.dataset.decisionIndex), decisionAction.dataset.decision);
+  const hitlAction = event.target.closest("[data-hitl]");
+  if (hitlAction) {
+    decideAction(Number(hitlAction.dataset.actionId), hitlAction.dataset.hitl);
+    return;
+  }
+
+  const recommendRequest = event.target.closest("[data-request-recommend]");
+  if (recommendRequest) {
+    fileRecommendation();
     return;
   }
 

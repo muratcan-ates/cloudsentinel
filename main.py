@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -80,6 +81,23 @@ app = FastAPI(
 app.include_router(actions_router)
 app.include_router(analyst_router)
 app.include_router(recommender_router)
+
+# Explicit origins and headers by locked decision: allow_credentials=True
+# together with a wildcard origin is rejected by browsers, and the HITL
+# POSTs need the Idempotency-Key header to survive preflight.
+ALLOWED_ORIGINS = [
+    "https://cloudsentinel.onrender.com",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["Idempotency-Key", "Authorization", "Content-Type"],
+    expose_headers=["Content-Disposition"],
+)
 
 
 @app.middleware("http")

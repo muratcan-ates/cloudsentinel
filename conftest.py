@@ -23,3 +23,6 @@ def _isolated_db(tmp_path, monkeypatch):
     path read SENTINEL_DB_PATH exactly like production code does.
     """
     monkeypatch.setenv("SENTINEL_DB_PATH", str(tmp_path / "test.db"))
+    # keep the suite hermetic: a TTL exported in the developer's shell (the
+    # natural way to demo request-triggered expiry) must not leak into tests
+    monkeypatch.delenv("SENTINEL_ACTION_TTL_HOURS", raising=False)

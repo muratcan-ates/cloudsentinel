@@ -18,6 +18,8 @@ deterministic without persisting them.
 """
 
 import json
+import math
+import os
 import sqlite3
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query
@@ -43,6 +45,59 @@ DECISION_RESPONSES = {
     },
 }
 
+EXECUTE_RESPONSES = {
+    404: {"description": "No action with this id exists."},
+    409: {"description": "Only approved actions can be executed."},
+}
+
+# Request-triggered timeout: the deploy target sleeps between requests, so
+# no scheduler can run — stale proposals expire whenever the inbox is read.
+ACTION_TTL_HOURS_ENV = "SENTINEL_ACTION_TTL_HOURS"
+DEFAULT_ACTION_TTL_HOURS = 72.0
+TIMEOUT_ACTOR = "system:timeout"
+
+
+def action_ttl_hours() -> float:
+    raw = os.environ.get(ACTION_TTL_HOURS_ENV, "").strip()
+    if not raw:
+        return DEFAULT_ACTION_TTL_HOURS
+    try:
+        value = float(raw)
+    except ValueError:
+        return DEFAULT_ACTION_TTL_HOURS
+    # nan/inf parse as floats but would silently break the SQLite datetime
+    # modifier (NULL cutoff -> nothing ever expires); treat them as garbage.
+    if not math.isfinite(value):
+        return DEFAULT_ACTION_TTL_HOURS
+    return value
+
+
+def expire_stale_proposals(conn: sqlite3.Connection) -> int:
+    """Reject proposals older than the TTL, attributed to the system actor.
+
+    A TTL of 0 (or negative) disables expiry. The pre-check keeps the
+    common no-op path free of write locks.
+    """
+    hours = action_ttl_hours()
+    if hours <= 0:
+        return 0
+    cutoff_modifier = f"-{hours} hours"
+    stale = conn.execute(
+        "SELECT 1 FROM actions WHERE state = 'proposed' "
+        "AND proposed_at < datetime('now', ?) LIMIT 1",
+        (cutoff_modifier,),
+    ).fetchone()
+    if stale is None:
+        return 0
+    with db.writing(conn):
+        cursor = conn.execute(
+            "UPDATE actions SET state = 'rejected', "
+            "decided_at = datetime('now'), decided_by = ? "
+            "WHERE state = 'proposed' AND proposed_at < datetime('now', ?)",
+            (TIMEOUT_ACTOR, cutoff_modifier),
+        )
+        return cursor.rowcount
+
 
 def _to_record(row: sqlite3.Row) -> ActionRecord:
     return ActionRecord(
@@ -66,6 +121,7 @@ def list_actions(
     conn: sqlite3.Connection = Depends(db.get_db),
 ) -> ActionListReport:
     """Return proposed/decided actions for the operator inbox and ledger."""
+    expire_stale_proposals(conn)
     if state is not None:
         rows = conn.execute(
             "SELECT * FROM actions WHERE state = ? ORDER BY id", (state,)
@@ -150,3 +206,60 @@ def reject_action(
     """Reject a proposed action; safe to retry with an Idempotency-Key."""
     actor = decision.actor if decision is not None else "operator"
     return _decide(conn, action_id, "rejected", actor, idempotency_key)
+
+
+@router.post("/{action_id}/execute", responses=EXECUTE_RESPONSES)
+def execute_action(
+    action_id: int = ACTION_ID_PATH,
+    idempotency_key: str | None = Header(
+        None, alias="Idempotency-Key", min_length=1, max_length=200
+    ),
+    conn: sqlite3.Connection = Depends(db.get_db),
+) -> ActionRecord:
+    """Simulated execution of an approved action.
+
+    No real infrastructure is ever touched: the transition is recorded
+    with a SIMULATION marker in the action detail, which the dashboard
+    surfaces as a badge. Safe to retry with an Idempotency-Key.
+    """
+    scoped_key = (
+        f"actions:{action_id}:execute:{idempotency_key}"
+        if idempotency_key is not None
+        else None
+    )
+    with db.writing(conn):
+        if scoped_key is not None:
+            claimed, stored = db.claim_idempotency(conn, scoped_key)
+            if not claimed and stored is not None:
+                return ActionRecord.model_validate_json(stored)
+        row = conn.execute(
+            "SELECT * FROM actions WHERE id = ?", (action_id,)
+        ).fetchone()
+        if row is None:
+            raise HTTPException(
+                status_code=404, detail=f"action {action_id} does not exist"
+            )
+        if row["state"] != "approved":
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"action {action_id} is '{row['state']}'; "
+                    "only 'approved' actions can be executed"
+                ),
+            )
+        detail = json.loads(row["detail_json"])
+        detail["execution"] = {
+            "mode": "SIMULATION",
+            "note": "no real infrastructure was touched",
+        }
+        conn.execute(
+            "UPDATE actions SET state = 'executed', "
+            "executed_at = datetime('now'), detail_json = ? WHERE id = ?",
+            (json.dumps(detail), action_id),
+        )
+        record = _to_record(
+            conn.execute("SELECT * FROM actions WHERE id = ?", (action_id,)).fetchone()
+        )
+        if scoped_key is not None:
+            db.store_idempotency_response(conn, scoped_key, record.model_dump_json())
+    return record
