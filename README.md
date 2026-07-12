@@ -28,7 +28,7 @@
   - [Product Name](#product-name) · [Product Description](#product-description) · [Product Features](#product-features) · [Target Audience](#target-audience)
   - [What Makes CloudSentinel Different](#what-makes-cloudsentinel-different)
   - [How to Run (Local)](#how-to-run-local)
-  - [Built With](#built-with) · [Project Status](#project-status--sprint-1-deliverables) · [Roadmap](#roadmap-sprint-2-3)
+  - [Built With](#built-with) · [Sprint 1 Deliverables](#project-status--sprint-1-deliverables) · [Sprint 2 Progress](#project-status--sprint-2-progress) · [Roadmap](#roadmap-sprint-2-3)
   - [Requirements Compliance](#requirements-compliance) · [Scope & Limitations](#scope--limitations-by-design)
   - [Product Backlog URL](#product-backlog-url)
 - [Sprint 1](#sprint-1) · [Sprint 2](#sprint-2) · [Sprint 3](#sprint-3)
@@ -80,16 +80,20 @@ CloudSentinel
 
 ## Product Description
 
-CloudSentinel is an agentic decision-support system that monitors cloud cost and security data, detects anomalies in that data, generates action recommendations for detected anomalies through AI agents, and leaves the final approval of critical actions to a human operator (human-in-the-loop). The backend is being developed with FastAPI + Python; Gemini is planned for the LLM layer. At the MVP stage the system runs on synthetic (mock) data.
+CloudSentinel is an agentic decision-support system that monitors cloud cost and security data, detects anomalies in that data, generates action recommendations for detected anomalies through AI agents, and leaves the final approval of critical actions to a human operator (human-in-the-loop). The backend is FastAPI + Python; the LLM layer is built for Gemini behind a provider abstraction, with a deterministic fake provider that keeps every agent behavior testable and demo-able offline. At the MVP stage the system runs on synthetic (mock) data.
 
 ## Product Features
 
-- Anomaly detection on cloud cost data
-- Monitoring of security data and signals
-- AI-agent-generated action recommendations for detected anomalies
-- Human-in-the-loop approval flow for critical actions
-- REST API (FastAPI) with automatic Swagger documentation
-- Multi-agent orchestration for decision making (in upcoming sprints)
+- Anomaly detection on cloud cost data (per-service z-score, live threshold control)
+- **Analyst agent** — triages every anomaly (REAL / SEASONAL / DATA_ERROR / KNOWN_CHANGE) with cited evidence rows and a self-assessed confidence; self-reflects on critical signals
+- **Recommender agent** — proposes exactly two options (cautious / bold) with risk and rollback plans; estimated savings are computed deterministically in Python, never by the model
+- **Debate-lite skeptic** — low-confidence or contested recommendations get one extra adversarial review; the transcript ships with the proposal
+- **Decision memory** — operator verdicts are stored and fed back into the Recommender's context, so repeated anomaly patterns meet an agent that remembers
+- **Human-in-the-loop lifecycle** — `proposed → approved/rejected → executed (simulated)` with idempotent decisions, request-triggered timeouts and a full audit trail; nothing ever executes without a human
+- **Pulse** — one call drives the whole chain (detect → analyze → debate → recommend → inbox) with a tagged JSON log stream
+- Live dashboard: anomaly feed, cost ledger, investigation evidence, decision inbox and audit ledger
+- REST API (FastAPI, 13 endpoints) with automatic Swagger documentation
+- Monitoring of security data and signals (mock security events land in Sprint 3 through the same pipeline)
 
 ## Target Audience
 
@@ -106,8 +110,8 @@ CloudSentinel's differentiator is what happens after detection: AI agents
 reason about each anomaly, propose concrete remediation actions with risk
 levels, and a human operator gives the final approval — closing the
 detect → decide → act loop with human-in-the-loop safety instead of leaving
-the operator alone with a raw alert. The planned agent design is documented
-in [docs/architecture.md](docs/architecture.md).
+the operator alone with a raw alert. The agent design is documented — and now
+implemented — in [docs/architecture.md](docs/architecture.md).
 
 ## How to Run (Local)
 
@@ -190,18 +194,35 @@ docker run -p 8000:8000 cloudsentinel
 | Agent & HITL architecture design | Sprint 2–3 technical plan | ✅ [`docs/architecture.md`](docs/architecture.md) |
 | Health check & CSV export | `GET /health` liveness · downloadable cost summary (PR #3) | ✅ [`main.py`](main.py) |
 
+## Project Status — Sprint 2 Progress
+
+Sprint 2's development stories are code-complete as of July 12 (sprint review and demo on July 19):
+
+| Deliverable | Description | Status |
+|---|---|---|
+| SQLite persistence core | WAL journal, write-lock discipline, idempotency keys, seed-on-startup for ephemeral disks | ✅ [`app/db.py`](app/db.py) |
+| Analyst agent | `POST /anomalies/{id}/analyze` — triage badge + cited evidence + confidence, reflection on critical signals, response caching | ✅ [`app/analyst.py`](app/analyst.py) |
+| Recommender + debate-lite | `POST /anomalies/{id}/recommend` — two options with Python-computed savings; skeptic review on low-confidence/contested calls | ✅ [`app/recommender.py`](app/recommender.py) |
+| HITL action lifecycle | `GET /actions` · approve / reject / execute (simulated) with `Idempotency-Key` support and request-triggered timeouts | ✅ [`app/actions.py`](app/actions.py) |
+| Decision memory | Operator verdicts stored and retrieved (`GET /decisions/similar`) and injected into the Recommender's context | ✅ [`app/decisions.py`](app/decisions.py) |
+| Pulse end-to-end chain | `POST /pulse` — detect → analyze → debate → recommend → inbox with a tagged JSON log stream | ✅ [`app/pulse.py`](app/pulse.py) |
+| Live dashboard | Sections I–V run against the real API: investigation triage, recommendation filing, decision inbox, audit ledger | ✅ [`static/`](static/) |
+| Quota & safety discipline | Deterministic fake provider for tests/CI, rule-based fallbacks tagged in the UI, spotlighted untrusted data, security headers + CSP + CORS | ✅ [`app/llm.py`](app/llm.py) · [`main.py`](main.py) |
+| Contributor tooling | Conventional-commit hook + identity check script | ✅ [`scripts/check_identity.sh`](scripts/check_identity.sh) |
+
 ## Roadmap (Sprint 2-3)
 
-Planned next, in line with [docs/architecture.md](docs/architecture.md) and the sprint point plan:
+In line with [docs/architecture.md](docs/architecture.md) and the sprint point plan:
 
-| Planned work | Sprint |
-|---|---|
-| Gemini agents — Analyst (anomaly explanation) & Recommender (action proposals) | Sprint 2 |
-| Human-in-the-loop action lifecycle (`proposed → approved/rejected → executed`) | Sprint 2 |
-| Continuous integration — tests on every push | Sprint 2 |
-| Dashboard palette revision after UI reference research | Sprint 2 |
-| Security-signal ingestion through the same detection pipeline (mock events) | Sprint 3 |
-| Deployment, live demo & 3-minute product video | Sprint 3 |
+| Work | Sprint | Status |
+|---|---|---|
+| Gemini agents — Analyst (anomaly triage) & Recommender (action proposals) | Sprint 2 | ✅ shipped (running on the deterministic provider until the live key is provisioned) |
+| Human-in-the-loop action lifecycle (`proposed → approved/rejected → executed`) | Sprint 2 | ✅ shipped |
+| Decision memory feeding the Recommender | Sprint 2 | ✅ shipped |
+| Continuous integration — tests on every push | Sprint 2 | 🔄 in progress |
+| Dashboard palette revision after UI reference research | Sprint 2 | 🔄 in progress |
+| Security-signal ingestion through the same detection pipeline (mock events) | Sprint 3 | planned |
+| Deployment, live demo & 3-minute product video | Sprint 3 | planned |
 
 ## Requirements Compliance
 
@@ -218,7 +239,7 @@ Mapping of the official bootcamp scrum-notebook requirements to their evidence i
 | Sprint board screenshots | ✅ | [Miro board](ProjectManagement/Sprint1Documents/miro_board.jpeg) · [burndown](ProjectManagement/Sprint1Documents/burndown_sprint1.png) |
 | Product status screenshots | ✅ | [dashboard](ProjectManagement/Sprint1Documents/dashboard.png) · [Swagger](ProjectManagement/Sprint1Documents/swagger_docs.png) |
 | Sprint Review & Retrospective | ✅ | [Sprint 1](#sprint-1) |
-| Working product increment | ✅ | [`GET /anomalies`](main.py) · [`GET /costs/summary`](main.py) · [CSV export & `/health`](main.py) · [tests](tests/) |
+| Working product increment | ✅ | [`GET /anomalies`](main.py) · agent chain ([analyze](app/analyst.py) · [recommend](app/recommender.py) · [pulse](app/pulse.py)) · [HITL lifecycle](app/actions.py) · [tests](tests/) |
 
 ## Scope & Limitations (By Design)
 
@@ -299,7 +320,22 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 # Sprint 2
 
-*Sprint 2 runs July 6 – July 19; planning outputs land here on July 6.*
+*Sprint 2 runs July 6 – July 19. Status below is mid-sprint; the Sprint Review and Retrospective land here after the July 19 meeting.*
+
+- **Sprint Notes**:
+  - Sprint 2's goal is the agent layer on top of the Sprint 1 detection core: Analyst and Recommender agents, the human-in-the-loop action lifecycle, and decision memory — as designed in [docs/architecture.md](docs/architecture.md).
+  - The LLM layer was built provider-agnostic: a deterministic fake provider (`SENTINEL_FAKE_LLM=1`) drives all tests and offline demos, and the rule-based fallback path keeps every endpoint answering even with the LLM unavailable. The live Gemini key is provisioned from a billing-disabled project, so the quota-safety posture stays zero-cost by construction.
+  - Quota discipline was locked early: responses are cached, reflection runs only on critical signals, and the debate-lite skeptic costs at most one extra call per decision.
+  - The Recommender's prompt interface was frozen mid-sprint so decision memory could be injected later as a single isolated change — which is exactly how it landed.
+  - Money figures shown to the operator are computed deterministically in Python; the model narrates, it never invents numbers.
+  - Execution stays simulated by design: the state machine records an executed action with a SIMULATION marker and no real infrastructure is ever touched.
+  - The dashboard palette revision (retro action item, owner: Tuana) and the CI restore are the open non-code items of the sprint.
+
+- **Expected point completion within the sprint**: 13 points
+
+- **Point Completion Logic**: Sprint 2 carries 13 of the 36 total backlog points: Gemini agent spike (2), Analyst agent (3), Recommender with debate-lite (3), human-in-the-loop lifecycle (3), decision memory (2). All five stories are code-complete with 208 automated tests as of July 12; formal completion is assessed at the July 19 review and demo.
+
+- **Daily Scrum**: daily communication continues over WhatsApp with team meetings on Slack; evidence screenshots are collected in `ProjectManagement/Sprint2Documents/` through the sprint.
 
 ---
 
