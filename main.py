@@ -20,6 +20,7 @@ import sqlite3
 from app import db
 from app.actions import router as actions_router
 from app.analyst import router as analyst_router
+from app.recommender import router as recommender_router
 from detection import (
     build_daily_series,
     detect_anomalies,
@@ -78,6 +79,7 @@ app = FastAPI(
 
 app.include_router(actions_router)
 app.include_router(analyst_router)
+app.include_router(recommender_router)
 
 
 @app.middleware("http")

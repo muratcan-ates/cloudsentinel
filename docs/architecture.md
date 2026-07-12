@@ -51,17 +51,19 @@ flowchart LR
 
 | Agent | Model | Responsibility | Input | Output |
 |---|---|---|---|---|
-| Analyst | Gemini | Explain the anomaly: probable cause, blast radius, urgency | anomaly record + service history | structured analysis |
-| Recommender | Gemini | Propose 1–3 concrete actions with risk levels | analysis + decision memory | action proposals |
+| Analyst | Gemini | Triage the anomaly (REAL / SEASONAL / DATA_ERROR / KNOWN_CHANGE) with cited evidence and confidence; self-reflects on critical signals | anomaly record + service history | structured analysis |
+| Recommender | Gemini | Propose exactly two options (cautious / bold) with risk and rollback; savings computed deterministically in Python | analysis + decision memory | one proposed action |
+| Skeptic (debate-lite) | Gemini | Challenge low-confidence or contested recommendations — at most one extra call per decision; transcript kept | draft recommendation + analysis | verdict + final stance |
 | Orchestrator | code (deterministic) | Route anomaly → analysis → recommendation → approval; retries, timeouts | anomaly records | tracked action proposals |
 
 ## API Evolution
 
 | Sprint | Endpoint | Purpose |
 |---|---|---|
-| 1 (done) | `GET /anomalies` | Detect anomalies over cost data (z-score) |
-| 2 | `POST /anomalies/{id}/analyze` | Run Analyst + Recommender agents on an anomaly |
-| 2 | `GET /actions` · `POST /actions/{id}/approve` · `POST /actions/{id}/reject` | Human-in-the-loop action lifecycle |
+| 1 (done) | `GET /anomalies` | Detect anomalies over cost data (z-score); persists each signal as an event with a stable id |
+| 2 (done) | `POST /anomalies/{id}/analyze` | Run the Analyst agent (triage + evidence + confidence, reflection at critical z) |
+| 2 (done) | `POST /anomalies/{id}/recommend` | Run the Recommender (+ Skeptic debate-lite) and file a proposed action |
+| 2 (done) | `GET /actions` · `POST /actions/{id}/approve` · `POST /actions/{id}/reject` | Human-in-the-loop action lifecycle |
 | 3 | security event ingestion + dashboard + deployment | Extend the same pipeline; live demo |
 
 ## Technology Decisions

@@ -86,6 +86,39 @@ class AnalysisResponse(BaseModel):
     from_cache: bool
 
 
+class RecommendedOptionOut(BaseModel):
+    stance: Literal["CAUTIOUS", "BOLD"]
+    title: str
+    description: str
+    risk: Literal["low", "medium", "high"]
+    rollback: str
+    estimated_monthly_saving: float
+
+
+class SavingsReport(BaseModel):
+    daily_excess: float
+    cautious_monthly: float
+    bold_monthly: float
+    method: str
+
+
+class RecommendationResponse(BaseModel):
+    event_id: int
+    action_id: int
+    action_state: ActionState
+    category: Literal["RIGHTSIZING", "CONFIG_REVIEW", "LIFECYCLE", "INVESTIGATION"]
+    preferred: Literal["CAUTIOUS", "BOLD"]
+    options: list[RecommendedOptionOut]
+    savings: SavingsReport
+    confidence: ConfidenceReport
+    escalation_reason: str | None
+    transcript: dict | None
+    source: Literal["gemini", "fake", "fallback"]
+    model: str
+    reused: bool
+    from_cache: bool
+
+
 class ActionRecord(BaseModel):
     id: int
     event_id: int | None
