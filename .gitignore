@@ -61,6 +61,12 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+# CloudSentinel local database (plus SQLite WAL sidecars)
+cloudsentinel.db*
+*.db
+*.db-wal
+*.db-shm
+
 # Flask stuff:
 instance/
 .webassets-cache

@@ -10,3 +10,7 @@ README.md
 .env
 *.env
 !.env.example
+cloudsentinel.db*
+*.db
+*.db-wal
+*.db-shm

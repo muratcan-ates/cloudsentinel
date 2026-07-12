@@ -8,12 +8,14 @@ Models live in models.py, data loading and detection logic in detection.py.
 
 import csv
 import io
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from app import db
 from detection import (
     build_daily_series,
     detect_anomalies,
@@ -52,6 +54,13 @@ SECURITY_HEADERS = {
     "Permissions-Policy": "geolocation=(), camera=(), microphone=(), interest-cohort=()",
 }
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Build the schema on every boot: the deploy target's disk is ephemeral."""
+    db.init_db()
+    yield
+
+
 app = FastAPI(
     title="CloudSentinel API",
     description=(
@@ -59,6 +68,7 @@ app = FastAPI(
         "for operator review (human-in-the-loop)."
     ),
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 
