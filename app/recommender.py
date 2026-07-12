@@ -432,6 +432,33 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
             "SELECT * FROM actions WHERE id = ?", (cursor.lastrowid,)
         ).fetchone()
 
+    if transcript is not None:
+        logger.info(
+            "[DEBATE] %s",
+            json.dumps(
+                {
+                    "event_id": event["id"],
+                    "trigger": transcript["trigger"],
+                    "agreed": transcript["agreed"],
+                    "final_preferred": transcript["final_preferred"],
+                },
+                sort_keys=True,
+            ),
+        )
+    logger.info(
+        "[RECOMMENDER] %s",
+        json.dumps(
+            {
+                "event_id": event["id"],
+                "action_id": action_row["id"],
+                "preferred": report.preferred,
+                "category": report.category,
+                "source": source,
+                "from_cache": from_cache,
+            },
+            sort_keys=True,
+        ),
+    )
     return _response_from_detail(event["id"], action_row, detail, reused=False, from_cache=from_cache)
 
 

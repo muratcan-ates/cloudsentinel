@@ -8,6 +8,7 @@ Models live in models.py, data loading and detection logic in detection.py.
 
 import csv
 import io
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from app import db
 from app.actions import router as actions_router
 from app.analyst import router as analyst_router
 from app.decisions import router as decisions_router
+from app.pulse import router as pulse_router
 from app.recommender import router as recommender_router
 from detection import (
     build_daily_series,
@@ -33,6 +35,18 @@ from detection import (
 from models import AnomalyReport, CostSummaryReport, DailyCostReport, HealthStatus
 
 STATIC_DIR = Path(__file__).parent / "static"
+
+# The tagged agent log stream ([SIGNAL]/[ANALYST]/[DEBATE]/[RECOMMENDER]/
+# [HITL]) rides the cloudsentinel.* loggers at INFO. Neither the root
+# logger (WARNING, no handler) nor uvicorn's config (uvicorn.* only) would
+# ever emit it, so the hierarchy gets its own stdout handler — exactly
+# once, because --reload re-imports this module.
+_agent_stream = logging.getLogger("cloudsentinel")
+if not _agent_stream.handlers:
+    _agent_handler = logging.StreamHandler()
+    _agent_handler.setFormatter(logging.Formatter("%(levelname)s:     %(message)s"))
+    _agent_stream.addHandler(_agent_handler)
+    _agent_stream.setLevel(logging.INFO)
 
 # Content-Security-Policy for the public dashboard. script-src is locked to
 # 'self' (the dashboard has no inline scripts, eval, or event handlers), so a
@@ -82,6 +96,7 @@ app = FastAPI(
 app.include_router(actions_router)
 app.include_router(analyst_router)
 app.include_router(decisions_router)
+app.include_router(pulse_router)
 app.include_router(recommender_router)
 
 # Explicit origins and headers by locked decision: allow_credentials=True

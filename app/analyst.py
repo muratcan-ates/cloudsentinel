@@ -235,6 +235,20 @@ def analyze_event(conn: sqlite3.Connection, event: sqlite3.Row) -> AnalysisRespo
             (envelope_json, event["id"]),
         )
 
+    logger.info(
+        "[ANALYST] %s",
+        json.dumps(
+            {
+                "event_id": event["id"],
+                "triage": report.triage,
+                "confidence": report.confidence.score,
+                "source": source,
+                "reflected": reflected,
+                "from_cache": from_cache,
+            },
+            sort_keys=True,
+        ),
+    )
     return AnalysisResponse(
         event_id=event["id"],
         triage=report.triage,

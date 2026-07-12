@@ -179,3 +179,23 @@ class DecisionListReport(BaseModel):
     service: str
     count: int
     decisions: list[DecisionRecord]
+
+
+class PulseChainLink(BaseModel):
+    event_id: int
+    service: str
+    severity: Literal["critical", "warning"]
+    triage: TriageClass
+    action_id: int
+    action_state: ActionState
+    preferred: Literal["CAUTIOUS", "BOLD"]
+    reused: bool
+
+
+class PulseReport(BaseModel):
+    threshold: float
+    signals: int
+    analyzed: int
+    proposals_filed: int
+    proposals_reused: int
+    chain: list[PulseChainLink]

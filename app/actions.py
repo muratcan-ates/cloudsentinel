@@ -18,6 +18,7 @@ deterministic without persisting them.
 """
 
 import json
+import logging
 import math
 import os
 import sqlite3
@@ -26,6 +27,8 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query
 
 from app import db
 from models import ActionDecisionRequest, ActionListReport, ActionRecord, ActionState
+
+logger = logging.getLogger("cloudsentinel.actions")
 
 router = APIRouter(prefix="/actions", tags=["actions"])
 
@@ -209,6 +212,15 @@ def _decide(
         )
         if scoped_key is not None:
             db.store_idempotency_response(conn, scoped_key, record.model_dump_json())
+    # ids/enums only: the operator identity is PII on a log stream and is
+    # already durably persisted in actions.decided_by for the audit trail.
+    logger.info(
+        "[HITL] %s",
+        json.dumps(
+            {"action_id": action_id, "transition": verdict},
+            sort_keys=True,
+        ),
+    )
     return record
 
 
@@ -296,4 +308,11 @@ def execute_action(
         )
         if scoped_key is not None:
             db.store_idempotency_response(conn, scoped_key, record.model_dump_json())
+    logger.info(
+        "[HITL] %s",
+        json.dumps(
+            {"action_id": action_id, "transition": "executed", "mode": "SIMULATION"},
+            sort_keys=True,
+        ),
+    )
     return record
