@@ -130,6 +130,35 @@ def test_writing_is_not_reentrant(conn):
                 pass  # pragma: no cover
 
 
+def test_writing_takes_write_lock_up_front(tmp_path):
+    """BEGIN IMMEDIATE must reserve the write lock at entry — a deferred
+    BEGIN would only take it at the first write statement, reintroducing
+    mid-transaction 'database is locked' upgrades."""
+    path = tmp_path / "lock.db"
+    db.init_db(path)
+    holder = db.connect(path)
+    contender = db.connect(path)
+    contender.execute("PRAGMA busy_timeout=100")
+    try:
+        with db.writing(holder):
+            # no write statement has run yet, but the lock must be held
+            with pytest.raises(sqlite3.OperationalError, match="locked"):
+                contender.execute("BEGIN IMMEDIATE")
+        contender.execute("BEGIN IMMEDIATE")  # released after commit
+        contender.execute("COMMIT")
+    finally:
+        holder.close()
+        contender.close()
+
+
+def test_connection_is_usable_across_threads(conn):
+    """check_same_thread=False is load-bearing: FastAPI's threadpool may
+    touch a connection on a different thread than the one that opened it."""
+    with ThreadPoolExecutor(1) as pool:
+        result = pool.submit(lambda: conn.execute("SELECT 1").fetchone()[0]).result()
+    assert result == 1
+
+
 # --- idempotency ------------------------------------------------------------
 
 
@@ -178,7 +207,9 @@ def test_idempotency_concurrent_double_post(tmp_path):
     def contend(worker: int):
         conn = db.connect(path)
         try:
-            barrier.wait()
+            # timeout: a pre-barrier failure must break the barrier and fail
+            # the test instead of parking the other worker forever
+            barrier.wait(timeout=30)
             with db.writing(conn):
                 claimed, stored = db.claim_idempotency(conn, "double-post")
                 if claimed:
@@ -228,6 +259,15 @@ def test_cache_put_refreshes_existing_entry(conn):
     db.cache_put(conn, "m", "p", "first")
     db.cache_put(conn, "m", "p", "second")
     assert db.cache_get(conn, "m", "p")["response_text"] == "second"
+
+
+def test_cache_roundtrip_with_system_instruction(conn):
+    """put and get must derive the key identically when a system
+    instruction is present (guards the put-side key computation)."""
+    db.cache_put(conn, "m", "p", "sys-answer", system_instruction="be terse")
+    row = db.cache_get(conn, "m", "p", system_instruction="be terse")
+    assert row is not None
+    assert row["response_text"] == "sys-answer"
 
 
 # --- ai_usage ---------------------------------------------------------------
@@ -325,7 +365,7 @@ def test_concurrent_writers_lose_nothing(tmp_path):
     def hammer(worker: int):
         conn = db.connect(path)
         try:
-            barrier.wait()
+            barrier.wait(timeout=30)
             for i in range(per_thread):
                 with db.writing(conn):
                     conn.execute(
@@ -379,6 +419,11 @@ def test_get_db_dependency_yields_and_closes():
         conn.execute("SELECT 1")  # closed
 
 
-def test_os_env_pointing_is_isolated_per_test():
-    """The autouse fixture must point at a per-test throwaway path."""
-    assert "test.db" in os.environ["SENTINEL_DB_PATH"]
+def test_db_isolation_fixture_routes_into_pytest_tmp():
+    """The autouse fixture must route the resolved path into pytest's tmp
+    tree so no test can ever touch a developer's real cloudsentinel.db."""
+    resolved = db.db_path()
+    assert resolved.name == "test.db"
+    assert str(resolved) != db.DEFAULT_DB_PATH
+    assert "pytest" in str(resolved)
+    assert os.environ["SENTINEL_DB_PATH"] == str(resolved)

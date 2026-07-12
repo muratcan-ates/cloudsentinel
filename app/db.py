@@ -19,6 +19,12 @@ Design constraints (locked in docs/architecture.md and the sprint plan):
 - ``PRAGMA foreign_keys=ON`` is a deliberate addition beyond the locked
   pragma set: referential integrity between actions/decisions/events is
   enforced at the storage layer instead of by caller discipline.
+- Recorded carve-out from the BEGIN IMMEDIATE rule: single-statement
+  helper writes (``cache_put``, ``record_ai_usage``) may run in
+  autocommit — SQLite serializes a lone statement through the busy
+  handler just fine. Any multi-statement unit of work MUST go through
+  ``writing()``; composing these helpers into one logical unit without
+  it forfeits atomicity.
 """
 
 import hashlib
@@ -266,7 +272,7 @@ def cache_put(
         "response_text = excluded.response_text, "
         "response_json = excluded.response_json, "
         "created_at = datetime('now')",
-        (cache_key(model, prompt), model, response_text, response_json),
+        (cache_key(model, prompt, system_instruction), model, response_text, response_json),
     )
 
 
