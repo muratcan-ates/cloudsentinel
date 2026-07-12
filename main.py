@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app import db
+from app.actions import router as actions_router
 from detection import (
     build_daily_series,
     detect_anomalies,
@@ -70,6 +71,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+
+app.include_router(actions_router)
 
 
 @app.middleware("http")

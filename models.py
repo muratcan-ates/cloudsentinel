@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 
 class ServiceCostSummary(BaseModel):
@@ -58,3 +58,40 @@ class AnomalyReport(BaseModel):
     records_analyzed: int
     anomaly_count: int
     anomalies: list[Anomaly]
+
+
+ActionState = Literal["proposed", "approved", "rejected", "executed"]
+
+
+class ActionRecord(BaseModel):
+    id: int
+    event_id: int | None
+    title: str
+    detail: dict
+    state: ActionState
+    proposed_at: str
+    decided_at: str | None
+    decided_by: str | None
+    executed_at: str | None
+
+
+class ActionListReport(BaseModel):
+    count: int
+    actions: list[ActionRecord]
+
+
+class ActionDecisionRequest(BaseModel):
+    actor: str = Field(
+        "operator",
+        min_length=1,
+        max_length=80,
+        description="Who is taking the decision; recorded in the audit trail.",
+    )
+
+    @field_validator("actor")
+    @classmethod
+    def actor_must_not_be_blank(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("actor must not be blank")
+        return stripped

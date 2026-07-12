@@ -157,7 +157,7 @@ docker run -p 8000:8000 cloudsentinel
 | **Python 3.12** | Core language (pinned in venv, CI and Docker) |
 | **FastAPI + Uvicorn** | REST API and ASGI server |
 | **Pydantic v2** | Typed request/response models and validation |
-| **pytest + httpx** | Automated test suite (86 tests) |
+| **pytest + httpx** | Automated test suite (113 tests) |
 | **SQLite** (stdlib `sqlite3`) | WAL-mode persistence core: action lifecycle, decision memory, LLM cache, idempotency |
 | **Docker** | Containerized, deployment-ready packaging |
 | **Gemini** (`google-genai`) | LLM provider layer with quota-aware retry and rule-based fallback |
@@ -212,9 +212,10 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Synthetic mock data only** — real cloud-provider connectors are outside the
   competition scope; the detection pipeline is data-source agnostic by design.
-- **Read-only endpoints for now** — `/anomalies`, `/costs/summary` (+ CSV
-  export), `/costs/daily` and `/health` only observe; the action-proposal and approval endpoints arrive with the
-  human-in-the-loop flow in Sprint 2
+- **Human-in-the-loop lifecycle landed in Sprint 2** — `GET /actions` plus
+  `POST /actions/{id}/approve|reject` (idempotent via `Idempotency-Key`)
+  implement the operator decision gate; nothing ever executes without an
+  approval, and execution stays simulated
   (see [docs/architecture.md](docs/architecture.md)).
 - **Security signals arrive in Sprint 3** — the Sprint 1 review decided to
   extend the same detection pipeline with mock security events in Sprint 3

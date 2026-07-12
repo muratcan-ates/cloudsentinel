@@ -23,6 +23,9 @@ def test_dashboard_hidden_from_openapi_schema():
     paths = client.get("/openapi.json").json()["paths"]
     assert "/" not in paths
     assert set(paths) == {
+        "/actions",
+        "/actions/{action_id}/approve",
+        "/actions/{action_id}/reject",
         "/anomalies",
         "/costs/daily",
         "/costs/summary",
