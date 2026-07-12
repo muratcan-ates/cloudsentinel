@@ -11,12 +11,15 @@ import io
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Query, Request
+from fastapi import Depends, FastAPI, Query, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+import sqlite3
+
 from app import db
 from app.actions import router as actions_router
+from app.analyst import router as analyst_router
 from detection import (
     build_daily_series,
     detect_anomalies,
@@ -74,6 +77,7 @@ app = FastAPI(
 
 
 app.include_router(actions_router)
+app.include_router(analyst_router)
 
 
 @app.middleware("http")
@@ -183,15 +187,30 @@ def get_anomalies(
         min_length=1,
         description="If set, only return anomalies for this service (case-insensitive).",
     ),
+    conn: sqlite3.Connection = Depends(db.get_db),
 ) -> AnomalyReport:
     """Return cost records that deviate anomalously from their service's mean.
 
     Anomaly detection always runs over the full dataset so that each
     service's mean/stdev is computed from its complete history; the
-    optional `service` filter only narrows what's returned.
+    optional `service` filter only narrows what's returned. Every
+    detected anomaly is persisted as an event with a stable id (upsert
+    by natural key), which `POST /anomalies/{id}/analyze` targets —
+    request-triggered scanning is the deployment model, so the scan is
+    also the ingestion point.
     """
     records = load_daily_costs()
     anomalies = detect_anomalies(records, threshold)
+    if anomalies:
+        with db.writing(conn):
+            for anomaly in anomalies:
+                anomaly.id = db.upsert_event(
+                    conn,
+                    kind="cost_anomaly",
+                    service=anomaly.service,
+                    occurred_on=anomaly.date,
+                    payload_json=anomaly.model_dump_json(exclude={"id"}),
+                )
     service_filter = service.strip().lower() if service else None
     if service_filter:
         anomalies = [a for a in anomalies if a.service.lower() == service_filter]

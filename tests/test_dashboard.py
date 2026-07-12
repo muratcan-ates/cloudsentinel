@@ -27,6 +27,7 @@ def test_dashboard_hidden_from_openapi_schema():
         "/actions/{action_id}/approve",
         "/actions/{action_id}/reject",
         "/anomalies",
+        "/anomalies/{event_id}/analyze",
         "/costs/daily",
         "/costs/summary",
         "/costs/summary/export",

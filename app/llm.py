@@ -154,6 +154,11 @@ class GeminiProvider(LLMProvider):
         self._max_attempts = max_attempts
         self._sleep = sleep
 
+    @property
+    def model(self) -> str:
+        """Model id used for quota accounting and cache keying."""
+        return self._model
+
     def generate(
         self,
         prompt: str,
@@ -258,6 +263,11 @@ class FakeProvider(LLMProvider):
     def __init__(self, canned_text: str = "fake response", canned_payload: dict | None = None):
         self._canned_text = canned_text
         self._canned_payload = canned_payload
+
+    @property
+    def model(self) -> str:
+        """Model id used for quota accounting and cache keying."""
+        return "fake"
 
     def generate(
         self,

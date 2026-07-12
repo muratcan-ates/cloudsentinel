@@ -1,8 +1,8 @@
 /* CloudSentinel ledger — fetches /anomalies and /costs/summary and typesets the panels.
-   Sections III–V (investigation, decision inbox, decision ledger) rehearse the
-   Sprint II agent & HITL flow on a demo narrative layer: the cost/anomaly data
-   is live from the API, the recommendations are simulated until the Sprint II
-   endpoints exist, and nothing ever executes. */
+   Section III's "request deeper analysis" now runs the live Analyst agent
+   (POST /anomalies/{id}/analyze); the recommendation blocks in III–V stay on
+   the demo narrative until the Recommender endpoint lands, and nothing ever
+   executes without an operator decision. */
 
 const thresholdInput = document.getElementById("threshold");
 const thresholdValue = document.getElementById("threshold-value");
@@ -23,6 +23,8 @@ const state = {
   daily: null,
   sortMode: "cost",
   selectedIndex: 0,
+  analyses: new Map(), // event id → Analyst agent report; survives re-renders
+  analystBusy: new Set(), // event ids with an analyze request in flight
   decisions: [],
   decisionMemory: new Map(), // id → {status, resolvedAt}; survives re-scans and filters
   audit: [
@@ -325,17 +327,23 @@ function renderInvestigation() {
   const deviation = anomaly.cost - anomaly.service_mean;
   const decision = state.decisions[state.selectedIndex];
   const pending = decision && decision.status === "pending";
+  const analysis = anomaly.id != null ? state.analyses.get(anomaly.id) : undefined;
+  const analystTag = analysis
+    ? analysis.source === "fallback"
+      ? " — Analyst agent (fallback)"
+      : `${analysis.from_cache ? " — Analyst agent · cached" : " — Analyst agent"}`
+    : "";
 
   invDetail.innerHTML = `
     <header class="inv-head">
       <div>
-        <p class="microcap inv-kicker">signal ${String(state.selectedIndex + 1).padStart(3, "0")} · ${escapeHtml(anomaly.severity)}</p>
+        <p class="microcap inv-kicker">signal ${String(state.selectedIndex + 1).padStart(3, "0")} · ${escapeHtml(anomaly.severity)}${analysis ? ` · triage ${escapeHtml(analysis.triage)}` : ""}</p>
         <p class="inv-title">${escapeHtml(anomaly.service)} <em>cost anomaly</em></p>
         <p class="inv-asset">${escapeHtml(detail.asset)} · observed ${escapeHtml(anomaly.date)}</p>
       </div>
       <div class="confidence">
-        <p class="conf-fig">${detail.confidence}<small>%</small></p>
-        <p class="microcap">agent confidence</p>
+        <p class="conf-fig">${analysis ? Math.round(analysis.confidence.score * 100) : detail.confidence}<small>%</small></p>
+        <p class="microcap">agent confidence${analysis && analysis.source === "fallback" ? " (fallback)" : ""}</p>
       </div>
     </header>
 
@@ -353,12 +361,16 @@ function renderInvestigation() {
 
     <div class="inv-columns">
       <div class="inv-block">
-        <p class="microcap">What happened</p>
-        <p class="body">${escapeHtml(detail.reason)}</p>
+        <p class="microcap">What happened${escapeHtml(analystTag)}</p>
+        <p class="body">${escapeHtml(analysis ? analysis.summary : detail.reason)}</p>
+        ${analysis && analysis.evidence_ids.length
+          ? `<p class="meta">cited evidence ${escapeHtml(analysis.evidence_ids.join(" · "))} — rows of the fourteen-day series</p>`
+          : ""}
       </div>
       <div class="inv-block">
-        <p class="microcap">Security context</p>
-        <p class="body">${escapeHtml(detail.security)}</p>
+        <p class="microcap">${analysis ? "Probable cause" : "Security context"}</p>
+        <p class="body">${escapeHtml(analysis ? analysis.probable_cause : detail.security)}</p>
+        ${analysis ? `<p class="meta">${escapeHtml(analysis.confidence.rationale)}</p>` : ""}
       </div>
       <div class="inv-block recommendation" style="grid-column: 1 / -1;">
         <p class="microcap">Recommended action — demo narrative</p>
@@ -368,7 +380,11 @@ function renderInvestigation() {
     </div>
 
     <div class="inv-actions">
-      <button class="row-action" type="button" data-request-evidence>request deeper analysis</button>
+      <button class="row-action" type="button" data-request-evidence ${anomaly.id != null && state.analystBusy.has(anomaly.id) ? "disabled" : ""}>${
+        anomaly.id != null && state.analystBusy.has(anomaly.id)
+          ? "analyst working…"
+          : analysis ? "re-run analyst →" : "run analyst agent →"
+      }</button>
       ${pending
         ? `<button class="row-action" type="button" data-decision="reject" data-decision-index="${state.selectedIndex}" aria-label="reject the ${escapeHtml(anomaly.service)} proposal">reject proposal ×</button>
            <button class="row-action" type="button" data-decision="approve" data-decision-index="${state.selectedIndex}" aria-label="approve the ${escapeHtml(anomaly.service)} proposal for execution">approve for execution →</button>`
@@ -574,16 +590,43 @@ document.addEventListener("click", (event) => {
 
   const evidenceRequest = event.target.closest("[data-request-evidence]");
   if (evidenceRequest) {
-    state.audit.unshift({
-      time: utcNow(),
-      title: "Operator requested deeper analysis",
-      copy: "A new evidence request was recorded. In Sprint II this triggers the Analyst Agent endpoint.",
-    });
-    renderAudit();
-    evidenceRequest.textContent = "recorded in the ledger ↓";
-    evidenceRequest.disabled = true;
+    runAnalyst();
   }
 });
+
+async function runAnalyst() {
+  const anomaly = state.anomalies[state.selectedIndex];
+  // The busy set is the single source of truth: re-renders keep the button
+  // disabled, and a second click (or re-rendered twin) cannot double-fire.
+  if (!anomaly || anomaly.id == null || state.analystBusy.has(anomaly.id)) return;
+  state.analystBusy.add(anomaly.id);
+  renderInvestigation();
+  try {
+    const response = await fetch(`/anomalies/${anomaly.id}/analyze`, { method: "POST" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const analysis = await response.json();
+    state.analyses.set(anomaly.id, analysis);
+    state.audit.unshift({
+      time: utcNow(),
+      title: `Analyst agent triaged the ${anomaly.service} signal — ${analysis.triage}`,
+      copy:
+        `Confidence ${analysis.confidence.score.toFixed(2)}` +
+        `${analysis.reflected ? " · reflection pass applied" : ""}` +
+        `${analysis.source === "fallback" ? " · rule-based fallback (LLM unavailable)" : ""}` +
+        `${analysis.from_cache ? " · served from cache" : ""}.`,
+    });
+  } catch (error) {
+    state.audit.unshift({
+      time: utcNow(),
+      title: "Analyst agent request failed",
+      copy: `${error.message} — the panel keeps its previous narrative.`,
+    });
+  } finally {
+    state.analystBusy.delete(anomaly.id);
+    renderInvestigation();
+    renderAudit();
+  }
+}
 
 /* First paint: the ledger seeds and the empty-state panels do not depend on the
    API, so they render even if the very first scan fails. */

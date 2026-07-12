@@ -45,6 +45,9 @@ class DailyCostReport(BaseModel):
 
 
 class Anomaly(BaseModel):
+    # Stable event id assigned when the scan persists the signal; None only
+    # before persistence (inside the detection layer).
+    id: int | None = None
     service: str
     date: str
     cost: float
@@ -61,6 +64,26 @@ class AnomalyReport(BaseModel):
 
 
 ActionState = Literal["proposed", "approved", "rejected", "executed"]
+
+TriageClass = Literal["REAL", "SEASONAL", "DATA_ERROR", "KNOWN_CHANGE"]
+
+
+class ConfidenceReport(BaseModel):
+    score: float
+    rationale: str
+
+
+class AnalysisResponse(BaseModel):
+    event_id: int
+    triage: TriageClass
+    summary: str
+    probable_cause: str
+    evidence_ids: list[str]
+    confidence: ConfidenceReport
+    source: Literal["gemini", "fake", "fallback"]
+    model: str
+    reflected: bool
+    from_cache: bool
 
 
 class ActionRecord(BaseModel):

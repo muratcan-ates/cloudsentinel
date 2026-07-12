@@ -29,11 +29,13 @@ def seed_action(state: str = "proposed") -> int:
     conn = db.connect()
     try:
         with db.writing(conn):
-            cursor = conn.execute(
-                "INSERT INTO events (kind, service, occurred_on, payload_json) "
-                "VALUES ('cost_anomaly', 'ec2', '2026-07-12', '{}')"
+            event_id = db.upsert_event(
+                conn,
+                kind="cost_anomaly",
+                service="ec2",
+                occurred_on="2026-07-12",
+                payload_json="{}",
             )
-            event_id = cursor.lastrowid
             cursor = conn.execute(
                 "INSERT INTO actions (event_id, title, detail_json, state) "
                 "VALUES (?, 'scale down idle instances', ?, ?)",

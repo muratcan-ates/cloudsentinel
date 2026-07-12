@@ -273,6 +273,31 @@ def test_cache_roundtrip_with_system_instruction(conn):
 # --- ai_usage ---------------------------------------------------------------
 
 
+def test_upsert_event_refreshes_payload_but_keeps_id(conn):
+    """Re-detections re-state costs: same natural key, same id, new payload."""
+    with db.writing(conn):
+        first_id = db.upsert_event(
+            conn,
+            kind="cost_anomaly",
+            service="ec2",
+            occurred_on="2026-07-12",
+            payload_json='{"cost": 100.0}',
+        )
+        second_id = db.upsert_event(
+            conn,
+            kind="cost_anomaly",
+            service="ec2",
+            occurred_on="2026-07-12",
+            payload_json='{"cost": 120.0}',
+        )
+    assert second_id == first_id
+    row = conn.execute(
+        "SELECT payload_json, count(*) OVER () AS total FROM events"
+    ).fetchone()
+    assert row["total"] == 1
+    assert "120.0" in row["payload_json"]
+
+
 def test_record_ai_usage(conn):
     db.record_ai_usage(
         conn,

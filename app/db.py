@@ -52,6 +52,7 @@ _SCHEMA_STATEMENTS = (
         service TEXT NOT NULL,
         occurred_on TEXT NOT NULL,
         payload_json TEXT NOT NULL,
+        analysis_json TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
     """,
@@ -109,6 +110,10 @@ _SCHEMA_STATEMENTS = (
     """,
     "CREATE INDEX IF NOT EXISTS idx_actions_state ON actions(state)",
     "CREATE INDEX IF NOT EXISTS idx_decisions_service ON decisions(service)",
+    # Natural key: rescans must yield the same event id for the same signal,
+    # so POST /anomalies/{id}/analyze has stable, bookmarkable targets.
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_events_natural_key "
+    "ON events(kind, service, occurred_on)",
 )
 
 
@@ -170,17 +175,62 @@ def init_db(path: Path | str | None = None) -> None:
         with writing(conn):
             for statement in _SCHEMA_STATEMENTS:
                 conn.execute(statement)
+            # CREATE TABLE IF NOT EXISTS never alters an existing table, so
+            # top up columns added after a table first shipped (dev DBs
+            # predate the ephemeral-disk reset cycle).
+            events_columns = {
+                row["name"] for row in conn.execute("PRAGMA table_info(events)")
+            }
+            if "analysis_json" not in events_columns:
+                conn.execute("ALTER TABLE events ADD COLUMN analysis_json TEXT")
     finally:
         conn.close()
 
 
+_INITIALIZED_PATHS: set[str] = set()
+
+
 def get_db() -> Iterator[sqlite3.Connection]:
-    """FastAPI dependency: one connection per request, always closed."""
-    conn = connect()
+    """FastAPI dependency: one connection per request, always closed.
+
+    Initializes the schema once per resolved path, so endpoints stay
+    correct even when the app runs without its lifespan (module-level
+    test clients); redundant with the startup hook, and idempotent.
+    """
+    target = str(db_path())
+    if target not in _INITIALIZED_PATHS:
+        init_db(target)
+        _INITIALIZED_PATHS.add(target)
+    conn = connect(target)
     try:
         yield conn
     finally:
         conn.close()
+
+
+def upsert_event(
+    conn: sqlite3.Connection,
+    *,
+    kind: str,
+    service: str,
+    occurred_on: str,
+    payload_json: str,
+) -> int:
+    """Insert or refresh an event by natural key; returns its stable id.
+
+    Re-detections update the payload (costs may be re-stated) but keep
+    the id, so analyses and actions stay attached across rescans. Call
+    inside an open ``writing()`` transaction.
+    """
+    row = conn.execute(
+        "INSERT INTO events (kind, service, occurred_on, payload_json) "
+        "VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(kind, service, occurred_on) DO UPDATE SET "
+        "payload_json = excluded.payload_json "
+        "RETURNING id",
+        (kind, service, occurred_on, payload_json),
+    ).fetchone()
+    return row["id"]
 
 
 # --- Idempotency ------------------------------------------------------------
