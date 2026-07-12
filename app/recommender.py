@@ -54,6 +54,7 @@ PROJECTION_DAYS = 30
 CAUTIOUS_CONTAINMENT = 0.35
 BOLD_CONTAINMENT = 0.70
 CONFIDENCE_DEBATE_THRESHOLD = 0.6
+DECISION_MEMORY_LIMIT = 5
 
 RECOMMENDER_SYSTEM_INSTRUCTION = (
     "You are CloudSentinel's remediation recommender. Given an analyzed cost "
@@ -249,6 +250,29 @@ def escalation_trigger(analyst_triage: str, confidence_score: float) -> str | No
     return None
 
 
+def fetch_decision_memory(conn: sqlite3.Connection, service: str) -> str:
+    """Compact, newest-first digest of past operator verdicts (WP-6).
+
+    Plain SQL by service — no embeddings by locked decision. The digest
+    feeds the frozen ``decision_memory`` prompt slot; wrap_untrusted
+    happens inside build_prompt, so this returns raw text.
+    """
+    if not service:
+        return ""
+    rows = conn.execute(
+        "SELECT verdict, rationale, created_at FROM decisions "
+        "WHERE service = ? COLLATE NOCASE ORDER BY id DESC LIMIT ?",
+        (service, DECISION_MEMORY_LIMIT),
+    ).fetchall()
+    lines = []
+    for row in rows:
+        line = f"{row['created_at']}: operator {row['verdict']} a proposal"
+        if row["rationale"]:
+            line += f" — {row['rationale']}"
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def _existing_open_action(conn: sqlite3.Connection, event_id: int) -> sqlite3.Row | None:
     return conn.execute(
         "SELECT * FROM actions WHERE event_id = ? AND state != 'rejected' "
@@ -274,7 +298,8 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
     # model so a fallback stays honestly labeled "rule-based".
     model = getattr(provider, "model", "unknown")
     savings = estimated_savings(anomaly)
-    prompt = build_prompt(anomaly, analyst_report, savings)
+    decision_memory = fetch_decision_memory(conn, anomaly.get("service", ""))
+    prompt = build_prompt(anomaly, analyst_report, savings, decision_memory)
     skeptic_prompt: str | None = None
 
     cached = db.cache_get(conn, model, prompt, RECOMMENDER_SYSTEM_INSTRUCTION)

@@ -33,6 +33,7 @@ def test_dashboard_hidden_from_openapi_schema():
         "/costs/daily",
         "/costs/summary",
         "/costs/summary/export",
+        "/decisions/similar",
         "/health"
     }
 

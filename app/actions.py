@@ -132,12 +132,43 @@ def list_actions(
     return ActionListReport(count=len(records), actions=records)
 
 
+def _record_decision(
+    conn: sqlite3.Connection, row: sqlite3.Row, verdict: str, rationale: str | None
+) -> None:
+    """Append the operator verdict to decision memory (same transaction).
+
+    Timeout expiries deliberately bypass this: memory holds human intent,
+    and a proposal nobody answered carries none.
+    """
+    service = None
+    if row["event_id"] is not None:
+        event = conn.execute(
+            "SELECT service FROM events WHERE id = ?", (row["event_id"],)
+        ).fetchone()
+        service = event["service"] if event else None
+    if service is None:
+        try:
+            service = json.loads(row["detail_json"]).get("anomaly", {}).get("service")
+        except (json.JSONDecodeError, AttributeError):
+            service = None
+    # Corrupt detail can put ANY JSON shape here; a non-string would fail
+    # sqlite parameter binding and brick the decide endpoint with 500s.
+    if not isinstance(service, str) or not service:
+        service = "unknown"
+    conn.execute(
+        "INSERT INTO decisions (action_id, service, verdict, rationale, input_context_json) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (row["id"], service, verdict, rationale, row["detail_json"]),
+    )
+
+
 def _decide(
     conn: sqlite3.Connection,
     action_id: int,
     verdict: str,
     actor: str,
     idempotency_key: str | None,
+    rationale: str | None = None,
 ) -> ActionRecord:
     scoped_key = (
         f"actions:{action_id}:{verdict}:{idempotency_key}"
@@ -172,6 +203,7 @@ def _decide(
             "decided_by = ? WHERE id = ?",
             (verdict, actor, action_id),
         )
+        _record_decision(conn, row, verdict, rationale)
         record = _to_record(
             conn.execute("SELECT * FROM actions WHERE id = ?", (action_id,)).fetchone()
         )
@@ -191,7 +223,8 @@ def approve_action(
 ) -> ActionRecord:
     """Approve a proposed action; safe to retry with an Idempotency-Key."""
     actor = decision.actor if decision is not None else "operator"
-    return _decide(conn, action_id, "approved", actor, idempotency_key)
+    rationale = decision.rationale if decision is not None else None
+    return _decide(conn, action_id, "approved", actor, idempotency_key, rationale)
 
 
 @router.post("/{action_id}/reject", responses=DECISION_RESPONSES)
@@ -205,7 +238,8 @@ def reject_action(
 ) -> ActionRecord:
     """Reject a proposed action; safe to retry with an Idempotency-Key."""
     actor = decision.actor if decision is not None else "operator"
-    return _decide(conn, action_id, "rejected", actor, idempotency_key)
+    rationale = decision.rationale if decision is not None else None
+    return _decide(conn, action_id, "rejected", actor, idempotency_key, rationale)
 
 
 @router.post("/{action_id}/execute", responses=EXECUTE_RESPONSES)

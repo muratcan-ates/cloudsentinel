@@ -63,7 +63,8 @@ flowchart LR
 | 1 (done) | `GET /anomalies` | Detect anomalies over cost data (z-score); persists each signal as an event with a stable id |
 | 2 (done) | `POST /anomalies/{id}/analyze` | Run the Analyst agent (triage + evidence + confidence, reflection at critical z) |
 | 2 (done) | `POST /anomalies/{id}/recommend` | Run the Recommender (+ Skeptic debate-lite) and file a proposed action |
-| 2 (done) | `GET /actions` · `POST /actions/{id}/approve` · `POST /actions/{id}/reject` | Human-in-the-loop action lifecycle |
+| 2 (done) | `GET /actions` · `POST /actions/{id}/approve` · `POST /actions/{id}/reject` · `POST /actions/{id}/execute` | Human-in-the-loop action lifecycle with simulated execution |
+| 2 (done) | `GET /decisions/similar?service=X` | Decision memory retrieval; the same verdicts feed the Recommender's context |
 | 3 | security event ingestion + dashboard + deployment | Extend the same pipeline; live demo |
 
 ## Technology Decisions

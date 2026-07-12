@@ -143,6 +143,11 @@ class ActionDecisionRequest(BaseModel):
         max_length=80,
         description="Who is taking the decision; recorded in the audit trail.",
     )
+    rationale: str | None = Field(
+        None,
+        max_length=500,
+        description="Why the operator decided this way; feeds decision memory.",
+    )
 
     @field_validator("actor")
     @classmethod
@@ -151,3 +156,26 @@ class ActionDecisionRequest(BaseModel):
         if not stripped:
             raise ValueError("actor must not be blank")
         return stripped
+
+    @field_validator("rationale")
+    @classmethod
+    def rationale_blank_becomes_none(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+
+class DecisionRecord(BaseModel):
+    id: int
+    action_id: int | None
+    service: str
+    verdict: Literal["approved", "rejected"]
+    rationale: str | None
+    decided_at: str
+
+
+class DecisionListReport(BaseModel):
+    service: str
+    count: int
+    decisions: list[DecisionRecord]

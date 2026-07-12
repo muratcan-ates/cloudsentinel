@@ -476,6 +476,50 @@ def test_downward_anomaly_fallback_narrative_matches_the_direction(client, monke
     assert "overspend" not in descriptions.lower()
 
 
+def test_timeout_expired_proposal_re_recommends_from_cache(client):
+    """The one production lane where the recommender cache replays: a
+    system:timeout rejection records NO decision (memory holds human
+    intent only), so the prompt is unchanged — the replay must come from
+    llm_cache with the debate outcome verbatim, be ledgered from_cache=1,
+    and never re-run the skeptic."""
+    event_id = seed_analyzed_event()
+    first = client.post(f"/anomalies/{event_id}/recommend").json()
+    conn = db.connect()
+    try:
+        with db.writing(conn):
+            conn.execute(
+                "UPDATE actions SET proposed_at = datetime('now', '-100 hours') "
+                "WHERE id = ?",
+                (first["action_id"],),
+            )
+    finally:
+        conn.close()
+    swept = client.get("/actions").json()["actions"]
+    assert swept[0]["state"] == "rejected"
+    assert swept[0]["decided_by"] == "system:timeout"
+
+    second = client.post(f"/anomalies/{event_id}/recommend").json()
+    assert second["reused"] is False
+    assert second["from_cache"] is True
+    assert second["transcript"] == first["transcript"]
+    assert second["escalation_reason"] == first["escalation_reason"]
+    assert second["preferred"] == first["preferred"]
+
+    conn = db.connect()
+    try:
+        rows = conn.execute(
+            "SELECT agent, from_cache FROM ai_usage ORDER BY id"
+        ).fetchall()
+        decisions = conn.execute("SELECT count(*) FROM decisions").fetchone()[0]
+    finally:
+        conn.close()
+    recommender_rows = [r["from_cache"] for r in rows if r["agent"] == "recommender"]
+    skeptic_rows = [r for r in rows if r["agent"] == "skeptic"]
+    assert recommender_rows == [0, 1]  # locked rule: cache hits reach the ledger
+    assert len(skeptic_rows) == 1  # the replay never re-debates
+    assert decisions == 0  # the timeout really recorded nothing
+
+
 def test_concurrent_recommends_file_exactly_one_action(client):
     """Two racing recommends: the in-transaction re-check under BEGIN
     IMMEDIATE must collapse them onto one inbox card."""
@@ -513,14 +557,12 @@ def test_rejected_action_allows_a_fresh_recommendation(client):
     second = client.post(f"/anomalies/{event_id}/recommend").json()
     assert second["reused"] is False
     assert second["action_id"] != first["action_id"]
-    # identical prompt: the fresh proposal is served from the llm cache,
-    # and the replay carries the ORIGINAL debate outcome verbatim
-    assert second["from_cache"] is True
-    assert second["escalation_reason"] == first["escalation_reason"]
-    assert second["transcript"] == first["transcript"]
-    assert second["preferred"] == first["preferred"]
-    # locked rule "every call + cache hit in ai_usage": the replay itself
-    # is ledgered with from_cache=1, and no phantom skeptic row appears
+    # WP-6: the rejection itself became decision memory, so the fresh
+    # recommendation reasons over a DIFFERENT prompt — a cache replay here
+    # would resurface the pre-rejection reasoning and hide the new context.
+    # (Cache-hit ledger semantics stay pinned by the analyst suite, which
+    # shares the same cache/ledger helpers.)
+    assert second["from_cache"] is False
     conn = db.connect()
     try:
         rows = conn.execute(
@@ -529,9 +571,7 @@ def test_rejected_action_allows_a_fresh_recommendation(client):
     finally:
         conn.close()
     recommender_rows = [r["from_cache"] for r in rows if r["agent"] == "recommender"]
-    skeptic_rows = [r for r in rows if r["agent"] == "skeptic"]
-    assert recommender_rows == [0, 1]
-    assert len(skeptic_rows) == 1  # only the original debate, never the replay
+    assert recommender_rows == [0, 0]  # both runs reasoned fresh
 
 
 # --- fallback ----------------------------------------------------------------------
