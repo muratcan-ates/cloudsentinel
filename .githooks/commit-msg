@@ -1,0 +1,24 @@
+#!/bin/sh
+# CloudSentinel commit-msg hook: keep the history competition-clean.
+# Blocks Co-Authored-By trailers (contributors must stay human-only) and
+# enforces the Conventional Commits prefix used across the repo.
+
+message_file="$1"
+
+if grep -qi "co-authored-by" "$message_file"; then
+  echo "commit-msg hook: Co-Authored-By trailers are not allowed in this repo." >&2
+  exit 1
+fi
+
+first_line=$(head -n 1 "$message_file")
+case "$first_line" in
+  feat:*|fix:*|docs:*|chore:*|test:*|refactor:*|ci:*|style:*|perf:*) ;;
+  *)
+    echo "commit-msg hook: subject must start with a Conventional Commits type" >&2
+    echo "  (feat: fix: docs: chore: test: refactor: ci: style: perf:)" >&2
+    echo "  got: $first_line" >&2
+    exit 1
+    ;;
+esac
+
+exit 0

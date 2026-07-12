@@ -139,7 +139,21 @@ curl "http://127.0.0.1:8000/costs/daily"
 # → aligned per-service daily series, date axis and daily totals
 ```
 
-Run the test suite with `.venv/bin/pytest`.
+Run the test suite with `SENTINEL_FAKE_LLM=1 .venv/bin/pytest` (the fake
+provider keeps tests deterministic and quota-free).
+
+The full agent chain can be driven end to end with one call — watch the
+tagged `[SIGNAL]/[ANALYST]/[DEBATE]/[RECOMMENDER]/[HITL]` log stream in the
+server output:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/pulse"
+# → detect → Analyst triage → (debate-lite) → Recommender → decision inbox
+```
+
+**Contributing setup (once per clone):** run `sh scripts/check_identity.sh` —
+it verifies your git identity is GitHub-linked and installs the repo hooks
+(Conventional Commits subject + trailer guard).
 
 > On Windows, replace `.venv/bin/` with `.venv\Scripts\` in the commands above.
 
