@@ -6,8 +6,10 @@
    THEMES — every color flows through the semantic tokens below, so a
    palette decision changes exactly one block:
      :root / [data-theme="cobalt"]   refined cobalt (current identity, default)
-     [data-theme="mission"]          mission control — neutral graphite
+     [data-theme="mission"]          mission control — night mode, neutral graphite
      [data-theme="paper"]            paper ledger — bone & ink, cobalt as accent
+   The colophon carries a persisted switch between the three; ?theme= links
+   still override it for reviews.
 
    Cobalt theme rule: green appears exactly 4 times — nameplate period,
    status square, slider thumb, threshold numeral. To add one, remove one. */
@@ -355,6 +357,14 @@ button:active { color: var(--ink); text-underline-offset: 2px; }
   align-items: baseline;
   gap: 10px;
 }
+
+/* palette switch — same quiet grammar as the sort rows */
+.theme-row { margin-left: auto; }
+.theme-row .row-action[aria-pressed="true"] { color: var(--ink); }
+
+@media (max-width: 560px) {
+  .theme-row { margin-left: 0; }
+}
 select {
   appearance: none;
   -webkit-appearance: none;
@@ -548,6 +558,19 @@ main {
 }
 .cost-row.top-spender .service { color: var(--ink); }
 .cost-row.top-spender .idx { color: var(--ink); }
+
+/* the service name doubles as a filter control — click focuses the signal
+   panels on that service, click again to clear */
+.cost-line .service-btn {
+  text-decoration: none;
+  text-align: left;
+  cursor: pointer;
+}
+.cost-line .service-btn:hover,
+.cost-line .service-btn[aria-pressed="true"] {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .phantom-sq { width: 4px; height: 4px; background: var(--info); flex: none; }
 .phantom-note {
   font-size: 10px;

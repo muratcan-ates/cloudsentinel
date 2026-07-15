@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Jacquard+24&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=UnifrakturMaguntia&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/static/style.css?v=s2.7" />
+  <link rel="stylesheet" href="/static/style.css?v=s2.8" />
 </head>
 <body>
   <div class="page">
@@ -52,6 +52,11 @@
           </select>
         </label>
         <button id="rescan" type="button">Re-scan →</button>
+        <p class="microcap theme-row" role="group" aria-label="Palette">Palette —
+          <button class="row-action" type="button" data-theme-choice="cobalt" aria-pressed="true">cobalt</button> /
+          <button class="row-action" type="button" data-theme-choice="mission" aria-pressed="false">night</button> /
+          <button class="row-action" type="button" data-theme-choice="paper" aria-pressed="false">paper</button>
+        </p>
       </div>
     </section>
 
@@ -62,6 +67,11 @@
           <h2 class="section-word">anomalies</h2>
         </header>
         <p class="meta" id="anomaly-meta">scanning…</p>
+        <p class="meta sort-row">sort —
+          <button class="row-action" type="button" data-anomaly-sort="z" aria-pressed="true">z-score</button> /
+          <button class="row-action" type="button" data-anomaly-sort="date" aria-pressed="false">date</button> /
+          <button class="row-action" type="button" data-anomaly-sort="service" aria-pressed="false">a–z</button>
+        </p>
         <div id="anomaly-list" class="fadeable"></div>
       </section>
 
@@ -136,6 +146,6 @@
     </footer>
   </div>
 
-  <script src="/static/app.js?v=s2.7"></script>
+  <script src="/static/app.js?v=s2.8"></script>
 </body>
 </html>

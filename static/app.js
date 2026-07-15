@@ -5,13 +5,29 @@
    keeps the audit trail. Nothing ever executes without an operator decision,
    and execution is simulated by design. */
 
-/* Palette preview: ?theme=mission|paper|cobalt flips the token set for
-   review without changing the default — the palette decision is the
-   team's, not this file's. */
-const themeParam = new URLSearchParams(location.search).get("theme");
-if (["mission", "paper", "cobalt"].includes(themeParam)) {
-  document.documentElement.dataset.theme = themeParam;
+/* Palette: ?theme=mission|paper|cobalt still wins so review links keep
+   working; otherwise the choice persisted from the colophon switch applies.
+   The default identity stays cobalt — the switch promotes night (mission)
+   and paper from hidden preview flags to first-class modes. */
+const THEMES = ["cobalt", "mission", "paper"];
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  document.querySelectorAll("[data-theme-choice]").forEach((button) =>
+    button.setAttribute("aria-pressed", String(button.dataset.themeChoice === theme))
+  );
 }
+
+const themeParam = new URLSearchParams(location.search).get("theme");
+let storedTheme = null;
+try {
+  storedTheme = localStorage.getItem("sentinel-theme");
+} catch {
+  /* storage can be unavailable (private mode) — the default carries */
+}
+applyTheme(
+  THEMES.includes(themeParam) ? themeParam : THEMES.includes(storedTheme) ? storedTheme : "cobalt"
+);
 
 const thresholdInput = document.getElementById("threshold");
 const thresholdValue = document.getElementById("threshold-value");
@@ -31,6 +47,8 @@ const state = {
   costs: null,
   daily: null,
   sortMode: "cost",
+  anomalySort: "z", // z | date | service — orders section I and the signal rail
+  lastScan: null, // last successful /anomalies report — re-renders on sort changes
   selectedIndex: 0,
   analyses: new Map(), // event id → Analyst agent report; survives re-renders
   analystBusy: new Set(), // event ids with an analyze request in flight
@@ -107,6 +125,18 @@ async function fetchJson(url) {
 
 function detailFor(service) {
   return detailsByService[String(service || "").trim().toLowerCase()] || detailsByService.network;
+}
+
+const anomalyComparators = {
+  z: (a, b) => b.z_score - a.z_score,
+  date: (a, b) => a.date.localeCompare(b.date) || b.z_score - a.z_score,
+  service: (a, b) => a.service.localeCompare(b.service) || b.z_score - a.z_score,
+};
+
+/* Sorts in place: report.anomalies and state.anomalies are the same array,
+   so the investigate indexes stay honest across re-renders. */
+function sortAnomalies() {
+  state.anomalies.sort(anomalyComparators[state.anomalySort] || anomalyComparators.z);
 }
 
 let actionsSequence = 0; // last-writer-wins: a stale /actions response must never overwrite a newer one
@@ -201,11 +231,13 @@ function renderCosts(report, flaggedServices) {
     row.innerHTML = `
       <div class="cost-line">
         <span class="idx">${String(index + 1).padStart(2, "0")}</span>
-        <span class="service">${escapeHtml(service.service)}${
+        <button class="service service-btn" type="button" data-filter-service="${escapeHtml(service.service)}"
+          aria-pressed="${String(serviceFilter.value === service.service)}"
+          title="focus the signal panels on ${escapeHtml(service.service)} — click again to clear">${escapeHtml(service.service)}${
           flagged
             ? '<span class="phantom-sq" aria-hidden="true"></span><span class="phantom-note">phantom traced</span>'
             : ""
-        }</span>
+        }</button>
         <span class="amount">${fmtNumber(service.total_cost)} <small>${escapeHtml(report.currency)}</small> <span class="share">· ${share}%</span></span>
       </div>
       <div class="bar"><div class="bar-fill" style="width:0%"></div></div>`;
@@ -258,6 +290,44 @@ function buildScale(values, width, height, { left, right, top, bottom }) {
       left + (values.length > 1 ? (index * innerWidth) / (values.length - 1) : innerWidth / 2),
     y: (value) => height - bottom - ((value - min) / range) * (height - top - bottom),
   };
+}
+
+/* Monotone cubic segments (Fritsch–Carlson tangents): the curve is smooth
+   but never overshoots the data, so a spike still reads as a spike and no
+   dip is invented between two flat days — precision before prettiness. */
+function smoothPath(points) {
+  if (points.length < 3) {
+    return points
+      .map((point, index) => `${index ? "L" : "M"}${point.x.toFixed(1)},${point.y.toFixed(1)}`)
+      .join(" ");
+  }
+  const count = points.length;
+  const dx = [];
+  const slope = [];
+  for (let i = 0; i < count - 1; i += 1) {
+    dx.push(points[i + 1].x - points[i].x);
+    slope.push((points[i + 1].y - points[i].y) / dx[i]);
+  }
+  const tangent = [slope[0]];
+  for (let i = 1; i < count - 1; i += 1) {
+    if (slope[i - 1] * slope[i] <= 0) {
+      tangent.push(0); // local extremum: flatten so the curve stays inside the data
+    } else {
+      const w1 = 2 * dx[i] + dx[i - 1];
+      const w2 = dx[i] + 2 * dx[i - 1];
+      tangent.push((w1 + w2) / (w1 / slope[i - 1] + w2 / slope[i]));
+    }
+  }
+  tangent.push(slope[count - 2]);
+  let d = `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
+  for (let i = 0; i < count - 1; i += 1) {
+    const h = dx[i] / 3;
+    d +=
+      ` C${(points[i].x + h).toFixed(1)},${(points[i].y + tangent[i] * h).toFixed(1)}` +
+      ` ${(points[i + 1].x - h).toFixed(1)},${(points[i + 1].y - tangent[i + 1] * h).toFixed(1)}` +
+      ` ${points[i + 1].x.toFixed(1)},${points[i + 1].y.toFixed(1)}`;
+  }
+  return d;
 }
 
 function drawEmptyChart(svg, width, height) {
@@ -315,7 +385,7 @@ function drawSeries(svg, values, { spikes = [], area = false, axes = null, band 
   }
 
   const points = values.map((value, index) => ({ x: scale.x(index), y: scale.y(value) }));
-  const path = points.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const path = smoothPath(points);
 
   if (area) {
     const defs = svgEl("defs", {});
@@ -538,24 +608,32 @@ function renderInvestigation() {
   }
 }
 
+/* Shared fragments for section III and the inbox — one source for the
+   skeptic fold and the preferred-stance saving, instead of three copies. */
+function preferredMonthlySaving(detail) {
+  const savings = detail.savings || {};
+  return detail.preferred === "BOLD" ? savings.bold_monthly : savings.cautious_monthly;
+}
+
+function transcriptFold(detail) {
+  if (!detail.transcript) return "";
+  return `<details class="transcript"><summary>skeptic reviewed this</summary>
+       <p class="body">${escapeHtml(detail.transcript.skeptic_rationale || "")} — ${detail.transcript.agreed ? "agreed with the draft stance" : `revised the stance to ${escapeHtml(detail.transcript.final_preferred || "")}`}.</p>
+     </details>`;
+}
+
 function renderRecommendationBlock(anomaly, action, analysis) {
   if (action) {
     const detail = action.detail || {};
     const preferred = (detail.options || []).find((o) => o.stance === detail.preferred);
-    const savings = detail.savings || {};
-    const saving =
-      detail.preferred === "BOLD" ? savings.bold_monthly : savings.cautious_monthly;
+    const saving = preferredMonthlySaving(detail);
     return `
       <div class="inv-block recommendation" style="grid-column: 1 / -1;">
         <p class="microcap">Recommended action — Recommender agent${detail.source === "fallback" ? " (fallback)" : ""}</p>
         <p class="rec-title">${escapeHtml(action.title)}</p>
         <p class="rec-facts">${preferred ? `stance ${escapeHtml(detail.preferred)} · est. saving ${fmtNumber(saving ?? 0)} / month · risk ${escapeHtml(preferred.risk)} · rollback ${escapeHtml(preferred.rollback)}` : `stance ${escapeHtml(detail.preferred || "—")}`}</p>
         ${detail.escalation_reason ? `<p class="meta">debate-lite: ${escapeHtml(detail.escalation_reason)}</p>` : ""}
-        ${detail.transcript
-          ? `<details class="transcript"><summary>skeptic reviewed this</summary>
-               <p class="body">${escapeHtml(detail.transcript.skeptic_rationale || "")} — ${detail.transcript.agreed ? "agreed with the draft stance" : `revised the stance to ${escapeHtml(detail.transcript.final_preferred || "")}`}.</p>
-             </details>`
-          : ""}
+        ${transcriptFold(detail)}
         <p class="meta">filed to the decision inbox — state ${escapeHtml(action.state)}</p>
       </div>`;
   }
@@ -599,11 +677,9 @@ function renderDecisions() {
     const detail = action.detail || {};
     const anomaly = detail.anomaly || {};
     const analysisReport = detail.analysis || {};
-    const savings = detail.savings || {};
     const confidence = detail.confidence || {};
     const preferred = (detail.options || []).find((o) => o.stance === detail.preferred);
-    const saving =
-      detail.preferred === "BOLD" ? savings.bold_monthly : savings.cautious_monthly;
+    const saving = preferredMonthlySaving(detail);
     const busy = state.hitlBusy.has(action.id);
     const severity = anomaly.severity || "warning";
     const resolved = action.state === "rejected" || action.state === "executed";
@@ -618,11 +694,7 @@ function renderDecisions() {
         <p class="dec-facts"><span>stance ${escapeHtml(detail.preferred || "—")}</span><span>risk ${escapeHtml(preferred ? preferred.risk : "—")}</span><span>est. saving ${fmtNumber(saving ?? 0)} / month</span><span>confidence ${confidence.score != null ? Math.round(confidence.score * 100) : "—"}%</span></p>
         ${preferred ? `<p class="meta">rollback ${escapeHtml(preferred.rollback)}</p>` : ""}
         ${detail.escalation_reason ? `<p class="meta">debate-lite: ${escapeHtml(detail.escalation_reason)}</p>` : ""}
-        ${detail.transcript
-          ? `<details class="transcript"><summary>skeptic reviewed this</summary>
-               <p class="body">${escapeHtml(detail.transcript.skeptic_rationale || "")} — ${detail.transcript.agreed ? "agreed with the draft stance" : `revised the stance to ${escapeHtml(detail.transcript.final_preferred || "")}`}.</p>
-             </details>`
-          : ""}
+        ${transcriptFold(detail)}
       </div>
       <div class="dec-rail">
         <span class="chip ${action.decided_by === "system:timeout" ? "expired" : action.state}">${
@@ -734,7 +806,7 @@ async function fileRecommendation() {
       time: utcNow(),
       title: `Recommender filed a ${recommendation.preferred} proposal for ${anomaly.service}`,
       copy:
-        `Category ${recommendation.category} · est. saving ${recommendation.preferred === "BOLD" ? recommendation.savings.bold_monthly : recommendation.savings.cautious_monthly} / month` +
+        `Category ${recommendation.category} · est. saving ${preferredMonthlySaving(recommendation)} / month` +
         `${recommendation.escalation_reason ? " · debate-lite: " + recommendation.escalation_reason : ""}` +
         `${recommendation.source === "fallback" ? " · rule-based fallback (LLM unavailable)" : ""}.`,
     });
@@ -791,6 +863,8 @@ async function scan() {
     state.daily = daily;
     state.anomalies = anomalies.anomalies;
     state.allAnomalies = unfiltered ? unfiltered.anomalies : anomalies.anomalies;
+    state.lastScan = anomalies;
+    sortAnomalies();
     populateServiceFilter();
     renderAll(anomalies);
     editionLine.textContent = `SYSTEM ONLINE — LAST SCAN ${utcNow()} — MOCK DATA`;
@@ -820,6 +894,42 @@ serviceFilter.addEventListener("change", scan);
 rescanButton.addEventListener("click", scan);
 
 document.addEventListener("click", (event) => {
+  const themeChoice = event.target.closest("[data-theme-choice]");
+  if (themeChoice) {
+    applyTheme(themeChoice.dataset.themeChoice);
+    try {
+      localStorage.setItem("sentinel-theme", themeChoice.dataset.themeChoice);
+    } catch {
+      /* best effort — the choice still applies for this visit */
+    }
+    return;
+  }
+
+  const anomalySortButton = event.target.closest("[data-anomaly-sort]");
+  if (anomalySortButton) {
+    state.anomalySort = anomalySortButton.dataset.anomalySort;
+    document.querySelectorAll("[data-anomaly-sort]").forEach((button) =>
+      button.setAttribute("aria-pressed", String(button.dataset.anomalySort === state.anomalySort))
+    );
+    const selectedId = state.anomalies[state.selectedIndex]?.id;
+    sortAnomalies();
+    if (selectedId != null) {
+      const index = state.anomalies.findIndex((anomaly) => anomaly.id === selectedId);
+      if (index >= 0) state.selectedIndex = index;
+    }
+    if (state.lastScan) renderAnomalies(state.lastScan);
+    renderInvestigation();
+    return;
+  }
+
+  const serviceButton = event.target.closest("[data-filter-service]");
+  if (serviceButton) {
+    const service = serviceButton.dataset.filterService;
+    serviceFilter.value = serviceFilter.value === service ? "" : service;
+    scan();
+    return;
+  }
+
   const investigate = event.target.closest("[data-investigate]");
   if (investigate) {
     state.selectedIndex = Number(investigate.dataset.investigate);
