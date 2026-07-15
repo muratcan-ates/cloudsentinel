@@ -55,3 +55,25 @@ def test_security_headers_present_on_api():
     assert response.status_code == 200
     assert "content-security-policy" in response.headers
     assert response.headers["x-content-type-options"] == "nosniff"
+
+
+def test_dashboard_ships_interactive_controls():
+    """The palette switch and the signal sort row are part of the product."""
+    page = client.get("/").text
+    assert 'data-theme-choice="mission"' in page  # night mode switch
+    assert 'data-anomaly-sort="z"' in page  # sortable signal table
+
+
+def test_docs_render_under_scoped_csp():
+    """Swagger UI boots from cdn.jsdelivr.net with an inline init script; the
+    dashboard's strict policy would render /docs blank, so the docs pages get
+    a scoped CSP while every other path keeps script-src 'self'."""
+    docs = client.get("/docs")
+    assert docs.status_code == 200
+    assert "swagger-ui" in docs.text
+    assert "https://cdn.jsdelivr.net" in docs.headers["content-security-policy"]
+
+    for path in ("/", "/health"):
+        csp = client.get(path).headers["content-security-policy"]
+        assert "script-src 'self';" in csp
+        assert "cdn.jsdelivr.net" not in csp
