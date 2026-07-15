@@ -8,7 +8,7 @@
 
 **YZTA Bootcamp 2026 · AI Track · Group 60**
 
-[Product](#information-about-the-product) · [Architecture](docs/architecture.md) · [How to Run](#how-to-run-local) · [Sprint 1](#sprint-1)
+[Product](#information-about-the-product) · [Architecture](docs/architecture.md) · [How to Run](#how-to-run-local) · [Sprint 2](#sprint-2) · [Field Guide](#field-guide--sixty-seconds-to-a-decision)
 
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.128-009688?logo=fastapi&logoColor=white)
@@ -26,12 +26,14 @@
 - [Information About the Product](#information-about-the-product)
   - [Team Members](#team-members)
   - [Product Name](#product-name) · [Product Description](#product-description) · [Product Features](#product-features) · [Target Audience](#target-audience)
-  - [What Makes CloudSentinel Different](#what-makes-cloudsentinel-different)
+  - [Three Roles, One Control Room](#three-roles-one-control-room) · [What Makes CloudSentinel Different](#what-makes-cloudsentinel-different)
+  - [The System at a Glance](#the-system-at-a-glance) · [Repository Map](#repository-map)
   - [How to Run (Local)](#how-to-run-local)
   - [Built With](#built-with) · [Sprint 1 Deliverables](#project-status--sprint-1-deliverables) · [Sprint 2 Progress](#project-status--sprint-2-progress) · [Roadmap](#roadmap-sprint-2-3)
   - [Requirements Compliance](#requirements-compliance) · [Scope & Limitations](#scope--limitations-by-design)
   - [Product Backlog URL](#product-backlog-url)
 - [Sprint 1](#sprint-1) · [Sprint 2](#sprint-2) · [Sprint 3](#sprint-3)
+- [Field Guide](#field-guide--sixty-seconds-to-a-decision) · [In Short](#in-short) · [Acknowledgements](#acknowledgements)
 
 # Team Name
 
@@ -102,6 +104,19 @@ CloudSentinel is an agentic decision-support system that monitors cloud cost and
 - Security operations (SecOps) teams
 - SMEs and startups that want to keep their cloud costs under control
 
+## Three Roles, One Control Room
+
+Companies run cloud operations through three roles, each with its own toolbelt
+and its own daily question. CloudSentinel is designed as the surface where the
+three meet **after** detection — the moment their current tools hand the
+problem back to a human with nothing but a raw alert:
+
+| Role | On their desk today | Their daily question | Where CloudSentinel answers it |
+|---|---|---|---|
+| **FinOps analyst** | AWS Cost Explorer, GCP billing alerts, spreadsheets | *"Why did spend jump, and what is it worth fixing?"* | Cost ledger with share-of-spend, trend curve with anomaly marks, deterministic Python-computed savings on every proposal, CSV export for the finance review |
+| **DevOps / platform engineer** | Datadog / Grafana, PagerDuty, Terraform | *"What exactly do I change, and how do I roll it back?"* | Analyst triage with cited evidence rows, cautious / bold options each carrying risk **and a rollback plan**, execution that stays simulated until a human approves |
+| **SecOps operator** | SIEM dashboards, IAM audit logs, ticket queues | *"Who decided what, and can I prove it?"* | Human-in-the-loop state machine with idempotent decisions, the append-only decision ledger, and security signals flowing through the same pipeline in Sprint 3 |
+
 ## What Makes CloudSentinel Different
 
 Cloud providers and observability tools (AWS Cost Anomaly Detection, GCP cost
@@ -112,6 +127,62 @@ levels, and a human operator gives the final approval — closing the
 detect → decide → act loop with human-in-the-loop safety instead of leaving
 the operator alone with a raw alert. The agent design is documented — and now
 implemented — in [docs/architecture.md](docs/architecture.md).
+
+## The System at a Glance
+
+Every piece of the product in one picture — data falls from the cloud, agents
+reason about it, and nothing touches infrastructure without a human hand:
+
+```mermaid
+flowchart LR
+    CLOUD[("☁️ cloud cost &amp; security data<br/>mock today · live adapters in Sprint 3")] --> DET
+
+    subgraph deterministic core
+        DET["Detector<br/>z-score per service"]
+    end
+
+    subgraph agent layer
+        DET --> AN["Analyst<br/>triage + cited evidence"]
+        AN --> SK["Skeptic<br/>debate-lite review"]
+        SK --> REC["Recommender<br/>cautious / bold options"]
+        MEM[("decision memory")] --> REC
+    end
+
+    subgraph human in the loop
+        REC --> INBOX["decision inbox<br/>operator approves / rejects"]
+        INBOX --> EXEC["simulated execution<br/>+ audit ledger"]
+    end
+
+    INBOX --> MEM
+    EXEC --> DASH["live dashboard"]
+```
+
+The full design rationale, agent contracts and API evolution live in
+[docs/architecture.md](docs/architecture.md).
+
+## Repository Map
+
+Short and flat on purpose — every path says what it holds:
+
+```text
+cloudsentinel/
+├── main.py               ASGI entry point: routes, CORS, security headers
+├── app/                  application package
+│   ├── detection.py      z-score detector + cost aggregations (deterministic)
+│   ├── analyst.py        Analyst agent — triage, evidence, reflection
+│   ├── recommender.py    Recommender agent + debate-lite skeptic
+│   ├── actions.py        human-in-the-loop action lifecycle
+│   ├── decisions.py      decision memory retrieval
+│   ├── pulse.py          one-call end-to-end chain
+│   ├── llm.py            provider layer: Gemini, fake provider, fallbacks
+│   ├── db.py             SQLite core — WAL, idempotency, seed-on-startup
+│   ├── models.py         Pydantic schemas
+│   └── data/             mock cost dataset (2 planted spikes)
+├── static/               dashboard — tokenized design system, 3 palettes
+├── tests/                214 pytest cases incl. performance budgets
+├── docs/                 architecture & agent design
+└── ProjectManagement/    sprint evidence packs (boards, screenshots)
+```
 
 ## How to Run (Local)
 
@@ -175,7 +246,7 @@ docker run -p 8000:8000 cloudsentinel
 | **Python 3.12** | Core language (pinned in venv, CI and Docker) |
 | **FastAPI + Uvicorn** | REST API and ASGI server |
 | **Pydantic v2** | Typed request/response models and validation |
-| **pytest + httpx** | Automated test suite (208 tests) |
+| **pytest + httpx** | Automated test suite (214 tests, incl. performance budgets) |
 | **SQLite** (stdlib `sqlite3`) | WAL-mode persistence core: action lifecycle, decision memory, LLM cache, idempotency |
 | **Docker** | Containerized, deployment-ready packaging |
 | **Gemini** (`google-genai`) | LLM provider layer with quota-aware retry and rule-based fallback |
@@ -209,6 +280,9 @@ Sprint 2's development stories are code-complete as of July 12 (sprint review an
 | Live dashboard | Sections I–V run against the real API: investigation triage, recommendation filing, decision inbox, audit ledger | ✅ [`static/`](static/) |
 | Quota & safety discipline | Deterministic fake provider for tests/CI, rule-based fallbacks tagged in the UI, spotlighted untrusted data, security headers + CSP + CORS | ✅ [`app/llm.py`](app/llm.py) · [`main.py`](main.py) |
 | Contributor tooling | Conventional-commit hook + identity check script | ✅ [`scripts/check_identity.sh`](scripts/check_identity.sh) |
+| Dashboard interactivity | Persisted palette switch (cobalt / **night** / paper), sortable signal ledger (z / date / a–z), click-to-filter cost rows, monotone-curve charts that never overshoot the data | ✅ [`static/`](static/) |
+| Swagger CSP regression fix | `/docs` rendered blank under the strict dashboard CSP; a docs-scoped policy restored it, locked by regression tests | ✅ [`main.py`](main.py) · [`tests/test_dashboard.py`](tests/test_dashboard.py) |
+| Performance budgets | Wall-clock budgets over scans, aggregations, CSV export and the full pulse chain on mock data | ✅ [`tests/test_performance.py`](tests/test_performance.py) |
 
 ## Roadmap (Sprint 2-3)
 
@@ -220,8 +294,11 @@ In line with [docs/architecture.md](docs/architecture.md) and the sprint point p
 | Human-in-the-loop action lifecycle (`proposed → approved/rejected → executed`) | Sprint 2 | ✅ shipped |
 | Decision memory feeding the Recommender | Sprint 2 | ✅ shipped |
 | Continuous integration — tests on every push | Sprint 2 | 🔄 in progress |
-| Dashboard palette revision after UI reference research | Sprint 2 | 🔄 in progress |
+| Dashboard palette revision after UI reference research | Sprint 2 | 🔄 switcher shipped (cobalt / night / paper, persisted); final palette locked at the Friday design session |
 | Security-signal ingestion through the same detection pipeline (mock events) | Sprint 3 | planned |
+| Live-data adapters replacing the mock feed (source-agnostic pipeline) | Sprint 3 | planned |
+| Calendar / notification layer — pending-approval reminders & daily digest | Sprint 3 | planned |
+| User's-eye UX pass — gaps, friction and flow measured from the operator's seat | Sprint 3 | planned |
 | Deployment, live demo & 3-minute product video | Sprint 3 | planned |
 
 ## Requirements Compliance
@@ -237,7 +314,7 @@ Mapping of the official bootcamp scrum-notebook requirements to their evidence i
 | Point estimates & completion logic | ✅ | [Sprint 1](#sprint-1) |
 | Daily Scrum documentation | ✅ | [Slack & WhatsApp evidence](ProjectManagement/Sprint1Documents/) |
 | Sprint board screenshots | ✅ | [Miro board](ProjectManagement/Sprint1Documents/miro_board.jpeg) · [burndown](ProjectManagement/Sprint1Documents/burndown_sprint1.png) |
-| Product status screenshots | ✅ | [dashboard](ProjectManagement/Sprint1Documents/dashboard.png) · [Swagger](ProjectManagement/Sprint1Documents/swagger_docs.png) |
+| Product status screenshots | ✅ | Sprint 2: [dashboard](ProjectManagement/Sprint2Documents/dashboard_cobalt.png) · [Swagger](ProjectManagement/Sprint2Documents/swagger_13_endpoints.png) — Sprint 1: [dashboard](ProjectManagement/Sprint1Documents/dashboard.png) · [Swagger](ProjectManagement/Sprint1Documents/swagger_docs.png) |
 | Sprint Review & Retrospective | ✅ | [Sprint 1](#sprint-1) |
 | Working product increment | ✅ | [`GET /anomalies`](main.py) · agent chain ([analyze](app/analyst.py) · [recommend](app/recommender.py) · [pulse](app/pulse.py)) · [HITL lifecycle](app/actions.py) · [tests](tests/) |
 
@@ -329,19 +406,68 @@ These constraints are intentional Sprint 1 decisions, not oversights:
   - The Recommender's prompt interface was frozen mid-sprint so decision memory could be injected later as a single isolated change — which is exactly how it landed.
   - Money figures shown to the operator are computed deterministically in Python; the model narrates, it never invents numbers.
   - Execution stays simulated by design: the state machine records an executed action with a SIMULATION marker and no real infrastructure is ever touched.
-  - The dashboard palette revision (retro action item, owner: Tuana) and the CI restore are the open non-code items of the sprint.
+  - The dashboard was rebuilt on a tokenized design system with three palette directions (cobalt / mission / paper); a persisted in-dashboard switch — night mode included — now lets the team and reviewers flip palettes live. The final palette decision (retro action item, owner: Tuana) lands at the Friday design session.
+  - Mid-sprint hardening from the July 12 review requests: interactive ledger tables (sortable signals, click-to-filter cost rows), monotone-curve charts, performance budget tests over the mock-data pipeline, and a regression fix that restored Swagger UI under the strict CSP.
+  - The CI restore remains the open non-code item of the sprint.
 
 - **Expected point completion within the sprint**: 13 points
 
-- **Point Completion Logic**: Sprint 2 carries 13 of the 36 total backlog points: Gemini agent spike (2), Analyst agent (3), Recommender with debate-lite (3), human-in-the-loop lifecycle (3), decision memory (2). All five stories are code-complete with 208 automated tests as of July 12; formal completion is assessed at the July 19 review and demo.
+- **Point Completion Logic**: Sprint 2 carries 13 of the 36 total backlog points: Gemini agent spike (2), Analyst agent (3), Recommender with debate-lite (3), human-in-the-loop lifecycle (3), decision memory (2). All five stories are code-complete as of July 12 — the suite has since grown to 214 automated tests (~7s on the fake provider) — and formal completion is assessed at the July 19 review and demo.
 
 - **Daily Scrum**: daily communication continues over WhatsApp with team meetings on Slack; evidence screenshots are collected in `ProjectManagement/Sprint2Documents/` through the sprint.
+
+- **Product Status — input → output on the running increment**: full-page captures of the Sprint 2 dashboard on mock data. One `POST /pulse` (input) drives the whole chain; the inbox, ledger and summary strip below are the output of exactly that call plus one operator approval:
+
+  ```bash
+  curl -X POST http://127.0.0.1:8000/pulse
+  ```
+
+  ```json
+  {"threshold": 2.0, "signals": 2, "analyzed": 2, "proposals_filed": 2,
+   "chain": [
+     {"event_id": 1, "service": "compute",  "severity": "critical", "triage": "REAL",
+      "action_id": 1, "action_state": "proposed", "preferred": "CAUTIOUS"},
+     {"event_id": 2, "service": "database", "severity": "critical", "triage": "REAL",
+      "action_id": 2, "action_state": "proposed", "preferred": "CAUTIOUS"}]}
+  ```
+
+  ![CloudSentinel Sprint 2 dashboard — cobalt](ProjectManagement/Sprint2Documents/dashboard_cobalt.png)
+
+  Both planted spikes are detected, triaged REAL, filed as proposals; the compute action was approved and executed — SIMULATION, the database action still awaits the hand. Palette directions for the design decision: [night](ProjectManagement/Sprint2Documents/dashboard_night.png) · [paper](ProjectManagement/Sprint2Documents/dashboard_paper.png) · [Swagger — 13 endpoints](ProjectManagement/Sprint2Documents/swagger_13_endpoints.png).
 
 ---
 
 # Sprint 3
 
 *The final sprint runs July 20 – August 2 and closes with deployment, the live demo and the 3-minute product video.*
+
+- **Planned scope** (carried from the Sprint 2 backlog review and the July 12 planning notes):
+  - **Live data** — replace the mock feed with live-data adapters and re-run the same test discipline against it; the detection pipeline is source-agnostic by design, so this is an adapter, not a rewrite.
+  - **Security signals** — mock security events (failed-login bursts, IAM policy changes) enter through the identical detect → analyse → recommend → approve chain.
+  - **User's-eye UX pass** — gaps, friction and flow measured from the operator's seat; findings feed the final polish.
+  - **Optimization & deduplication** — the Sprint 2 code-repetition sweep continues across backend and dashboard.
+  - **Calendar / notification layer** — pending-approval reminders and a daily digest so a filed proposal never expires unseen.
+  - **Deployment, live demo & the 3-minute product video** — target platform chosen at sprint start.
+
+---
+
+# Field Guide — Sixty Seconds to a Decision
+
+1. **Run it** — `uvicorn main:app --reload`, open `http://127.0.0.1:8000/` (Swagger at `/docs`).
+2. **Tune the watch** — drag the sensitivity slider or pick a service; section I re-scans live. Prefer the dark room? Flip the palette to **night** in the control rail — the choice persists.
+3. **Investigate** — hit *investigate →* on a signal: evidence sparkline, baseline, deviation, then *run analyst agent →* for triage with cited rows.
+4. **Decide** — *file recommendation →*, then approve or reject in the inbox. Execution is always a simulation, and the ledger remembers every hand that touched it.
+
+# In Short
+
+CloudSentinel closes the gap between *"your cloud bill spiked"* and *"someone accountable did something about it"*: a deterministic detector finds the spike, AI agents explain it and propose two ways out with computed savings, a skeptic challenges weak calls — and nothing executes until a human says so, in writing, forever.
+
+# Acknowledgements
+
+- **Yapay Zeka ve Teknoloji Akademisi** — for the YZTA Bootcamp 2026 program, the scrum template and the mentoring hours behind this repo.
+- **Team CloudSentinel** — every feature here crossed at least one teammate's review before it landed.
+- **The open tools that carried us** — FastAPI, Pydantic, pytest, SQLite, Docker, Gemini (`google-genai`), and the Google Fonts faces (Instrument Serif, Jacquard 24, UnifrakturMaguntia) that give the dashboard its voice.
+- **Michelangelo** — for the two hands we borrowed; the machine watches, the human decides.
 
 ---
 

@@ -68,8 +68,27 @@ CONTENT_SECURITY_POLICY = "; ".join(
         "object-src 'none'",
     ]
 )
+# Swagger UI and ReDoc load their bundles from cdn.jsdelivr.net and boot via
+# an inline script, so the dashboard policy above renders them as a blank
+# page. The API docs get a scoped policy instead; every other path keeps
+# script-src 'self'.
+DOCS_CONTENT_SECURITY_POLICY = "; ".join(
+    [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+        "font-src 'self'",
+        "img-src 'self' data: https://fastapi.tiangolo.com",
+        "connect-src 'self'",
+        "frame-ancestors 'none'",
+        "base-uri 'none'",
+        "form-action 'self'",
+        "object-src 'none'",
+    ]
+)
+DOCS_PATHS = {"/docs", "/redoc"}
+
 SECURITY_HEADERS = {
-    "Content-Security-Policy": CONTENT_SECURITY_POLICY,
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
@@ -122,6 +141,12 @@ app.add_middleware(
 async def add_security_headers(request: Request, call_next):
     """Attach hardening headers to every response (dashboard, static, API)."""
     response = await call_next(request)
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        DOCS_CONTENT_SECURITY_POLICY
+        if request.url.path in DOCS_PATHS
+        else CONTENT_SECURITY_POLICY,
+    )
     for header, value in SECURITY_HEADERS.items():
         response.headers.setdefault(header, value)
     return response
