@@ -73,12 +73,11 @@ const state = {
   detection: null, // GET /metrics/detection — detector precision from verdicts (VI)
   reflexSuggestions: null, // GET /reflex/suggestions — learned reflex candidates (VI)
   env: "local", // deploy environment from /health — drives the LIVE banner
+  provider: "fake", // GET /health provider — fake (dormant Gemini) vs live
   readonly: false, // SENTINEL_READONLY showcase mode — writes are disabled
   auditExpanded: false, // section V shows the newest entries until asked
   audit: [
-    { time: "scan", title: "Cost Agent completed the scheduled scan", copy: "Every monitored service was compared against its historical baseline." },
-    { time: "scan", title: "Anomaly policy applied", copy: "Signals at or above the configured z-score threshold entered the review queue." },
-    { time: "policy", title: "Human approval boundary enforced", copy: "No recommendation can execute while an operator decision is pending." },
+    { time: "ledger", title: "Loading the decision ledger…", copy: "Operator verdicts, persisted across restarts, appear here on load." },
   ],
 };
 
@@ -247,6 +246,32 @@ async function loadIntelligence() {
     if (sequence !== intelSequence) return;
     // keep the last successful figures; the render marks the feed stale
     state.intelStale = true;
+  }
+}
+
+/* Section V is the persisted decision ledger (it survives restarts), not a
+   session scratchpad: seed it from the real operator verdicts on load so a
+   fresh visitor sees the actual audit trail, never placeholder copy. Live
+   in-session activity still layers on top via state.audit.unshift(). */
+async function loadDecisions() {
+  try {
+    const report = await fetchJson("/decisions");
+    const rows = report.decisions || [];
+    state.audit = rows.length
+      ? rows.map((decision) => ({
+          time: (decision.decided_at || "").slice(5, 10) || "decision",
+          title: `${decision.verdict === "approved" ? "Approved" : "Rejected"} · ${decision.service}`,
+          copy: decision.rationale || "(no rationale recorded)",
+        }))
+      : [
+          {
+            time: "ledger",
+            title: "No operator decisions recorded yet",
+            copy: "Approve or reject a proposal on the Decision desk to start the persisted audit trail.",
+          },
+        ];
+  } catch {
+    /* ledger unreachable — keep whatever section V already shows */
   }
 }
 
@@ -1519,6 +1544,7 @@ async function scan() {
       loadActions(),
       loadIntelligence(),
       loadWatch(),
+      loadDecisions(),
     ]);
     if (sequence !== scanSequence) return;
     state.costs = costs;
@@ -1533,7 +1559,8 @@ async function scan() {
     editionLine.textContent =
       `SYSTEM ONLINE — ${state.env === "render" ? "LIVE ON RENDER — " : ""}` +
       `${state.readonly ? "READ-ONLY DEMO — " : ""}` +
-      `LAST SCAN ${utcNow()} — MOCK DATA`;
+      `LAST SCAN ${utcNow()} — MOCK DATA — ` +
+      `AI ${state.provider === "gemini" ? "LIVE (GEMINI)" : "FAKE PROVIDER"}`;
     editionLine.classList.remove("down");
   } catch (error) {
     if (sequence !== scanSequence) return;
@@ -1827,6 +1854,7 @@ fetchJson("/health")
   .then((health) => {
     state.env = health.env || "local";
     state.readonly = Boolean(health.readonly);
+    state.provider = health.provider || "fake";
     if (state.readonly) {
       pulseButton.disabled = true;
       pulseButton.title = "read-only demo — the pulse chain is disabled";

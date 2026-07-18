@@ -196,6 +196,16 @@ def test_dashboard_ships_the_cross_lane_and_calibration_ui():
     assert "expires in" in app_js
 
 
+def test_dashboard_seeds_the_persisted_ledger_and_shows_the_provider():
+    """Section V loads the real persisted decision ledger (GET /decisions) on
+    startup instead of placeholder copy, and the masthead states the AI
+    provider mode from /health — the dormant-LLM constraint shown honestly."""
+    app_js = client.get("/static/app.js").text
+    assert "loadDecisions" in app_js  # section V seeds from the persisted ledger
+    assert "health.provider" in app_js  # provider surfaced from /health
+    assert "FAKE PROVIDER" in app_js
+
+
 def test_dashboard_ships_the_intelligence_panel():
     """Section VI typesets the /analytics aggregates — no generated numbers."""
     page = client.get("/").text
