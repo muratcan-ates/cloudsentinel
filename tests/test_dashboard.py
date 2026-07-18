@@ -51,6 +51,7 @@ def test_dashboard_hidden_from_openapi_schema():
         "/fraud/signals",
         "/health",
         "/insights",
+        "/insights/self-review",
         "/metrics/detection",
         "/ops/demo-reset",
         "/ready",

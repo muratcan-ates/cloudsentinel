@@ -162,3 +162,114 @@ def compute_insights(conn: sqlite3.Connection) -> InsightsReport:
             "for a human (nothing is applied automatically)."
         ),
     )
+
+
+class SelfReviewProposal(BaseModel):
+    area: str
+    proposal: str
+    rationale: str
+    requires_human: bool = True
+
+
+class SelfReviewReport(BaseModel):
+    cycle: str
+    proposals_considered: int
+    proposals: list[SelfReviewProposal]
+    applied: list[str]
+    note: str
+
+
+@router.post("/self-review")
+def self_review(conn: sqlite3.Connection = Depends(db.get_db)) -> SelfReviewReport:
+    """Run one self-improvement cycle over the system's own history.
+
+    The system reviews its behaviour and proposes changes to itself — reflex
+    candidates, threshold reviews, calibration, backlog hygiene. Nothing is
+    applied automatically: the learning loop stays HITL-sacred, so `applied`
+    is always empty and every proposal is a human decision.
+    """
+    return compute_self_review(conn)
+
+
+def compute_self_review(conn: sqlite3.Connection) -> SelfReviewReport:
+    """One self-review cycle — proposes, never applies."""
+    proposals: list[SelfReviewProposal] = []
+
+    # Reflex-rule candidates: patterns operators have always approved.
+    for suggestion in suggest_reflex_rules(conn):
+        proposals.append(
+            SelfReviewProposal(
+                area="reflex",
+                proposal=f"Adopt a reflex rule for {suggestion['service']}.",
+                rationale=(
+                    f"{suggestion['approvals']} approvals, 0 rejections in "
+                    f"{suggestion['window_days']} days."
+                ),
+            )
+        )
+
+    # Repeatedly-rejected services: thresholds or options need work.
+    rejected = conn.execute(
+        "SELECT service, COUNT(*) AS rejections FROM decisions "
+        "WHERE verdict = 'rejected' GROUP BY service HAVING rejections >= 2 "
+        "ORDER BY rejections DESC, service"
+    ).fetchall()
+    for row in rejected:
+        proposals.append(
+            SelfReviewProposal(
+                area="detection",
+                proposal=f"Review {row['service']}'s detection threshold or options.",
+                rationale=f"{row['rejections']} operator rejections recorded.",
+            )
+        )
+
+    # Approval-rate calibration.
+    tally = conn.execute(
+        "SELECT COUNT(*) AS total, "
+        "SUM(CASE WHEN verdict = 'approved' THEN 1 ELSE 0 END) AS approved "
+        "FROM decisions"
+    ).fetchone()
+    total = tally["total"] or 0
+    approved = tally["approved"] or 0
+    if total >= 5:
+        rate = round(100 * approved / total, 1)
+        if rate >= 90:
+            proposals.append(
+                SelfReviewProposal(
+                    area="calibration",
+                    proposal="Consider raising the escalation bar.",
+                    rationale=f"{rate}% of {total} decisions approved — debate may be rare.",
+                )
+            )
+        elif rate <= 30:
+            proposals.append(
+                SelfReviewProposal(
+                    area="calibration",
+                    proposal="Review recommendation quality.",
+                    rationale=f"only {rate}% of {total} decisions approved — options weak.",
+                )
+            )
+
+    # Backlog hygiene: proposals waiting on a human.
+    pending = conn.execute(
+        "SELECT COUNT(*) AS c FROM actions WHERE state = 'proposed'"
+    ).fetchone()["c"]
+    if pending:
+        proposals.append(
+            SelfReviewProposal(
+                area="backlog",
+                proposal=f"Clear {pending} pending proposal(s) from the inbox.",
+                rationale="Unreviewed proposals time out unanswered.",
+            )
+        )
+
+    return SelfReviewReport(
+        cycle="self-review",
+        proposals_considered=len(proposals),
+        proposals=proposals,
+        applied=[],
+        note=(
+            "Self-review proposes; it never applies. Every change is a human "
+            "decision — the learning loop stays HITL-sacred."
+        ),
+    )
