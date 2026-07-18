@@ -527,6 +527,115 @@ def analytics_headline(
     )
 
 
+class HandoverAction(BaseModel):
+    action_id: int
+    service: str
+    title: str
+    age_hours: float | None
+
+
+class HandoverDecision(BaseModel):
+    service: str
+    verdict: str
+    rationale: str | None
+    decided_at: str
+
+
+class HandoverReport(BaseModel):
+    """One page an operator hands the next shift — the standing questions
+    answered from persisted state, printable with the ledger stylesheet."""
+
+    open_signals: int
+    critical_signals: int
+    pending_actions: int
+    oldest_pending_hours: float | None
+    approved_monthly_savings: float
+    forecast_note: str
+    pending: list[HandoverAction]
+    recent_decisions: list[HandoverDecision]
+
+
+@router.get("/handover")
+def shift_handover(
+    conn: sqlite3.Connection = Depends(db.get_db),
+) -> HandoverReport:
+    """Shift-handover brief: what is open, what waits, what was decided."""
+    from app.actions import _expires_in_hours  # local import: avoid a cycle
+    from app.detection import DEFAULT_THRESHOLD, load_daily_costs, run_detection
+
+    expire_stale_proposals(conn)
+
+    run = run_detection(load_daily_costs(), DEFAULT_THRESHOLD)
+    critical = sum(1 for a in run.anomalies if a.severity == "critical")
+
+    pending_rows = conn.execute(
+        "SELECT id, title, detail_json, proposed_at, state FROM actions "
+        "WHERE state = 'proposed' ORDER BY proposed_at"
+    ).fetchall()
+    pending = []
+    for row in pending_rows:
+        try:
+            detail = json.loads(row["detail_json"])
+            service = (
+                detail.get("anomaly", {}).get("service")
+                or detail.get("fraud", {}).get("service")
+                or detail.get("kind", "operations")
+            )
+        except json.JSONDecodeError:
+            service = "operations"
+        remaining = _expires_in_hours(row)
+        age = None
+        if remaining is not None:
+            from app.actions import action_ttl_hours
+
+            age = round(action_ttl_hours() - remaining, 1)
+        pending.append(
+            HandoverAction(
+                action_id=row["id"], service=service, title=row["title"], age_hours=age
+            )
+        )
+    oldest = max((p.age_hours for p in pending if p.age_hours is not None), default=None)
+
+    decisions = [
+        HandoverDecision(
+            service=row["service"],
+            verdict=row["verdict"],
+            rationale=row["rationale"],
+            decided_at=row["created_at"],
+        )
+        for row in conn.execute(
+            "SELECT service, verdict, rationale, created_at FROM decisions "
+            "ORDER BY id DESC LIMIT 10"
+        )
+    ]
+
+    quality = _quality(conn)
+    try:
+        fc = cost_forecast()
+        over = (
+            "" if fc.projected_over_budget is None
+            else " — OVER budget" if fc.projected_over_budget
+            else " — within budget"
+        )
+        forecast_note = (
+            f"month-end projection {fc.projected_month_total:.2f} "
+            f"({fc.slope_per_day:+.2f}/day){over}"
+        )
+    except HTTPException:
+        forecast_note = "insufficient history for a month-end projection"
+
+    return HandoverReport(
+        open_signals=len(run.anomalies),
+        critical_signals=critical,
+        pending_actions=len(pending),
+        oldest_pending_hours=oldest,
+        approved_monthly_savings=quality.approved_estimated_monthly_savings,
+        forecast_note=forecast_note,
+        pending=pending,
+        recent_decisions=decisions,
+    )
+
+
 BUDGET_ACTION_NOTE = (
     "deterministic budget guard — the forecast arithmetic projected a "
     "month-end overrun; deciding this card records the operator's stance, "

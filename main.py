@@ -9,6 +9,7 @@ persistence); this module is the thin ASGI entry point.
 
 import csv
 import io
+import json
 import logging
 import os
 import time
@@ -97,7 +98,35 @@ SECURITY_HEADERS = {
 async def lifespan(_: FastAPI):
     """Build the schema on every boot: the deploy target's disk is ephemeral."""
     db.init_db()
+    _log_boot_manifest()
     yield
+
+
+def _log_boot_manifest() -> None:
+    """One [BOOT] line naming what this instance is running — the first
+    frame of the demo and a deploy sanity check in one glance."""
+    from app.llm import provider_mode
+
+    try:
+        dataset = load_dataset()
+        services = sorted({r["service"] for r in dataset["daily_costs"]})
+        span = f"{dataset['period']['start']}→{dataset['period']['end']}"
+    except Exception:  # a broken dataset must not block boot
+        services, span = [], "unknown"
+    logging.getLogger("cloudsentinel").info(
+        "[BOOT] %s",
+        json.dumps(
+            {
+                "version": app.version,
+                "env": os.environ.get("SENTINEL_ENV", "local"),
+                "provider": provider_mode(),
+                "readonly": readonly_enabled(),
+                "services": services,
+                "period": span,
+            },
+            sort_keys=True,
+        ),
+    )
 
 
 # FastAPI's built-in docs pages boot Swagger UI from cdn.jsdelivr.net via an

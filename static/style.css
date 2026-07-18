@@ -1606,3 +1606,18 @@ main .ledger-wide {
 @media (max-width: 700px) {
   .footer-grid { grid-template-columns: 1fr; gap: var(--sp-5); }
 }
+
+/* handover: an isolated one-page shift brief when printed on demand */
+#handover-print h2 { font-family: "Instrument Serif", serif; font-size: 22px; margin-bottom: 6px; }
+#handover-print ul { margin: 4px 0 10px 18px; }
+#handover-print li { font-size: var(--fs-body); }
+@media print {
+  body.printing-handover .top-nav,
+  body.printing-handover .masthead,
+  body.printing-handover .summary-strip,
+  body.printing-handover .colophon,
+  body.printing-handover main,
+  body.printing-handover footer,
+  body.printing-handover #print-stamp { display: none !important; }
+  body.printing-handover #handover-print { display: block; border: none; }
+}

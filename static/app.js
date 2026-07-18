@@ -1155,6 +1155,55 @@ function renderAudit() {
   }
 }
 
+/* Shift handover: fetch the brief, typeset it into the print-only block and
+   print. Reuses the ledger print stylesheet — one page, ink on paper. */
+async function printHandover() {
+  const box = document.getElementById("handover-print");
+  try {
+    const h = await fetchJson("/analytics/handover");
+    const pending = h.pending.length
+      ? h.pending
+          .map(
+            (p) =>
+              `<li>#${p.action_id} ${escapeHtml(p.service)} — ${escapeHtml(p.title)}` +
+              `${p.age_hours != null ? ` (waiting ${p.age_hours}h)` : ""}</li>`
+          )
+          .join("")
+      : "<li>none — the inbox is clear</li>";
+    const decisions = h.recent_decisions.length
+      ? h.recent_decisions
+          .map(
+            (d) =>
+              `<li>${escapeHtml(d.decided_at)} · ${escapeHtml(d.service)} · ${escapeHtml(d.verdict)}` +
+              `${d.rationale ? ` — ${escapeHtml(d.rationale)}` : ""}</li>`
+          )
+          .join("")
+      : "<li>no operator verdicts recorded yet</li>";
+    box.innerHTML =
+      `<h2>Shift handover — CloudSentinel</h2>` +
+      `<p>Produced ${escapeHtml(utcNow())} · ${h.open_signals} open signal(s), ` +
+      `${h.critical_signals} critical · ${h.pending_actions} awaiting the hand` +
+      `${h.oldest_pending_hours != null ? ` (oldest ${h.oldest_pending_hours}h)` : ""}.</p>` +
+      `<p>Approved value: ${fmtNumber(h.approved_monthly_savings)} / month. ` +
+      `Forecast: ${escapeHtml(h.forecast_note)}.</p>` +
+      `<p><strong>Awaiting decision</strong></p><ul>${pending}</ul>` +
+      `<p><strong>Recent decisions</strong></p><ul>${decisions}</ul>`;
+    document.body.classList.add("printing-handover");
+    const cleanup = () => document.body.classList.remove("printing-handover");
+    window.addEventListener("afterprint", cleanup, { once: true });
+    window.print();
+    setTimeout(cleanup, 1000); // safety net if afterprint never fires
+  } catch {
+    box.innerHTML = "";
+    state.audit.unshift({
+      time: utcNow(),
+      title: "Handover brief unavailable",
+      copy: "the analytics feed did not answer — try again after the next scan.",
+    });
+    renderAudit();
+  }
+}
+
 /* ---------- sentinel radar ----------
    The moving centerpiece: a pixel radar whose blips ARE the current
    signals — cost anomalies in accent/alert, security in sky. One CSS
@@ -1553,6 +1602,12 @@ document.addEventListener("click", (event) => {
       .catch(() => {
         /* clipboard can be unavailable — the headline stays visible in VI */
       });
+    return;
+  }
+
+  const handoverBtn = event.target.closest("#handover-print-btn");
+  if (handoverBtn) {
+    printHandover();
     return;
   }
 

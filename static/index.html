@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CloudSentinel — Anomaly Watch</title>
-  <link rel="stylesheet" href="/static/style.css?v=s4.7" />
+  <link rel="stylesheet" href="/static/style.css?v=s4.8" />
   <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
   <meta name="description" content="CloudSentinel — cloud cost and security anomaly watch: detection, evidence-cited AI triage and human-approved remediation, execution simulated by design." />
   <meta property="og:title" content="CloudSentinel — Anomaly Watch" />
@@ -26,6 +26,7 @@
   </nav>
   <div class="page">
     <p class="print-only" id="print-stamp"></p>
+    <section class="print-only" id="handover-print" aria-hidden="true"></section>
     <header class="masthead">
       <p class="corner left">II / III</p>
       <p class="corner right">Anomaly Watch — MMXXVI</p>
@@ -166,6 +167,7 @@
         <span class="numeral">VI</span>
         <h2 class="section-word" id="intel-heading">operations intelligence</h2>
         <button class="head-action row-action" type="button" id="copy-brief" title="copy the one-line jury brief to the clipboard">copy brief ⧉</button>
+        <button class="head-action row-action" type="button" id="handover-print-btn" title="print a one-page shift-handover brief">handover ↓</button>
       </header>
       <p class="meta" id="intel-meta">aggregates over everything the pipeline has persisted — pure arithmetic, no generation</p>
       <div class="intel-grid">
@@ -239,6 +241,6 @@
     </div>
   </aside>
 
-  <script src="/static/app.js?v=s4.7"></script>
+  <script src="/static/app.js?v=s4.8"></script>
 </body>
 </html>
