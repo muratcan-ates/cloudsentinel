@@ -1,8 +1,7 @@
 # CloudSentinel — Architecture & Agent Design
 
 This document describes the architecture **as implemented** through Sprint 3's
-core build, and what stays deliberately out of scope until after the
-competition window. Sprint 1 shipped the deterministic detection slice;
+core build, and what stays deliberately out of scope. Sprint 1 shipped the deterministic detection slice;
 Sprint 2 the agent chain and the human-in-the-loop state machine; Sprint 3
 the mission DSL, the unified multi-lane watch, the guardrail pack and the
 value/ops analytics described below.
@@ -105,18 +104,19 @@ flowchart LR
 | `idempotency` | scoped decision keys with canonical responses |
 | `pulse_log` | every pulse report — `GET /pulse/last` replays the latest run |
 
-## API Surface (implemented — 26 endpoints)
+## API Surface (implemented — 31 endpoints)
 
 | Area | Endpoints |
 |---|---|
 | Detection & costs | `GET /anomalies` · `GET /costs/summary` (+ `/export`, FOCUS 1.4 schema) · `GET /costs/daily` |
 | Agents | `POST /anomalies/{id}/analyze` · `POST /anomalies/{id}/recommend` · `POST /pulse` (+ `GET /pulse/last`) |
 | HITL | `GET /actions` · `POST /actions/{id}/approve|reject|execute` |
-| Memory | `GET /decisions/similar` · `GET /decisions/export` |
+| Memory | `GET /decisions` (search) · `GET /decisions/similar` · `GET /decisions/export` |
 | Lanes | `GET /security/signals` · `GET /fraud/signals` (band / min_score filters) |
 | Missions | `GET /reflex/suggestions` |
-| Analytics | `GET /analytics/decisions` · `/costs/trend` · `/costs/forecast` · `/whatif` · `/roi` · `/ai` · `GET /metrics/detection` |
+| Analytics | `GET /analytics/decisions` · `/costs/trend` · `/costs/forecast` · `/whatif` · `/roi` · `/ai` · `/calibration` · `/headline` · `GET /metrics/detection` |
 | Ops | `GET /health` (version, provider, readonly) · `POST /ops/demo-reset` (env-gated) |
+| Agent bus | `GET /agents` (roster) · `GET /agents/feed` (live cursor stream) |
 
 ## Mission DSL
 
@@ -143,10 +143,10 @@ schema-mandated but **inert** (only the published rule score runs); its
 - Container: non-root user, stdlib `HEALTHCHECK`, `render.yaml` for the
   deploy target.
 
-## Deliberately Out of Scope (until after the competition)
+## Deliberately Out of Scope
 
-Real cloud provider adapters (AWS Cost Explorer first), authentication /
-RBAC, PostgreSQL + migrations, background schedulers, Slack delivery,
-ML-based fraud models, structured-log formatters and error tracking. Each is
-on the post-competition roadmap; none is required to demonstrate the product
-thesis: **the machine watches, the human decides.**
+Real cloud provider adapters, authentication / RBAC, PostgreSQL +
+migrations, background schedulers, Slack delivery and ML-based fraud
+models. Each is a deliberate boundary of this build, not an oversight —
+none is required to demonstrate the product thesis: **the machine
+watches, the human decides.**

@@ -109,13 +109,13 @@ The whole contract on one table — the right column is design, not backlog:
 
 | ✅ Does | 🚫 Deliberately does not |
 |---|---|
-| Detects cost & security anomalies over a rolling baseline (z-score / MAD, weekly seasonality, min-history discipline) | Connect to real cloud providers — synthetic data only during the competition (adapters are the first post-competition item) |
+| Detects cost & security anomalies over a rolling baseline (z-score / MAD, weekly seasonality, min-history discipline) | Connect to real cloud providers — synthetic data by design; the detection pipeline is source-agnostic |
 | Reasons about every cost signal with AI agents: evidence-cited triage, two remediation options with risk + rollback, adversarial review of contested calls | Let a model invent numbers — every figure the operator acts on is deterministic Python arithmetic, post-checked ±5% against the narrative |
 | Files proposals into a human decision inbox with rationale + actor capture and a full audit trail | Execute anything on real infrastructure — execution is simulated by design, and nothing runs unapproved |
 | Scores payment events with published, hand-reproducible rules (per-rule point attribution) | Run ML fraud models, auto-block payments, or hide the scoring arithmetic |
 | Remembers operator verdicts and feeds them back into future recommendations, disclosing how many were considered | Learn silently — memory use is visible on the card, and the chain's execution is traced hop by hop |
 | Accounts for its own AI spend (call ledger, cache hits, fallbacks, quota view) under a per-run call budget | Burn quota unbounded, retry forever, or fail when the LLM is unavailable — every agent degrades to a labeled rule-based fallback |
-| Ships hardened: strict CSP with self-hosted docs, security headers, rate-limited pulse, idempotent decisions, JSON failure envelope | Ship auth/RBAC, Postgres, schedulers or Slack in the competition window — each is a scoped post-competition roadmap item |
+| Ships hardened: strict CSP with self-hosted docs, security headers, rate-limited pulse, idempotent decisions, JSON failure envelope | Ship auth/RBAC, Postgres, schedulers or Slack — deliberate boundaries of this build, not oversights |
 
 ## Target Audience
 
@@ -354,7 +354,6 @@ In line with [docs/architecture.md](docs/architecture.md) and the sprint point p
 | Live Gemini key spike (real RPM/RPD measurement) | Sprint 3 | planned |
 | User's-eye UX pass — gaps, friction and flow measured from the operator's seat | Sprint 3 | planned |
 | Deployment (Render + UptimeRobot), live demo & 3-minute product video | Sprint 3 | planned |
-| Live cloud-provider adapters, auth, Postgres, schedulers, notifications | post-competition | roadmap — [docs/architecture.md](docs/architecture.md) |
 
 ## Requirements Compliance
 
@@ -526,7 +525,6 @@ These constraints are intentional Sprint 1 decisions, not oversights:
   - **Deployment** — Render (`render.yaml` ready, non-root healthchecked image) with UptimeRobot on `/health`; the dashboard's LIVE banner switches on via `SENTINEL_ENV=render`.
   - **User's-eye UX pass & final palette** — friction measured from the operator's seat; the palette decision at the design session (three-way switcher shipped).
   - **Evidence & submission** — sprint documents, the 3-minute product video, and the August 2 form.
-  - **Post-competition (explicitly out of the window)**: live cloud-provider adapters, authentication, PostgreSQL, schedulers and notification delivery — see [docs/architecture.md](docs/architecture.md).
 
 ---
 

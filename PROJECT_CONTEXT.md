@@ -60,5 +60,4 @@ make smoke                  # 13-step PASS/FAIL sweep over the live chain
 Mock data only, no real cloud adapters; no auth; sqlite3, not Postgres; no
 background scheduler (request-triggered timeouts instead); fraud scoring is
 published deterministic arithmetic, not ML. Each boundary keeps the
-competition build honest and demoable; the post-competition roadmap in
-[docs/architecture.md](docs/architecture.md) names what comes next.
+build honest and demoable — see [docs/architecture.md](docs/architecture.md).
