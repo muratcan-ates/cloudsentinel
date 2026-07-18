@@ -1161,6 +1161,17 @@ function renderAll(report) {
 
 /* ---------- actions ---------- */
 
+/* One refresh for every decision-adjacent surface — the verbs (decide,
+   recommend, analyze) all mutate the same aggregates. */
+async function refreshDecisionSurfaces() {
+  await Promise.all([loadActions(), loadIntelligence()]);
+  renderSummary();
+  renderInvestigation();
+  renderDecisions();
+  renderAudit();
+  renderIntelligence();
+}
+
 async function decideAction(actionId, verb) {
   if (state.hitlBusy.has(actionId)) return;
   // capture the rationale BEFORE the busy re-render replaces the input
@@ -1214,12 +1225,7 @@ async function decideAction(actionId, verb) {
     });
   } finally {
     state.hitlBusy.delete(actionId);
-    await Promise.all([loadActions(), loadIntelligence()]);
-    renderSummary();
-    renderInvestigation();
-    renderDecisions();
-    renderAudit();
-    renderIntelligence();
+    await refreshDecisionSurfaces();
   }
 }
 
@@ -1248,12 +1254,7 @@ async function fileRecommendation() {
     });
   } finally {
     state.recommendBusy.delete(anomaly.id);
-    await Promise.all([loadActions(), loadIntelligence()]);
-    renderSummary();
-    renderInvestigation();
-    renderDecisions();
-    renderAudit();
-    renderIntelligence();
+    await refreshDecisionSurfaces();
   }
 }
 
@@ -1307,7 +1308,7 @@ async function scan() {
     editionLine.classList.remove("down");
   } catch (error) {
     if (sequence !== scanSequence) return;
-    editionLine.textContent = "LINK LOST — MOCK DATA — SPRINT II";
+    editionLine.textContent = "LINK LOST — MOCK DATA — SPRINT III";
     editionLine.classList.add("down");
     anomalyList.innerHTML = `<p class="error-note">Signal lost — ${escapeHtml(error.message)}.</p>`;
     document.getElementById("anomaly-meta").textContent = "scan failed — the panels keep the last successful scan";
@@ -1658,6 +1659,10 @@ function applyView(view) {
     tab.setAttribute("aria-pressed", String(tab.dataset.view === view))
   );
   document.title = `CloudSentinel — ${VIEW_TITLES[view] || "Anomaly Watch"}`;
+  const main = document.querySelector("main");
+  main.classList.remove("room-enter");
+  void main.offsetWidth; // restart the ease-in for the incoming room
+  main.classList.add("room-enter");
 }
 
 // Real page URLs without reloads: links push history, back/forward replay.
