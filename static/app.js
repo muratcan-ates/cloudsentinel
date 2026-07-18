@@ -34,6 +34,8 @@ const thresholdValue = document.getElementById("threshold-value");
 const serviceFilter = document.getElementById("service-filter");
 const rescanButton = document.getElementById("rescan");
 const pulseButton = document.getElementById("pulse-run");
+const operatorInput = document.getElementById("operator-name");
+const pulseNote = document.getElementById("pulse-note");
 const editionLine = document.getElementById("chip-system");
 const anomalyList = document.getElementById("anomaly-list");
 const costBars = document.getElementById("cost-bars");
@@ -64,7 +66,9 @@ const state = {
   security: null, // GET /security/signals — unified watch strip (section I)
   fraud: null, // GET /fraud/signals — unified watch strip (section I)
   watchStale: false, // last watch fetch failed on at least one lane
+  whatif: new Map(), // action id → /analytics/whatif — decision-moment numbers
   env: "local", // deploy environment from /health — drives the LIVE banner
+  readonly: false, // SENTINEL_READONLY showcase mode — writes are disabled
   auditExpanded: false, // section V shows the newest entries until asked
   audit: [
     { time: "scan", title: "Cost Agent completed the scheduled scan", copy: "Every monitored service was compared against its historical baseline." },
@@ -157,6 +161,19 @@ async function loadActions() {
     const report = await fetchJson("/actions");
     if (sequence !== actionsSequence) return; // superseded by a newer reload
     state.actions = report.actions;
+    // Decision-moment numbers: the what-if projection for every card still
+    // awaiting a verdict (best-effort — a missing projection hides the line).
+    const proposed = report.actions.filter((action) => action.state === "proposed");
+    const projections = await Promise.all(
+      proposed.map((action) =>
+        fetchJson(`/analytics/whatif?action_id=${action.id}`).catch(() => null)
+      )
+    );
+    if (sequence !== actionsSequence) return;
+    state.whatif = new Map();
+    projections.forEach((projection) => {
+      if (projection) state.whatif.set(projection.action_id, projection);
+    });
   } catch {
     if (sequence !== actionsSequence) return;
     state.actions = []; // the inbox degrades to its empty state
@@ -275,6 +292,12 @@ function renderSummary() {
       `${fmtNumber(state.costs.total_cost)} <small>${escapeHtml(state.costs.currency)}</small>`;
     document.getElementById("sum-total-sub").textContent =
       `${state.costs.period.start} → ${state.costs.period.end}`;
+  }
+  if (state.analytics) {
+    const currency = state.costs ? state.costs.currency : "USD";
+    document.getElementById("sum-value").innerHTML =
+      `${fmtNumber(state.analytics.quality.approved_estimated_monthly_savings)} ` +
+      `<small>${escapeHtml(currency)} / mo</small>`;
   }
 }
 
@@ -604,7 +627,7 @@ function renderInvestigation() {
   signalRail.innerHTML = "";
   if (state.anomalies.length === 0) {
     signalRail.innerHTML = `<p class="meta">no open signal at this sensitivity</p>`;
-    invDetail.innerHTML = `<p class="all-quiet">Nothing to investigate.</p>`;
+    invDetail.innerHTML = `<p class="all-quiet">Nothing to investigate — lower the sensitivity, or <button class="row-action" type="button" data-run-pulse>run Pulse →</button>.</p>`;
     return;
   }
   if (state.selectedIndex >= state.anomalies.length) state.selectedIndex = 0;
@@ -838,7 +861,7 @@ function renderDecisions() {
 
   decisionList.innerHTML = "";
   if (state.actions.length === 0) {
-    decisionList.innerHTML = `<p class="all-quiet">No filed proposal — investigate a signal and file a recommendation.</p>`;
+    decisionList.innerHTML = `<p class="all-quiet">No filed proposal — investigate a signal, or <button class="row-action" type="button" data-run-pulse>run Pulse →</button> to sweep the whole estate.</p>`;
     return;
   }
 
@@ -850,6 +873,7 @@ function renderDecisions() {
     const preferred = (detail.options || []).find((o) => o.stance === detail.preferred);
     const saving = preferredMonthlySaving(detail);
     const busy = state.hitlBusy.has(action.id);
+    const whatif = action.state === "proposed" ? state.whatif.get(action.id) : null;
     const severity = anomaly.severity || "warning";
     const resolved = action.state === "rejected" || action.state === "executed";
     const card = document.createElement("article");
@@ -867,6 +891,7 @@ function renderDecisions() {
         ${memoryFold(detail)}
         ${traceFold(detail)}
         ${numericCheckLine(detail)}
+        ${whatif ? `<p class="meta">if approved — month projection ${fmtNumber(whatif.current_monthly_projection)} → ${fmtNumber(whatif.with_action_monthly_projection)} (−${fmtNumber(whatif.monthly_saving_if_executed)}/mo, simulated)</p>` : ""}
       </div>
       <div class="dec-rail">
         <span class="chip ${action.decided_by === "system:timeout" ? "expired" : action.state}">${
@@ -878,11 +903,13 @@ function renderDecisions() {
         }</span>
         <p class="dec-status">${escapeHtml(actionStatusLine(action))}</p>
         ${action.event_id != null ? `<button class="row-action" type="button" data-view-signal="${action.event_id}" aria-label="jump to the ${escapeHtml(anomaly.service || "")} signal in investigation">view signal ↑</button>` : ""}
-        ${action.state === "proposed" && !busy ? `
+        ${action.state === "proposed" && !busy && !state.readonly ? `
+          <input type="text" class="rationale-input" placeholder="rationale — feeds decision memory" maxlength="500" data-rationale-for="${action.id}" aria-label="rationale for the ${escapeHtml(anomaly.service || "")} decision" />
           <button class="row-action" type="button" data-hitl="reject" data-action-id="${action.id}" aria-label="reject the ${escapeHtml(anomaly.service || "")} proposal">reject ×</button>
           <button class="row-action" type="button" data-hitl="approve" data-action-id="${action.id}" aria-label="approve the ${escapeHtml(anomaly.service || "")} proposal for execution">approve →</button>` : ""}
-        ${action.state === "approved" && !busy ? `
+        ${action.state === "approved" && !busy && !state.readonly ? `
           <button class="row-action" type="button" data-hitl="execute" data-action-id="${action.id}" aria-label="run the simulated execution of the ${escapeHtml(anomaly.service || "")} action">execute — simulation →</button>` : ""}
+        ${state.readonly && (action.state === "proposed" || action.state === "approved") ? `<p class="meta">read-only demo — decisions disabled</p>` : ""}
         ${busy ? `<p class="meta">recording…</p>` : ""}
       </div>`;
     decisionList.appendChild(card);
@@ -1050,13 +1077,31 @@ function renderAll(report) {
 
 async function decideAction(actionId, verb) {
   if (state.hitlBusy.has(actionId)) return;
+  // capture the rationale BEFORE the busy re-render replaces the input
+  const rationale =
+    document.querySelector(`[data-rationale-for="${actionId}"]`)?.value.trim() || null;
+  const actor = (operatorInput?.value || "").trim() || "operator";
   state.hitlBusy.add(actionId);
   renderDecisions();
   try {
     const response = await fetch(`/actions/${actionId}/${verb}`, {
       method: "POST",
-      headers: { "Idempotency-Key": crypto.randomUUID() },
+      headers: {
+        "Idempotency-Key": crypto.randomUUID(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ actor, rationale }),
     });
+    if (response.status === 409) {
+      // idempotency guard: the state machine already recorded a verdict
+      const conflict = await response.json().catch(() => ({}));
+      state.audit.unshift({
+        time: utcNow(),
+        title: "Decision already recorded — guard held",
+        copy: `${conflict.detail || "the action is no longer decidable"}; the inbox reloads the authoritative state.`,
+      });
+      return;
+    }
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const record = await response.json();
     const service = record.detail?.anomaly?.service || "the flagged service";
@@ -1070,7 +1115,11 @@ async function decideAction(actionId, verb) {
       reject: "The proposal was closed with no infrastructure action.",
       execute: "SIMULATION only: the state machine recorded the execution; no real resource was touched.",
     };
-    state.audit.unshift({ time: utcNow(), title: titles[verb], copy: copies[verb] });
+    state.audit.unshift({
+      time: utcNow(),
+      title: titles[verb],
+      copy: copies[verb] + (rationale ? ` Rationale: ${rationale}` : ""),
+    });
   } catch (error) {
     state.audit.unshift({
       time: utcNow(),
@@ -1167,6 +1216,7 @@ async function scan() {
     renderAll(anomalies);
     editionLine.textContent =
       `SYSTEM ONLINE — ${state.env === "render" ? "LIVE ON RENDER — " : ""}` +
+      `${state.readonly ? "READ-ONLY DEMO — " : ""}` +
       `LAST SCAN ${utcNow()} — MOCK DATA`;
     editionLine.classList.remove("down");
   } catch (error) {
@@ -1229,6 +1279,7 @@ async function runPulse() {
           `${report.briefing.source === "fallback" ? " · rule-based fallback (LLM unavailable)" : ""}`,
       });
     }
+    pulseNote.textContent = pulseNoteLine(report, utcNow());
   } catch (error) {
     state.audit.unshift({
       time: utcNow(),
@@ -1326,6 +1377,12 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const pulseCta = event.target.closest("[data-run-pulse]");
+  if (pulseCta) {
+    runPulse();
+    return;
+  }
+
   const recommendRequest = event.target.closest("[data-request-recommend]");
   if (recommendRequest) {
     fileRecommendation();
@@ -1410,9 +1467,49 @@ async function runAnalyst() {
 fetchJson("/health")
   .then((health) => {
     state.env = health.env || "local";
+    state.readonly = Boolean(health.readonly);
+    if (state.readonly) {
+      pulseButton.disabled = true;
+      pulseButton.title = "read-only demo — the pulse chain is disabled";
+      renderDecisions();
+    }
   })
   .catch(() => {
     /* health unreachable — the banner stays in its local form */
+  });
+
+/* Operator identity: recorded with every decision (audit trail), persisted
+   like the palette so a team demo keeps each hand attributable. */
+try {
+  operatorInput.value = localStorage.getItem("sentinel-operator") || "";
+} catch {
+  /* storage unavailable — the field still works for this visit */
+}
+operatorInput.addEventListener("change", () => {
+  try {
+    localStorage.setItem("sentinel-operator", operatorInput.value.trim());
+  } catch {
+    /* best effort */
+  }
+});
+
+function pulseNoteLine(report, when) {
+  return (
+    `last pulse ${when} — ${report.signals} cost + ${report.security_signals} security` +
+    ` + ${report.fraud_signals ?? 0} fraud signal${report.signals + report.security_signals + (report.fraud_signals ?? 0) === 1 ? "" : "s"}` +
+    ` · LLM ${report.llm_calls_used}/${report.llm_budget}` +
+    (report.briefing ? ` — ${report.briefing.headline}` : "")
+  );
+}
+
+/* The last pulse survives reloads: hydrate the colophon note (and the
+   briefing story) from the persisted run instead of starting silent. */
+fetchJson("/pulse/last")
+  .then((last) => {
+    pulseNote.textContent = pulseNoteLine(last.report, `${last.ran_at} UTC`);
+  })
+  .catch(() => {
+    pulseNote.textContent = "";
   });
 
 /* Print header/date stamp: a printed ledger is an audit artifact, so it

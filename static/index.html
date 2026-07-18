@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Jacquard+24&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=UnifrakturMaguntia&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/static/style.css?v=s3.6" />
+  <link rel="stylesheet" href="/static/style.css?v=s3.8" />
   <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
   <meta name="description" content="CloudSentinel — cloud cost and security anomaly watch: detection, evidence-cited AI triage and human-approved remediation, execution simulated by design." />
   <meta property="og:title" content="CloudSentinel — Anomaly Watch" />
@@ -46,6 +46,11 @@
         <p class="sum-fig" id="sum-pending">—</p>
         <p class="sum-sub">no action runs unapproved</p>
       </a>
+      <a class="sum" href="#sec-intelligence">
+        <p class="microcap">Approved value</p>
+        <p class="sum-fig" id="sum-value">—</p>
+        <p class="sum-sub">est. monthly savings — computed, never generated</p>
+      </a>
     </section>
 
     <section class="colophon">
@@ -58,6 +63,9 @@
             <option value="">all</option>
           </select>
         </label>
+        <label class="microcap select-label" for="operator-name">Operator
+          <input type="text" id="operator-name" placeholder="operator" maxlength="80" autocomplete="off" aria-label="Operator name recorded with every decision" />
+        </label>
         <button id="rescan" type="button">Re-scan →</button>
         <button id="pulse-run" type="button" title="run the whole chain: detect, analyze, recommend — decisions stay with you">Pulse →</button>
         <p class="microcap theme-row" role="group" aria-label="Palette">Palette —
@@ -66,6 +74,7 @@
           <button class="row-action" type="button" data-theme-choice="paper" aria-pressed="false">paper</button>
         </p>
       </div>
+      <p class="meta" id="pulse-note" aria-live="polite"></p>
     </section>
 
     <main>
@@ -187,6 +196,6 @@
     </footer>
   </div>
 
-  <script src="/static/app.js?v=s3.7"></script>
+  <script src="/static/app.js?v=s3.8"></script>
 </body>
 </html>

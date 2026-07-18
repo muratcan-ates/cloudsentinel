@@ -380,6 +380,24 @@ select {
 }
 select:hover { border-bottom-color: var(--ink); }
 
+/* text inputs share the select's quiet underline grammar */
+#operator-name,
+.rationale-input {
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--hair);
+  font: 500 var(--fs-micro)/var(--lh-body) "Inter", sans-serif;
+  letter-spacing: var(--track-caps);
+  color: var(--ink);
+  padding: 2px 0;
+}
+#operator-name { width: 90px; text-transform: uppercase; }
+.rationale-input { width: 100%; margin: var(--sp-1) 0; }
+#operator-name:focus,
+.rationale-input:focus { border-bottom-color: var(--ink); outline: none; }
+#operator-name::placeholder,
+.rationale-input::placeholder { color: var(--ink-faint); }
+
 /* ---------- ledger columns ---------- */
 
 main {

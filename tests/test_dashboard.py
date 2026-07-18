@@ -108,6 +108,21 @@ def test_dashboard_ships_the_orchestration_transparency():
     assert "Chronicler briefing" in app_js
 
 
+def test_dashboard_ships_the_value_and_demo_controls():
+    """Fourth summary card, operator identity, decision rationale, the
+    what-if line and the persisted pulse note are product."""
+    page = client.get("/").text
+    assert 'id="sum-value"' in page
+    assert 'id="operator-name"' in page
+    assert 'id="pulse-note"' in page
+    app_js = client.get("/static/app.js").text
+    assert "/pulse/last" in app_js
+    assert "/analytics/whatif" in app_js
+    assert "data-run-pulse" in app_js
+    assert "rationale" in app_js
+    assert "read-only" in app_js
+
+
 def test_dashboard_ships_the_intelligence_panel():
     """Section VI typesets the /analytics aggregates — no generated numbers."""
     page = client.get("/").text
