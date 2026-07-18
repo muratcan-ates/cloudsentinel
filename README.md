@@ -352,7 +352,7 @@ In line with [docs/architecture.md](docs/architecture.md) and the sprint point p
 | Fraud rule-score lane + cross-lane HITL cards (holds, budget guard) | Sprint 3 → pulled forward | ✅ shipped |
 | Mission DSL, reflex engine, guardrail pack, operations analytics, chronicler, agent bus + live feed | Sprint 3 → pulled forward | ✅ shipped |
 | Continuous integration — tests on every push | Sprint 2 → 3 | ✅ shipped — [`ci.yml`](.github/workflows/ci.yml) runs ruff + the full suite on every push and PR |
-| Dashboard palette revision after UI reference research | Sprint 2 → 3 | 🔄 switcher shipped (horizon / night / paper / dawn, persisted); final decision at the design session |
+| Dashboard palette revision after UI reference research | Sprint 2 → 3 | ✅ shipped — four-palette switcher (horizon default · night · paper · dawn), persisted |
 | Live Gemini key spike (real RPM/RPD measurement) | Sprint 3 | planned |
 | User's-eye UX pass — gaps, friction and flow measured from the operator's seat | Sprint 3 | planned |
 | Deployment (Render + UptimeRobot), live demo & 3-minute product video | Sprint 3 | planned |
@@ -533,7 +533,7 @@ These constraints are intentional Sprint 1 decisions, not oversights:
   - **Continuous integration** — ✅ landed at Sprint 2 close: [`ci.yml`](.github/workflows/ci.yml) runs ruff + the full suite (406 tests) on every push and PR; Sprint 3 grows it with browser E2E and a post-deploy smoke.
   - **Deployment** — Render (`render.yaml` ready, non-root healthchecked image) with UptimeRobot on `/health` and `SENTINEL_READONLY=1` on the public link; the dashboard's LIVE banner switches on via `SENTINEL_ENV=render`.
   - **Live-data trial & market watch** — a credential-free real billing export through the source-agnostic loader, and the trend/news-driven "possible suggestions" table.
-  - **User's-eye UX pass & final palette** — friction measured from the operator's seat; the palette decision at the design session (four-way switcher shipped); EN/TR overview kept in sync ([Türkçe özet](docs/README.tr.md)).
+  - **User's-eye UX pass** — friction measured from the operator's seat; the four-palette switcher shipped with horizon as the default; EN/TR overview kept in sync ([Türkçe özet](docs/README.tr.md)).
   - **Evidence & submission** — sprint documents, the 3-minute product video, and the August 2 form.
 
 ---

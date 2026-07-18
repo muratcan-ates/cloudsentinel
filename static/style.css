@@ -1001,7 +1001,7 @@ button:disabled:hover {
 .trend-block { margin: 26px 0 6px; }
 .trend-svg,
 .spark-svg { display: block; width: 100%; margin-top: var(--sp-3); overflow: visible; }
-.trend-svg { height: 132px; }
+.trend-svg { height: 184px; }
 .spark-svg { height: 64px; }
 .trend-svg .grid,
 .spark-svg .grid { stroke: var(--hair); stroke-width: 1; shape-rendering: crispEdges; }
@@ -1627,7 +1627,10 @@ main .ledger-wide {
    sort row never slide under the sweeping SVG on wide screens. Below 981px the
    radar drops into the normal flow, so the reservation lifts. */
 @media (min-width: 981px) {
-  #sec-anomalies .section-head,
+  /* Shorten the header's divider so it stops before the radar — the radar sits
+     beside a short line instead of under two overlapping horizontals — and keep
+     the stat chips and sort row clear of the sweep. */
+  #sec-anomalies .section-head { margin-right: 152px; }
   #sec-anomalies #anomaly-meta,
   #sec-anomalies .sort-row {
     padding-right: 152px;

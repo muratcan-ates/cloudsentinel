@@ -654,6 +654,12 @@ function renderTrend() {
     return;
   }
   const { dates, totals, currency } = state.daily;
+  // Match the viewBox to the real pixel box so preserveAspectRatio="none" maps
+  // 1:1 — the old fixed 460×132 box stretched the line, markers and labels
+  // horizontally (the "squashed / janky" look). Recomputed on resize below.
+  const boxW = Math.max(320, Math.round(svg.clientWidth || 460));
+  const boxH = Math.max(120, Math.round(svg.clientHeight || 184));
+  svg.setAttribute("viewBox", `0 0 ${boxW} ${boxH}`);
   // Dots come from the unfiltered anomaly set — the totals line always shows
   // all services, so its marks must too (the service filter only narrows
   // sections I/III/IV). Per-date max severity wins.
@@ -726,6 +732,15 @@ function renderTrend() {
     readout.textContent = defaultReadout;
   };
 }
+
+// Redraw the trend chart on resize so its 1:1 viewBox tracks the panel width.
+let trendResizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(trendResizeTimer);
+  trendResizeTimer = setTimeout(() => {
+    if (state.daily && state.daily.totals.length) renderTrend();
+  }, 150);
+});
 
 function renderInvestigation() {
   signalRail.innerHTML = "";
