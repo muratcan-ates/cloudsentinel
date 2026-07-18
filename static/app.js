@@ -706,9 +706,16 @@ function renderTrend() {
     const severity = severityByDate.get(dates[nearest]);
     balloonMain.textContent = `${fmtNumber(totals[nearest])} ${currency}`;
     balloonSub.textContent = `${dates[nearest]}${severity ? ` · ${severity} anomaly` : ""}`;
-    // flip the balloon when the probe nears the right edge
-    const flip = point.x > viewWidth - 124;
-    const bx = flip ? point.x - 116 : point.x + 8;
+    // Size the box to its widest line (measured, not guessed) so the label —
+    // e.g. "2026-06-29 · critical anomaly" — never spills past the background,
+    // then flip it left when the probe nears the right edge.
+    const boxWidth = Math.max(
+      balloonMain.getComputedTextLength(),
+      balloonSub.getComputedTextLength()
+    ) + 16;
+    balloonRect.setAttribute("width", boxWidth.toFixed(1));
+    const flip = point.x > viewWidth - (boxWidth + 16);
+    const bx = flip ? point.x - (boxWidth + 8) : point.x + 8;
     const by = Math.max(10, Math.min(point.y - 17, viewHeight - 54));
     balloon.setAttribute("transform", `translate(${bx.toFixed(1)}, ${by.toFixed(1)})`);
     balloon.setAttribute("visibility", "visible");
