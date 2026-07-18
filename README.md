@@ -25,7 +25,7 @@
 - [Team Name](#team-name)
 - [Information About the Product](#information-about-the-product)
   - [Team Members](#team-members)
-  - [Product Name](#product-name) · [Product Description](#product-description) · [Product Features](#product-features) · [Target Audience](#target-audience)
+  - [Product Name](#product-name) · [Product Description](#product-description) · [Product Features](#product-features) · [Does / Does Not](#what-it-does--what-it-deliberately-does-not) · [Target Audience](#target-audience)
   - [Three Roles, One Control Room](#three-roles-one-control-room) · [What Makes CloudSentinel Different](#what-makes-cloudsentinel-different)
   - [The System at a Glance](#the-system-at-a-glance) · [Repository Map](#repository-map)
   - [How to Run (Local)](#how-to-run-local)
@@ -92,10 +92,29 @@ CloudSentinel is an agentic decision-support system that monitors cloud cost and
 - **Debate-lite skeptic** — low-confidence or contested recommendations get one extra adversarial review; the transcript ships with the proposal
 - **Decision memory** — operator verdicts are stored and fed back into the Recommender's context, so repeated anomaly patterns meet an agent that remembers
 - **Human-in-the-loop lifecycle** — `proposed → approved/rejected → executed (simulated)` with idempotent decisions, request-triggered timeouts and a full audit trail; nothing ever executes without a human
-- **Pulse** — one call drives the whole chain (detect → analyze → debate → recommend → inbox) with a tagged JSON log stream
-- Live dashboard: anomaly feed, cost ledger, investigation evidence, decision inbox and audit ledger
-- REST API (FastAPI, 26 endpoints) with automatic Swagger documentation
-- Monitoring of security data and signals (mock security events land in Sprint 3 through the same pipeline)
+- **Pulse + Chronicler** — one call drives the whole chain (detect → analyze → debate → recommend → inbox) with a tagged JSON log stream; a chronicler agent narrates every run into an operator briefing, and the last run survives reloads (`GET /pulse/last`)
+- **Agent trace** — every proposal persists a hop-by-hop record of how the chain actually ran (source, model, measured duration, reflection/skeptic outcome, memory recalled) and shows it on the card
+- **Mission DSL** — declarative YAML missions (`configs/`) drive detection thresholds, detectors, escalation bars and the fraud rule bands; validated hard, with a reflex engine whose latency is measured, not claimed
+- **Unified watch** — mock security events ride the identical detection line as cost (own mission, own event kind, never routed into the cost agents); payment events get a published deterministic rule score with per-rule point attribution — suggestions only
+- **Guardrail pack** — per-pulse LLM call budget (overridable per run), hard transport timeout, ±5% numeric post-check of narrative figures, stakes-raised debate bar for bold answers to critical signals, prompt spotlighting for untrusted data
+- **Operations intelligence** — HITL funnel, approved savings, window-over-window trend, month-end forecast with budget signal, what-if and before/after ROI, detection precision proxy, and a self-FinOps ledger of the system's own LLM spend
+- Live dashboard: anomaly feed, cost ledger, investigation evidence, decision inbox (with operator identity + rationale capture), audit ledger and operations intelligence — three palettes, WCAG AA, strict CSP
+- REST API (FastAPI, 26 endpoints) with self-hosted Swagger documentation (no CDN)
+- Demo operations, all env-gated: whole-week date rebase, demo reset with seeded verdict history, read-only public showcase mode
+
+## What It Does / What It Deliberately Does Not
+
+The whole contract on one table — the right column is design, not backlog:
+
+| ✅ Does | 🚫 Deliberately does not |
+|---|---|
+| Detects cost & security anomalies over a rolling baseline (z-score / MAD, weekly seasonality, min-history discipline) | Connect to real cloud providers — synthetic data only during the competition (adapters are the first post-competition item) |
+| Reasons about every cost signal with AI agents: evidence-cited triage, two remediation options with risk + rollback, adversarial review of contested calls | Let a model invent numbers — every figure the operator acts on is deterministic Python arithmetic, post-checked ±5% against the narrative |
+| Files proposals into a human decision inbox with rationale + actor capture and a full audit trail | Execute anything on real infrastructure — execution is simulated by design, and nothing runs unapproved |
+| Scores payment events with published, hand-reproducible rules (per-rule point attribution) | Run ML fraud models, auto-block payments, or hide the scoring arithmetic |
+| Remembers operator verdicts and feeds them back into future recommendations, disclosing how many were considered | Learn silently — memory use is visible on the card, and the chain's execution is traced hop by hop |
+| Accounts for its own AI spend (call ledger, cache hits, fallbacks, quota view) under a per-run call budget | Burn quota unbounded, retry forever, or fail when the LLM is unavailable — every agent degrades to a labeled rule-based fallback |
+| Ships hardened: strict CSP with self-hosted docs, security headers, rate-limited pulse, idempotent decisions, JSON failure envelope | Ship auth/RBAC, Postgres, schedulers or Slack in the competition window — each is a scoped post-competition roadmap item |
 
 ## Target Audience
 
@@ -166,25 +185,44 @@ Short and flat on purpose — every path says what it holds:
 
 ```text
 cloudsentinel/
-├── main.py               ASGI entry point: routes, CORS, security headers
+├── main.py               ASGI entry point: routes, CSP/security headers, failure envelope
 ├── app/                  application package
-│   ├── detection.py      z-score detector + cost aggregations (deterministic)
+│   ├── detection.py      detector registry — rolling window, z-score/MAD, seasonality
+│   ├── missions.py       mission DSL — YAML configs, hard validation
+│   ├── reflex.py         reflex engine — mission-resolved scans, measured latency
 │   ├── analyst.py        Analyst agent — triage, evidence, reflection
 │   ├── recommender.py    Recommender agent + debate-lite skeptic
+│   ├── chronicler.py     Chronicler agent — pulse briefings
+│   ├── security.py       security lane — same detection line, own event kind
+│   ├── fraud.py          fraud lane — published deterministic rule score
 │   ├── actions.py        human-in-the-loop action lifecycle
-│   ├── decisions.py      decision memory retrieval
-│   ├── pulse.py          one-call end-to-end chain
-│   ├── llm.py            provider layer: Gemini, fake provider, fallbacks
+│   ├── decisions.py      decision memory retrieval + ledger export
+│   ├── analytics.py      funnel, savings, trend/forecast/what-if/ROI, self-FinOps
+│   ├── pulse.py          one-call end-to-end chain + persisted last run
+│   ├── ops.py            env-gated demo reset
+│   ├── llm.py            provider layer: Gemini, context-aware fake, fallbacks, budget
 │   ├── db.py             SQLite core — WAL, idempotency, seed-on-startup
 │   ├── models.py         Pydantic schemas
-│   └── data/             mock cost dataset (2 planted spikes)
-├── static/               dashboard — tokenized design system, 3 palettes
+│   └── data/             mock datasets — cost, security events, payment events
+├── configs/              mission YAMLs — finops, security, fraud
+├── static/               dashboard — tokenized design system, 3 palettes, vendored Swagger UI
+├── scripts/              smoke test, failure drill, detection benchmark, Gemini spike
 ├── tests/                365 pytest cases incl. performance budgets
 ├── docs/                 architecture & agent design
+├── Makefile              setup / run / test / demo / smoke / drill
 └── ProjectManagement/    sprint evidence packs (boards, screenshots)
 ```
 
 ## How to Run (Local)
+
+Two commands to a running product:
+
+```bash
+make setup && make run        # or: make demo — fake provider, fresh dates, reset armed
+make smoke                    # (other shell) 13-step PASS/FAIL sweep of the live chain
+```
+
+Or by hand:
 
 ```bash
 python3 -m venv .venv
@@ -329,11 +367,12 @@ These constraints are intentional Sprint 1 decisions, not oversights:
   implement the operator decision gate; nothing ever executes without an
   approval, and execution stays simulated
   (see [docs/architecture.md](docs/architecture.md)).
-- **Security signals arrive in Sprint 3** — the Sprint 1 review decided to
-  extend the same detection pipeline with mock security events in Sprint 3
-  (see the Sprint Review notes).
-- **Deployment lands in Sprint 3** — the app is already containerized and
-  deployment-ready; the target platform is chosen during Sprint 3.
+- **Security and fraud lanes landed with the Sprint 3 core** — mock security
+  events ride the identical detection line (own mission and event kind), and
+  payment events carry a published deterministic rule score; both are
+  operator-facing suggestions, never agent conversations or automatic blocks.
+- **Deployment lands in Sprint 3** — the app is containerized (non-root,
+  healthchecked) with `render.yaml` ready; the live link follows the deploy.
 
 ## Product Backlog URL
 
