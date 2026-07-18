@@ -439,6 +439,12 @@ def dashboard() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+# The dashboard's rooms are real URLs (back/forward and sharing work); the
+# client resolves the view from the path, so every room serves the same page.
+for _view_path in ("/watch", "/investigate", "/decide", "/intel", "/broadsheet"):
+    app.add_api_route(_view_path, dashboard, include_in_schema=False)
+
+
 @app.get("/docs", include_in_schema=False)
 def api_docs() -> FileResponse:
     """Serve the self-hosted Swagger UI (no CDN, same CSP as everything)."""

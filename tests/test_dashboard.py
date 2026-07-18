@@ -129,11 +129,16 @@ def test_dashboard_ships_the_value_and_demo_controls():
 
 
 def test_dashboard_ships_views_and_the_dawn_palette():
-    """Top-panel view tabs (hash-free section rooms) and the fourth palette."""
+    """The rooms are real URLs served by the same page; fourth palette ships."""
     page = client.get("/").text
     assert 'id="view-nav"' in page
     assert 'data-view="decide"' in page
     assert 'data-theme-choice="dawn"' in page
+    assert 'class="nav-brand' in page
+    for path in ("/watch", "/investigate", "/decide", "/intel", "/broadsheet"):
+        room = client.get(path)
+        assert room.status_code == 200
+        assert "CloudSentinel" in room.text
     app_js = client.get("/static/app.js").text
     assert "VIEW_SECTIONS" in app_js
     assert '"dawn"' in app_js

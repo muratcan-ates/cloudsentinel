@@ -1635,35 +1635,43 @@ const VIEW_SECTIONS = {
   intel: ["sec-intelligence"],
 };
 const ALL_SECTIONS = [...new Set(Object.values(VIEW_SECTIONS).flat())];
+const VIEW_TITLES = {
+  watch: "Watch",
+  investigate: "Investigation",
+  decide: "Decision Desk",
+  intel: "Intelligence",
+  all: "Broadsheet",
+};
+
+function viewFromPath(pathname) {
+  const view = (pathname || "/").replace(/^\//, "").split("/")[0];
+  if (view === "broadsheet") return "all";
+  return VIEW_SECTIONS[view] ? view : "watch"; // the home room
+}
 
 function applyView(view) {
   const visible = view === "all" ? ALL_SECTIONS : VIEW_SECTIONS[view] || ALL_SECTIONS;
   ALL_SECTIONS.forEach((id) =>
     document.getElementById(id).classList.toggle("view-hidden", !visible.includes(id))
   );
-  document.querySelectorAll(".view-tab").forEach((tab) =>
+  document.querySelectorAll(".view-tab, .nav-brand").forEach((tab) =>
     tab.setAttribute("aria-pressed", String(tab.dataset.view === view))
   );
-  try {
-    localStorage.setItem("sentinel-view", view);
-  } catch {
-    /* best effort */
-  }
+  document.title = `CloudSentinel — ${VIEW_TITLES[view] || "Anomaly Watch"}`;
 }
 
+// Real page URLs without reloads: links push history, back/forward replay.
 document.getElementById("view-nav").addEventListener("click", (event) => {
   const tab = event.target.closest("[data-view]");
-  if (tab) applyView(tab.dataset.view);
+  if (!tab) return;
+  event.preventDefault();
+  const target = tab.getAttribute("href") || "/";
+  if (location.pathname !== target) history.pushState({}, "", target);
+  applyView(tab.dataset.view);
+  window.scrollTo({ top: 0 });
 });
-
-try {
-  const storedView = localStorage.getItem("sentinel-view");
-  if (storedView && (storedView === "all" || VIEW_SECTIONS[storedView])) {
-    applyView(storedView);
-  }
-} catch {
-  /* the broadsheet view carries */
-}
+window.addEventListener("popstate", () => applyView(viewFromPath(location.pathname)));
+applyView(viewFromPath(location.pathname));
 
 /* The watchroom never sleeps: a quiet background re-scan keeps every
    figure current (and rolling) without a hand on the controls. */

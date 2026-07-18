@@ -453,22 +453,21 @@ select:hover { border-bottom-color: var(--ink); }
 main {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  margin-top: var(--sp-7);
+  gap: var(--sp-5);
+  margin-top: var(--sp-6);
 }
 
-.ledger-col { padding-right: var(--sp-7); min-width: 0; }
-.col-rule {
-  border-left: 1px solid var(--hair);
-  padding: 0 0 0 var(--sp-7);
-}
+.ledger-col { min-width: 0; }
+/* panels carry the separation now — the old inter-column rule retires */
+.col-rule { border-left: none; }
 
 @media (max-width: 880px) {
   main { grid-template-columns: 1fr; margin-top: var(--sp-6); }
   .ledger-col { padding-right: 0; }
   .col-rule {
     border-left: none;
-    border-top: 1px solid var(--hair);
-    margin-top: var(--section-gap);
+    border-top: none;
+    margin-top: 0;
     padding: var(--section-gap) 0 0;
   }
 }
@@ -700,7 +699,7 @@ button:disabled:hover {
 
 /* ---------- wide ledger sections (one shared rhythm) ---------- */
 
-.ledger-wide { grid-column: 1 / -1; margin-top: var(--section-gap); }
+.ledger-wide { grid-column: 1 / -1; margin-top: var(--sp-3); }
 
 /* investigation */
 
@@ -1349,22 +1348,40 @@ select:hover { border-bottom-color: var(--accent); }
   .agent-feed { display: none; }
 }
 
-/* ---------- view navigation (top panel — rooms of the broadsheet) ---------- */
+/* ---------- top navigation (the rooms are real pages) ---------- */
 
-.view-nav {
+.top-nav {
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
   display: flex;
+  align-items: center;
+  gap: clamp(14px, 3vw, 36px);
+  padding: 12px clamp(20px, 6vw, 64px);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--hair);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
+}
+.nav-brand {
+  font-size: 24px;
+  color: var(--ink);
+  text-decoration: none;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+.nav-brand:hover { transform: scale(1.04); }
+.nav-brand .period { color: var(--accent); }
+.nav-links {
+  display: flex;
   gap: 4px;
   flex-wrap: wrap;
-  padding: 10px 0;
-  margin-top: var(--sp-5);
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border-top: 1px solid var(--hair);
-  border-bottom: 1px solid var(--hair);
+}
+.nav-live {
+  margin-left: auto;
+  color: var(--ink);
+  white-space: nowrap;
 }
 .view-tab {
   font: 500 var(--fs-micro)/1.6 "Inter", sans-serif;
@@ -1385,6 +1402,20 @@ select:hover { border-bottom-color: var(--accent); }
 }
 .view-hidden { display: none; }
 @media print {
-  .view-nav { display: none; }
+  .top-nav { display: none; }
   .view-hidden { display: block; }
 }
+
+/* sections as quiet raised panels — site-grade depth, broadsheet soul */
+main .ledger-col,
+main .ledger-wide {
+  background: var(--surface-raised);
+  border: 1px solid var(--hair);
+  border-radius: 14px;
+  padding: 26px clamp(18px, 3vw, 34px) 32px;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.16);
+}
+.entry,
+.audit-item { transition: background 0.15s ease; }
+.entry:hover,
+.decision:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }

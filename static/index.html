@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Jacquard+24&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=UnifrakturMaguntia&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/static/style.css?v=s4.2" />
+  <link rel="stylesheet" href="/static/style.css?v=s4.3" />
   <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
   <meta name="description" content="CloudSentinel — cloud cost and security anomaly watch: detection, evidence-cited AI triage and human-approved remediation, execution simulated by design." />
   <meta property="og:title" content="CloudSentinel — Anomaly Watch" />
@@ -19,6 +19,17 @@
   <meta property="og:image" content="https://cloudsentinel.onrender.com/static/img/hands-dither.png" />
 </head>
 <body>
+  <nav class="top-nav" id="view-nav" aria-label="Site">
+    <a class="nav-brand pixel-black" href="/" data-view="watch">cloudsentinel<span class="period">.</span></a>
+    <div class="nav-links">
+      <a class="view-tab" href="/watch" data-view="watch" aria-pressed="false">watch</a>
+      <a class="view-tab" href="/investigate" data-view="investigate" aria-pressed="false">investigation</a>
+      <a class="view-tab" href="/decide" data-view="decide" aria-pressed="false">decision desk</a>
+      <a class="view-tab" href="/intel" data-view="intel" aria-pressed="false">intelligence</a>
+      <a class="view-tab" href="/broadsheet" data-view="all" aria-pressed="false">broadsheet</a>
+    </div>
+    <span class="nav-live microcap"><span class="live-dot" aria-hidden="true"></span>live</span>
+  </nav>
   <div class="page">
     <p class="print-only" id="print-stamp"></p>
     <header class="masthead">
@@ -77,14 +88,6 @@
       </div>
       <p class="meta" id="pulse-note" aria-live="polite"></p>
     </section>
-
-    <nav class="view-nav" id="view-nav" aria-label="Dashboard views">
-      <button class="view-tab" type="button" data-view="all" aria-pressed="true">broadsheet</button>
-      <button class="view-tab" type="button" data-view="watch" aria-pressed="false">I·II — watch</button>
-      <button class="view-tab" type="button" data-view="investigate" aria-pressed="false">III — investigation</button>
-      <button class="view-tab" type="button" data-view="decide" aria-pressed="false">IV·V — decision desk</button>
-      <button class="view-tab" type="button" data-view="intel" aria-pressed="false">VI — intelligence</button>
-    </nav>
 
     <main>
       <section class="ledger-col" id="sec-anomalies">
@@ -217,6 +220,6 @@
     </div>
   </aside>
 
-  <script src="/static/app.js?v=s4.2"></script>
+  <script src="/static/app.js?v=s4.3"></script>
 </body>
 </html>
