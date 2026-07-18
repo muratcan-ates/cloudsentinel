@@ -43,7 +43,7 @@ hiçbir şey çalışmaz; yürütme tasarım gereği simülasyondur.
 ```bash
 make setup && make demo     # sahte sağlayıcı ile, çevrimdışı tam demo
 # panel: http://127.0.0.1:8000/  ·  API dokümanı: /docs
-make test                   # 394 test, ~8 sn
+make test                   # 406 test, ~8 sn
 make smoke                  # canlı zincir üzerinde 13 adımlı kontrol
 ```
 
