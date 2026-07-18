@@ -135,6 +135,11 @@ def test_dashboard_ships_views_and_the_dawn_palette():
     assert 'data-view="decide"' in page
     assert 'data-theme-choice="dawn"' in page
     assert 'class="nav-brand' in page
+    assert 'id="sentinel-radar"' in page  # the live pixel-radar centerpiece
+    assert 'class="footer-grid"' in page
+    app_js = client.get("/static/app.js").text
+    assert "renderRadar" in app_js
+    assert "stat-chip" in app_js
     for path in ("/watch", "/investigate", "/decide", "/intel", "/broadsheet"):
         room = client.get(path)
         assert room.status_code == 200

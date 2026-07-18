@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Jacquard+24&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=UnifrakturMaguntia&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/static/style.css?v=s4.5" />
+  <link rel="stylesheet" href="/static/style.css?v=s4.6" />
   <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
   <meta name="description" content="CloudSentinel — cloud cost and security anomaly watch: detection, evidence-cited AI triage and human-approved remediation, execution simulated by design." />
   <meta property="og:title" content="CloudSentinel — Anomaly Watch" />
@@ -95,6 +95,7 @@
           <span class="numeral">I</span>
           <h2 class="section-word">anomalies</h2>
         </header>
+        <svg id="sentinel-radar" class="radar" viewBox="0 0 200 200" role="img" aria-label="Sentinel radar — the live signal field, sweeping"></svg>
         <p class="meta" id="anomaly-meta">scanning…</p>
         <p class="meta sort-row">sort —
           <button class="row-action" type="button" data-anomaly-sort="z" aria-pressed="true">z-score</button> /
@@ -204,8 +205,32 @@
         Agent layer: <em class="k-em">six voices live</em> — reflex, analyst, skeptic, recommender, chronicler
         and the <span class="fraktur">operator</span>; debate-lite guards contested calls, and every action awaits a human hand.
       </p>
+      <div class="footer-grid">
+        <div>
+          <p class="microcap">the product</p>
+          <p class="meta">Cost, security and fraud signals through one detection line; six agents reason in the open; nothing executes without a human hand. All data synthetic, execution simulated by design.</p>
+        </div>
+        <div>
+          <p class="microcap">rooms</p>
+          <p class="meta footer-links">
+            <a class="row-action" href="/watch" data-room="watch">watch</a>
+            <a class="row-action" href="/investigate" data-room="investigate">investigation</a>
+            <a class="row-action" href="/decide" data-room="decide">decision desk</a>
+            <a class="row-action" href="/intel" data-room="intel">intelligence</a>
+            <a class="row-action" href="/broadsheet" data-room="all">broadsheet</a>
+          </p>
+        </div>
+        <div>
+          <p class="microcap">under the hood</p>
+          <p class="meta footer-links">
+            <a class="row-action" href="/docs">api docs</a>
+            <a class="row-action" href="/agents">agent roster</a>
+            <a class="row-action" href="/decisions/export" download>decision ledger csv</a>
+            <a class="row-action" href="https://github.com/muratcan-ates/cloudsentinel">github</a>
+          </p>
+        </div>
+      </div>
       <p class="microcap credits">Team CloudSentinel · Group 60 · YZTA Bootcamp MMXXVI</p>
-      <p class="microcap credits">cost, anomaly, triage, recommendations &amp; approvals live from the API — execution simulated by design</p>
     </footer>
   </div>
 
@@ -220,6 +245,6 @@
     </div>
   </aside>
 
-  <script src="/static/app.js?v=s4.5"></script>
+  <script src="/static/app.js?v=s4.6"></script>
 </body>
 </html>

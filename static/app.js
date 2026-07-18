@@ -352,15 +352,21 @@ function renderSummary() {
 }
 
 function renderAnomalies(report) {
-  document.getElementById("anomaly-meta").textContent =
-    `${report.records_analyzed} records scanned · threshold ${report.threshold.toFixed(2)} · ` +
-    // type counter: cost signals here plus the unified security lane
-    `${report.anomaly_count} cost` +
-    (state.security ? ` · ${state.security.signal_count} security` : "") +
-    ` signal${report.anomaly_count === 1 && (!state.security || state.security.signal_count === 0) ? "" : "s"} detected` +
-    // measured, not claimed: the API reports how long the reflex pass took
-    (typeof report.reflex_ms === "number" ? ` · REFLEX ${report.reflex_ms.toFixed(1)} ms` : "") +
-    (serviceFilter.value ? ` · service ${serviceFilter.value}` : "");
+  // scannable facts, not a sentence: each figure is its own chip
+  const chips = [
+    `<span class="chip-strong">${report.records_analyzed}</span> records`,
+    `threshold <span class="chip-strong">${report.threshold.toFixed(2)}</span>`,
+    `<span class="chip-strong">${report.anomaly_count}</span> cost`,
+    state.security ? `<span class="chip-strong">${state.security.signal_count}</span> security` : null,
+    state.fraud ? `<span class="chip-strong">${state.fraud.count}</span> fraud` : null,
+    typeof report.reflex_ms === "number"
+      ? `reflex <span class="chip-strong">${report.reflex_ms.toFixed(1)}</span> ms`
+      : null,
+    serviceFilter.value ? `service ${escapeHtml(serviceFilter.value)}` : null,
+  ].filter(Boolean);
+  document.getElementById("anomaly-meta").innerHTML = chips
+    .map((chip) => `<span class="stat-chip">${chip}</span>`)
+    .join("");
 
   anomalyList.innerHTML = "";
   if (report.anomalies.length === 0) {
@@ -392,8 +398,9 @@ function renderAnomalies(report) {
 }
 
 function renderCosts(report, flaggedServices) {
-  document.getElementById("cost-meta").textContent =
-    `${report.period.start} → ${report.period.end} · ${report.services.length} services`;
+  document.getElementById("cost-meta").innerHTML =
+    `<span class="stat-chip">${escapeHtml(report.period.start)} → ${escapeHtml(report.period.end)}</span>` +
+    `<span class="stat-chip"><span class="chip-strong">${report.services.length}</span> services</span>`;
 
   document.getElementById("total-cost").innerHTML =
     `${fmtNumber(report.total_cost)} <small>${escapeHtml(report.currency)}</small>`;
@@ -1148,6 +1155,54 @@ function renderAudit() {
   }
 }
 
+/* ---------- sentinel radar ----------
+   The moving centerpiece: a pixel radar whose blips ARE the current
+   signals — cost anomalies in accent/alert, security in sky. One CSS
+   rotation for the sweep; everything else is static SVG. */
+
+function radarAngle(name) {
+  // deterministic angle per service/date so blips hold their post
+  let hash = 0;
+  for (const ch of String(name)) hash = (hash * 31 + ch.charCodeAt(0)) % 360;
+  return (hash * Math.PI) / 180;
+}
+
+function renderRadar() {
+  const svg = document.getElementById("sentinel-radar");
+  if (!svg) return;
+  const rings = [30, 58, 86]
+    .map((r) => `<circle class="ring" cx="100" cy="100" r="${r}"/>`)
+    .join("");
+  const cross =
+    `<line class="cross" x1="100" y1="10" x2="100" y2="190"/>` +
+    `<line class="cross" x1="10" y1="100" x2="190" y2="100"/>`;
+  const sweep =
+    `<defs><linearGradient id="sweep-grad" x1="0" y1="0" x2="1" y2="0">` +
+    `<stop offset="0" stop-color="currentColor" stop-opacity="0.35"/>` +
+    `<stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>` +
+    `<g class="radar-sweep" style="color: var(--accent)">` +
+    `<path d="M100,100 L100,12 A88,88 0 0 1 152,29 Z" fill="url(#sweep-grad)"/></g>`;
+  const blip = (angle, radius, cls) => {
+    const x = 100 + Math.cos(angle) * radius - 3;
+    const y = 100 + Math.sin(angle) * radius - 3;
+    return `<rect class="radar-blip ${cls}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="6" height="6"/>`;
+  };
+  const blips = [
+    ...state.anomalies.map((anomaly) =>
+      blip(
+        radarAngle(anomaly.service + anomaly.date),
+        anomaly.severity === "critical" ? 44 : 72,
+        anomaly.severity
+      )
+    ),
+    ...(state.security ? state.security.signals : []).map((signal) =>
+      blip(radarAngle(signal.service + signal.date), 86, "security")
+    ),
+  ].join("");
+  svg.innerHTML =
+    rings + cross + sweep + blips + `<rect class="radar-core" x="97" y="97" width="6" height="6"/>`;
+}
+
 function renderAll(report) {
   renderCosts(state.costs, renderAnomalies(report));
   renderTrend();
@@ -1157,6 +1212,7 @@ function renderAll(report) {
   renderAudit();
   renderIntelligence();
   renderWatch();
+  renderRadar();
 }
 
 /* ---------- actions ---------- */
@@ -1468,6 +1524,17 @@ document.addEventListener("click", (event) => {
   const pulseCta = event.target.closest("[data-run-pulse]");
   if (pulseCta) {
     runPulse();
+    return;
+  }
+
+  const roomLink = event.target.closest("[data-room]");
+  if (roomLink) {
+    // footer room links ride the same no-reload navigation as the navbar
+    event.preventDefault();
+    const target = roomLink.getAttribute("href") || "/";
+    if (location.pathname !== target) history.pushState({}, "", target);
+    applyView(roomLink.dataset.room);
+    window.scrollTo({ top: 0 });
     return;
   }
 
