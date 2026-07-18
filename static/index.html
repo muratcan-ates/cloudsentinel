@@ -10,7 +10,13 @@
     href="https://fonts.googleapis.com/css2?family=Jacquard+24&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=UnifrakturMaguntia&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/static/style.css?v=s3.4" />
+  <link rel="stylesheet" href="/static/style.css?v=s3.5" />
+  <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
+  <meta name="description" content="CloudSentinel — cloud cost and security anomaly watch: detection, evidence-cited AI triage and human-approved remediation, execution simulated by design." />
+  <meta property="og:title" content="CloudSentinel — Anomaly Watch" />
+  <meta property="og:description" content="The machine watches, the human decides: cost & security anomalies, evidence-cited triage, simulated execution." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://cloudsentinel.onrender.com/static/img/hands-dither.png" />
 </head>
 <body>
   <div class="page">
@@ -52,6 +58,7 @@
           </select>
         </label>
         <button id="rescan" type="button">Re-scan →</button>
+        <button id="pulse-run" type="button" title="run the whole chain: detect, analyze, recommend — decisions stay with you">Pulse →</button>
         <p class="microcap theme-row" role="group" aria-label="Palette">Palette —
           <button class="row-action" type="button" data-theme-choice="cobalt" aria-pressed="true">cobalt</button> /
           <button class="row-action" type="button" data-theme-choice="mission" aria-pressed="false">night</button> /
@@ -97,6 +104,7 @@
           <svg id="cost-trend" class="trend-svg" viewBox="0 0 460 132" preserveAspectRatio="none" role="img" aria-label="Daily total spend trend with anomaly days marked"></svg>
           <p class="meta trend-readout" id="trend-readout" aria-live="off">—</p>
           <p class="meta" id="trend-note"></p>
+          <p class="meta" id="trend-forecast"></p>
         </div>
         <p class="meta sort-row">sort —
           <button class="row-action" type="button" data-sort="cost" aria-pressed="true">cost</button> /
@@ -178,6 +186,6 @@
     </footer>
   </div>
 
-  <script src="/static/app.js?v=s3.4"></script>
+  <script src="/static/app.js?v=s3.5"></script>
 </body>
 </html>

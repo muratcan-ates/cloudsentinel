@@ -1050,3 +1050,24 @@ footer {
 .watch-row .watch-strong { color: var(--ink); }
 .watch-row.critical { color: var(--ink); }
 .watch-row.critical .watch-glyph { color: var(--alert); }
+
+/* pulse button — the one-click chain, sits beside re-scan */
+#pulse-run { margin-left: 8px; }
+
+/* cited evidence rings on the spark chart */
+.spike.cited { fill: none; stroke: var(--info); stroke-width: 1.5; }
+
+/* print: an operator hands the ledger to someone — ink on paper, no chrome.
+   Careful with buttons: service names (section II) and the signal rail
+   (section III) are content that HAPPENS to be buttons — they must print. */
+@media print {
+  body { background: #fff !important; color: #000 !important; }
+  .colophon, .sort-row, .inv-actions, .head-action { display: none !important; }
+  .row-action:not(.signal-option) { display: none !important; }
+  .cost-line .service-btn, .signal-option {
+    border: none !important;
+    background: none !important;
+    color: #000 !important;
+  }
+  .page { max-width: none; }
+}

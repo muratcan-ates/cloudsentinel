@@ -75,6 +75,18 @@ def test_dashboard_ships_interactive_controls():
     assert 'data-anomaly-sort="z"' in page  # sortable signal table
 
 
+def test_dashboard_ships_the_vitrin_and_pulse_controls():
+    """Favicon, OG metadata and the one-click pulse chain are product."""
+    page = client.get("/").text
+    assert 'rel="icon"' in page
+    assert 'property="og:title"' in page
+    assert 'id="pulse-run"' in page
+    assert client.get("/static/img/favicon.svg").status_code == 200
+    app_js = client.get("/static/app.js").text
+    assert "/analytics/ai" in app_js
+    assert "/analytics/costs/forecast" in app_js
+
+
 def test_dashboard_ships_the_unified_watch_strip():
     """Section I carries the security & fraud watch fed by the new lanes."""
     page = client.get("/").text

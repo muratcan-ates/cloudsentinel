@@ -33,6 +33,7 @@ const thresholdInput = document.getElementById("threshold");
 const thresholdValue = document.getElementById("threshold-value");
 const serviceFilter = document.getElementById("service-filter");
 const rescanButton = document.getElementById("rescan");
+const pulseButton = document.getElementById("pulse-run");
 const editionLine = document.getElementById("chip-system");
 const anomalyList = document.getElementById("anomaly-list");
 const costBars = document.getElementById("cost-bars");
@@ -58,6 +59,8 @@ const state = {
   analytics: null, // GET /analytics/decisions — funnel, quality, telemetry (section VI)
   trend: null, // GET /analytics/costs/trend — window-over-window comparison (section VI)
   intelStale: false, // last intelligence fetch failed — section VI must say so
+  aiUsage: null, // GET /analytics/ai — self-FinOps quota strip (section VI)
+  forecast: null, // GET /analytics/costs/forecast — month-end line (section II)
   security: null, // GET /security/signals — unified watch strip (section I)
   fraud: null, // GET /fraud/signals — unified watch strip (section I)
   watchStale: false, // last watch fetch failed on at least one lane
@@ -164,13 +167,17 @@ let intelSequence = 0; // last-writer-wins: stale analytics must never overwrite
 async function loadIntelligence() {
   const sequence = ++intelSequence;
   try {
-    const [analytics, trend] = await Promise.all([
+    const [analytics, trend, aiUsage, forecast] = await Promise.all([
       fetchJson("/analytics/decisions"),
       fetchJson("/analytics/costs/trend"),
+      fetchJson("/analytics/ai"),
+      fetchJson("/analytics/costs/forecast"),
     ]);
     if (sequence !== intelSequence) return;
     state.analytics = analytics;
     state.trend = trend;
+    state.aiUsage = aiUsage;
+    state.forecast = forecast;
     state.intelStale = false;
   } catch {
     if (sequence !== intelSequence) return;
@@ -680,8 +687,21 @@ function renderInvestigation() {
       series.values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / series.values.length
     );
     const spark = document.getElementById("spark-svg");
+    // Cited evidence rows become rings on the chart — mapped by DATE (the
+    // analyst reports cited_dates), so the ring lands on the exact day the
+    // citation names regardless of how the series is shaped.
+    const cited = analysis && analysis.cited_dates
+      ? analysis.cited_dates
+          .map((date) => state.daily.dates.indexOf(date))
+          .filter((index) => index >= 0)
+      : [];
     drawSeries(spark, series.values, {
-      spikes: anomalyIndex >= 0 ? [{ index: anomalyIndex, severity: anomaly.severity }] : [],
+      spikes: [
+        ...cited.map((index) => ({ index, severity: "cited" })),
+        ...(anomalyIndex >= 0
+          ? [{ index: anomalyIndex, severity: anomaly.severity }]
+          : []),
+      ],
       band: { mean, sigma },
     });
     spark.setAttribute(
@@ -692,7 +712,7 @@ function renderInvestigation() {
       `<span class="spark-legend"><span>min ${fmtNumber(Math.min(...series.values))}</span>` +
       `<span>mean ${fmtNumber(mean)}</span>` +
       `<span>max ${fmtNumber(Math.max(...series.values))}</span>` +
-      `<span>band ±σ · anomaly day marked</span></span>`;
+      `<span>band ±σ · anomaly day marked${cited.length ? " · cited days ringed" : ""}</span></span>`;
   }
 }
 
@@ -705,9 +725,24 @@ function preferredMonthlySaving(detail) {
 
 function transcriptFold(detail) {
   if (!detail.transcript) return "";
-  return `<details class="transcript"><summary>skeptic reviewed this</summary>
-       <p class="body">${escapeHtml(detail.transcript.skeptic_rationale || "")} — ${detail.transcript.agreed ? "agreed with the draft stance" : `revised the stance to ${escapeHtml(detail.transcript.final_preferred || "")}`}.</p>
+  const transcript = detail.transcript;
+  return `<details class="transcript"><summary>skeptic reviewed this — ${transcript.agreed ? "consensus" : "stance revised"}</summary>
+       <p class="meta">trigger — ${escapeHtml(transcript.trigger || "")}</p>
+       <p class="body">${escapeHtml(transcript.skeptic_rationale || "")}</p>
+       <p class="meta">${
+         transcript.agreed
+           ? `agreed with the ${escapeHtml(transcript.original_preferred || "draft")} stance`
+           : `revised the stance ${escapeHtml(transcript.original_preferred || "")} → ${escapeHtml(transcript.final_preferred || "")}`
+       }</p>
      </details>`;
+}
+
+function numericCheckLine(detail) {
+  const check = detail.numeric_check;
+  if (!check) return "";
+  return check.status === "ok"
+    ? `<p class="meta">narrative figures verified ±5% against the computed savings</p>`
+    : `<p class="meta">figure check — ${check.figures.length} narrative figure(s) unverified; the computed numbers are authoritative</p>`;
 }
 
 function renderRecommendationBlock(anomaly, action, analysis) {
@@ -722,6 +757,7 @@ function renderRecommendationBlock(anomaly, action, analysis) {
         <p class="rec-facts">${preferred ? `stance ${escapeHtml(detail.preferred)} · est. saving ${fmtNumber(saving ?? 0)} / month · risk ${escapeHtml(preferred.risk)} · rollback ${escapeHtml(preferred.rollback)}` : `stance ${escapeHtml(detail.preferred || "—")}`}</p>
         ${detail.escalation_reason ? `<p class="meta">debate-lite: ${escapeHtml(detail.escalation_reason)}</p>` : ""}
         ${transcriptFold(detail)}
+        ${numericCheckLine(detail)}
         <p class="meta">filed to the decision inbox — state ${escapeHtml(action.state)}</p>
       </div>`;
   }
@@ -783,6 +819,7 @@ function renderDecisions() {
         ${preferred ? `<p class="meta">rollback ${escapeHtml(preferred.rollback)}</p>` : ""}
         ${detail.escalation_reason ? `<p class="meta">debate-lite: ${escapeHtml(detail.escalation_reason)}</p>` : ""}
         ${transcriptFold(detail)}
+        ${numericCheckLine(detail)}
       </div>
       <div class="dec-rail">
         <span class="chip ${action.decided_by === "system:timeout" ? "expired" : action.state}">${
@@ -889,6 +926,7 @@ function renderIntelligence() {
   const sources = Object.entries(telemetry.by_source)
     .map(([source, count]) => `${escapeHtml(source)} ${count}`)
     .join(" · ");
+  const quota = state.aiUsage;
   teleBox.innerHTML = `
     <p class="meta tele-line">triage — ${
       triageEntries.length
@@ -899,7 +937,27 @@ function renderIntelligence() {
       telemetry.avg_confidence == null ? "—" : `${Math.round(telemetry.avg_confidence * 100)}%`
     }</span></p>
     <p class="meta tele-line">ledger — <span class="tele-fig">${telemetry.requests_total}</span> agent calls · <span class="tele-fig">${telemetry.cache_hits}</span> cached · <span class="tele-fig">${telemetry.debates}</span> debate${telemetry.debates === 1 ? "" : "s"}</p>
-    <p class="meta tele-line">${sources ? `sources — ${sources}` : "no agent calls ledgered yet"}</p>`;
+    <p class="meta tele-line">${sources ? `sources — ${sources}` : "no agent calls ledgered yet"}</p>
+    ${
+      quota
+        ? `<p class="meta tele-line">ai quota — <span class="tele-fig">${quota.live_calls_today}</span> live call${quota.live_calls_today === 1 ? "" : "s"} today · assumed ${quota.rpd_assumption} RPD (${quota.rpd_used_pct}%)</p>`
+        : ""
+    }`;
+
+  const forecastLine = document.getElementById("trend-forecast");
+  if (state.forecast) {
+    const forecast = state.forecast;
+    forecastLine.textContent =
+      `month-end projection ${fmtNumber(forecast.projected_month_total)} ` +
+      `(${forecast.slope_per_day >= 0 ? "+" : "−"}${fmtNumber(Math.abs(forecast.slope_per_day))}/day)` +
+      (forecast.projected_over_budget == null
+        ? ""
+        : forecast.projected_over_budget
+          ? ` — over the ${fmtNumber(forecast.monthly_budget)} budget`
+          : ` — within the ${fmtNumber(forecast.monthly_budget)} budget`);
+  } else {
+    forecastLine.textContent = "";
+  }
 }
 
 const AUDIT_VISIBLE_LIMIT = 8;
@@ -1078,12 +1136,63 @@ async function scan() {
 
 /* ---------- events ---------- */
 
+let pulseBusy = false;
+
+async function runPulse() {
+  /* One click, the whole chain: detect → analyze → recommend. Decisions
+     stay in the inbox — pulse files proposals, it never approves them. */
+  if (pulseBusy) return;
+  pulseBusy = true;
+  pulseButton.disabled = true;
+  pulseButton.textContent = "pulse running…";
+  try {
+    const response = await fetch("/pulse", { method: "POST" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const report = await response.json();
+    // run ledger: each chain hop lands in section V under the summary
+    [...report.chain].reverse().forEach((link) => {
+      state.audit.unshift({
+        time: utcNow(),
+        title: `Pulse chain: ${link.service} → ${link.triage} → action #${link.action_id}`,
+        copy: `severity ${link.severity} · preferred ${link.preferred} · ${
+          link.reused ? "existing proposal reused" : "new proposal filed"
+        } — state ${link.action_state}.`,
+      });
+    });
+    state.audit.unshift({
+      time: utcNow(),
+      title: `Pulse swept the estate — ${report.signals} cost + ${report.security_signals} security signal${report.security_signals === 1 ? "" : "s"}`,
+      copy:
+        `mission ${report.mission ?? "—"} · REFLEX ${report.reflex_ms ?? "—"} ms · ` +
+        `${report.analyzed} analyzed · ${report.proposals_filed} filed · ${report.proposals_reused} reused · ` +
+        `LLM ${report.llm_calls_used}/${report.llm_budget}${
+          report.budget_exhausted ? " — budget exhausted, fallbacks answered" : ""
+        }.`,
+    });
+  } catch (error) {
+    state.audit.unshift({
+      time: utcNow(),
+      title: "Pulse request failed",
+      copy: `${error.message} — the panels keep their last state.`,
+    });
+  } finally {
+    pulseBusy = false;
+    pulseButton.disabled = false;
+    pulseButton.textContent = "Pulse →";
+    // the ledger is the only pulse feedback channel (no toasts): render it
+    // NOW so the entries survive even if the refresh scan below fails
+    renderAudit();
+    await scan(); // full refresh: signals, inbox, intelligence, watch
+  }
+}
+
 thresholdInput.addEventListener("input", () => {
   thresholdValue.textContent = parseFloat(thresholdInput.value).toFixed(2);
 });
 thresholdInput.addEventListener("change", scan);
 serviceFilter.addEventListener("change", scan);
 rescanButton.addEventListener("click", scan);
+pulseButton.addEventListener("click", runPulse);
 
 document.addEventListener("click", (event) => {
   const themeChoice = event.target.closest("[data-theme-choice]");

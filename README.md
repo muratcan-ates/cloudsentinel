@@ -94,7 +94,7 @@ CloudSentinel is an agentic decision-support system that monitors cloud cost and
 - **Human-in-the-loop lifecycle** — `proposed → approved/rejected → executed (simulated)` with idempotent decisions, request-triggered timeouts and a full audit trail; nothing ever executes without a human
 - **Pulse** — one call drives the whole chain (detect → analyze → debate → recommend → inbox) with a tagged JSON log stream
 - Live dashboard: anomaly feed, cost ledger, investigation evidence, decision inbox and audit ledger
-- REST API (FastAPI, 19 endpoints) with automatic Swagger documentation
+- REST API (FastAPI, 24 endpoints) with automatic Swagger documentation
 - Monitoring of security data and signals (mock security events land in Sprint 3 through the same pipeline)
 
 ## Target Audience
@@ -179,7 +179,7 @@ cloudsentinel/
 │   ├── models.py         Pydantic schemas
 │   └── data/             mock cost dataset (2 planted spikes)
 ├── static/               dashboard — tokenized design system, 3 palettes
-├── tests/                298 pytest cases incl. performance budgets
+├── tests/                340 pytest cases incl. performance budgets
 ├── docs/                 architecture & agent design
 └── ProjectManagement/    sprint evidence packs (boards, screenshots)
 ```
@@ -246,7 +246,7 @@ docker run -p 8000:8000 cloudsentinel
 | **Python 3.12** | Core language (pinned in venv, CI and Docker) |
 | **FastAPI + Uvicorn** | REST API and ASGI server |
 | **Pydantic v2** | Typed request/response models and validation |
-| **pytest + httpx** | Automated test suite (298 tests, incl. performance budgets) |
+| **pytest + httpx** | Automated test suite (340 tests, incl. performance budgets) |
 | **SQLite** (stdlib `sqlite3`) | WAL-mode persistence core: action lifecycle, decision memory, LLM cache, idempotency |
 | **Docker** | Containerized, deployment-ready packaging |
 | **Gemini** (`google-genai`) | LLM provider layer with quota-aware retry and rule-based fallback |
@@ -412,7 +412,7 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Expected point completion within the sprint**: 13 points
 
-- **Point Completion Logic**: Sprint 2 carries 13 of the 36 total backlog points: Gemini agent spike (2), Analyst agent (3), Recommender with debate-lite (3), human-in-the-loop lifecycle (3), decision memory (2). All five stories are code-complete as of July 12 — the suite has since grown to 298 automated tests (~7s on the fake provider) — and formal completion is assessed at the July 19 review and demo.
+- **Point Completion Logic**: Sprint 2 carries 13 of the 36 total backlog points: Gemini agent spike (2), Analyst agent (3), Recommender with debate-lite (3), human-in-the-loop lifecycle (3), decision memory (2). All five stories are code-complete as of July 12 — the suite has since grown to 340 automated tests (~7s on the fake provider) — and formal completion is assessed at the July 19 review and demo.
 
 - **Daily Scrum**: daily communication continues over WhatsApp with team meetings on Slack; evidence screenshots are collected in `ProjectManagement/Sprint2Documents/` through the sprint.
 
