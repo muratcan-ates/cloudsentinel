@@ -159,6 +159,9 @@ class ActionRecord(BaseModel):
     decided_at: str | None
     decided_by: str | None
     executed_at: str | None
+    # Hours left before the request-triggered TTL expires this proposal;
+    # None for decided actions or a disabled TTL.
+    expires_in_hours: float | None = None
 
 
 class ActionListReport(BaseModel):
@@ -211,6 +214,14 @@ class DecisionListReport(BaseModel):
     decisions: list[DecisionRecord]
 
 
+class DecisionSearchReport(BaseModel):
+    """Filtered view over the whole decision ledger, newest first."""
+
+    count: int
+    filters: dict
+    decisions: list[DecisionRecord]
+
+
 class PulseChainLink(BaseModel):
     event_id: int
     service: str
@@ -240,6 +251,9 @@ class PulseReport(BaseModel):
     signals: int
     security_signals: int = 0
     fraud_signals: int = 0
+    # Deterministic cross-lane cards this run filed into the inbox.
+    fraud_holds_filed: int = 0
+    budget_cards_filed: int = 0
     analyzed: int
     proposals_filed: int
     proposals_reused: int
@@ -348,6 +362,9 @@ class AgentTelemetry(BaseModel):
     by_source: dict[str, int]
     by_agent: dict[str, int]
     debates: int
+    # How often the skeptic's verdict actually changed the stance — the
+    # debate's measurable effect, not just its occurrence.
+    debates_overturned: int = 0
 
 
 class DecisionAnalyticsReport(BaseModel):

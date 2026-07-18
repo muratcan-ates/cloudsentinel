@@ -10,12 +10,13 @@ meet an agent that remembers how the humans decided last time.
 import csv
 import io
 import sqlite3
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 
 from app import db
-from app.models import DecisionListReport, DecisionRecord
+from app.models import DecisionListReport, DecisionRecord, DecisionSearchReport
 
 router = APIRouter(tags=["memory"])
 
@@ -55,6 +56,56 @@ def export_decisions_csv(
         content=buffer.getvalue(),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=decision_ledger.csv"},
+    )
+
+
+@router.get("/decisions")
+def search_decisions(
+    q: str | None = Query(
+        None, min_length=1, max_length=200,
+        description="Substring match over the recorded rationales.",
+    ),
+    verdict: Literal["approved", "rejected"] | None = Query(None),
+    service: str | None = Query(None, min_length=1),
+    limit: int = Query(50, ge=1, le=500),
+    conn: sqlite3.Connection = Depends(db.get_db),
+) -> DecisionSearchReport:
+    """Search the decision ledger — why did we decide what, and when.
+
+    Plain SQL filters, newest first: the institutional memory becomes
+    retrievable for humans the same way it already is for the agents.
+    """
+    clauses, params = [], []
+    if q is not None:
+        clauses.append("rationale LIKE ? ESCAPE '\\'")
+        escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        params.append(f"%{escaped}%")
+    if verdict is not None:
+        clauses.append("verdict = ?")
+        params.append(verdict)
+    if service is not None:
+        clauses.append("service = ? COLLATE NOCASE")
+        params.append(service.strip())
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    rows = conn.execute(
+        f"SELECT id, action_id, service, verdict, rationale, created_at "
+        f"FROM decisions {where} ORDER BY id DESC LIMIT ?",
+        (*params, limit),
+    ).fetchall()
+    return DecisionSearchReport(
+        count=len(rows),
+        filters={"q": q, "verdict": verdict, "service": service},
+        decisions=[
+            DecisionRecord(
+                id=row["id"],
+                action_id=row["action_id"],
+                service=row["service"],
+                verdict=row["verdict"],
+                rationale=row["rationale"],
+                decided_at=row["created_at"],
+            )
+            for row in rows
+        ],
     )
 
 

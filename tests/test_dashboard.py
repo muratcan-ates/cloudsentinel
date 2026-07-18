@@ -29,9 +29,11 @@ def test_dashboard_hidden_from_openapi_schema():
         "/actions/{action_id}/reject",
         "/anomalies",
         "/analytics/ai",
+        "/analytics/calibration",
         "/analytics/costs/forecast",
         "/analytics/costs/trend",
         "/analytics/decisions",
+        "/analytics/headline",
         "/analytics/roi",
         "/analytics/whatif",
         "/anomalies/{event_id}/analyze",
@@ -39,6 +41,7 @@ def test_dashboard_hidden_from_openapi_schema():
         "/costs/daily",
         "/costs/summary",
         "/costs/summary/export",
+        "/decisions",
         "/decisions/export",
         "/decisions/similar",
         "/fraud/signals",
@@ -121,6 +124,20 @@ def test_dashboard_ships_the_value_and_demo_controls():
     assert "data-run-pulse" in app_js
     assert "rationale" in app_js
     assert "read-only" in app_js
+
+
+def test_dashboard_ships_the_cross_lane_and_calibration_ui():
+    """Fraud-hold / budget-guard card variants, the calibration line, the
+    copy-brief button and the cross-lane correlation badge are product."""
+    page = client.get("/").text
+    assert 'id="copy-brief"' in page
+    app_js = client.get("/static/app.js").text
+    assert "fraud_hold" in app_js
+    assert "budget_risk" in app_js
+    assert "/analytics/calibration" in app_js
+    assert "/analytics/headline" in app_js
+    assert "cost spike same day" in app_js
+    assert "expires in" in app_js
 
 
 def test_dashboard_ships_the_intelligence_panel():

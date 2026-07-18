@@ -227,6 +227,68 @@ def persist_flagged(conn: sqlite3.Connection, signals: list[FraudSignal]) -> Non
         )
 
 
+HOLD_ACTION_NOTE = (
+    "suggestion only — approving records the operator's hold decision in the "
+    "audit trail; no payment is ever blocked automatically"
+)
+
+
+def file_hold_actions(conn: sqlite3.Connection, signals: list[FraudSignal]) -> int:
+    """File one HITL inbox card per hold_suggested signal (no LLM involved).
+
+    Three missions, one decision box: the fraud lane's strongest signals
+    now meet the same operator gate the cost lane uses. The card is pure
+    rule arithmetic — the deterministic score, its per-rule hits and the
+    advisory note — and the reuse guard keeps one open card per signal
+    across re-sweeps. Rejected cards may be re-filed on a later sweep,
+    mirroring the cost lane's reuse semantics.
+    """
+    holds = [signal for signal in signals if signal.band == "hold_suggested"]
+    if not holds:
+        return 0
+    filed_signals: list[FraudSignal] = []
+    with db.writing(conn):
+        for signal in holds:
+            event = conn.execute(
+                "SELECT id FROM events WHERE kind = ? AND service = ? "
+                "AND occurred_on = ?",
+                (EVENT_KIND, signal.id, signal.date),
+            ).fetchone()
+            if event is None:
+                continue  # not persisted yet — the next sweep files it
+            open_card = conn.execute(
+                "SELECT 1 FROM actions WHERE event_id = ? AND state != 'rejected' "
+                "LIMIT 1",
+                (event["id"],),
+            ).fetchone()
+            if open_card is not None:
+                continue
+            detail = {
+                "kind": "fraud_hold",
+                "category": "FRAUD_REVIEW",
+                "fraud": signal.model_dump(),
+                "note": HOLD_ACTION_NOTE,
+            }
+            conn.execute(
+                "INSERT INTO actions (event_id, title, detail_json) VALUES (?, ?, ?)",
+                (
+                    event["id"],
+                    f"Review payment {signal.id} — hold suggested (score {signal.score})",
+                    json.dumps(detail),
+                ),
+            )
+            filed_signals.append(signal)
+    for signal in filed_signals:
+        logger.info(
+            "[FRAUD] %s",
+            json.dumps(
+                {"id": signal.id, "score": signal.score, "band": signal.band},
+                sort_keys=True,
+            ),
+        )
+    return len(filed_signals)
+
+
 @router.get("/signals")
 def get_fraud_signals(
     band: Literal["clear", "review", "hold_suggested"] | None = Query(

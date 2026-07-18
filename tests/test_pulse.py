@@ -34,11 +34,20 @@ def test_pulse_runs_the_full_chain_to_the_inbox(client):
         assert link["preferred"] in {"CAUTIOUS", "BOLD"}
 
     inbox = client.get("/actions").json()
-    assert inbox["count"] == report["signals"]
+    # cost proposals plus the deterministic fraud-hold cards the sweep filed
+    assert inbox["count"] == report["signals"] + report["fraud_holds_filed"]
+    assert report["fraud_holds_filed"] == 2  # TX-1004 and TX-1010
+    assert report["budget_cards_filed"] == 0  # no budget knob in tests
     assert {a["state"] for a in inbox["actions"]} == {"proposed"}
-    # the inbox card carries the full evidence pack
+    # the cost inbox card carries the full evidence pack
     detail = inbox["actions"][0]["detail"]
     assert {"anomaly", "analysis", "options", "savings"} <= set(detail)
+    # the fraud card carries the rule arithmetic and the advisory note
+    fraud_card = next(
+        a["detail"] for a in inbox["actions"] if a["detail"].get("kind") == "fraud_hold"
+    )
+    assert fraud_card["fraud"]["rule_hits"]
+    assert "blocked automatically" in fraud_card["note"]
 
 
 def test_pulse_is_idempotent_and_quota_cheap(client):
@@ -64,7 +73,9 @@ def test_pulse_is_idempotent_and_quota_cheap(client):
     # the agents themselves spend nothing on a re-run; the chronicler's
     # briefing is the one deliberate per-pulse call (and the only new row)
     assert usage_after_second == usage_after_first + 1
-    assert actions == first["signals"]  # no duplicate cards
+    # no duplicate cards — cost proposals and fraud holds both reuse
+    assert actions == first["signals"] + first["fraud_holds_filed"]
+    assert second["fraud_holds_filed"] == 0  # the open cards were reused
 
 
 def test_pulse_respects_the_threshold_parameter(client):
@@ -130,7 +141,12 @@ def test_pulse_completes_on_provider_failure(client, monkeypatch):
     assert report["signals"] >= 2
     assert report["proposals_filed"] == report["signals"]
     inbox = client.get("/actions").json()["actions"]
-    assert all(a["detail"]["source"] == "fallback" for a in inbox)
+    cost_cards = [
+        a for a in inbox
+        if a["detail"].get("kind") not in ("fraud_hold", "budget_risk")
+    ]
+    assert cost_cards
+    assert all(a["detail"]["source"] == "fallback" for a in cost_cards)
 
 
 def test_hitl_decision_joins_the_log_stream(client, caplog):

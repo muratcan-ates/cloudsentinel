@@ -22,6 +22,7 @@ import logging
 import math
 import os
 import sqlite3
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query
 
@@ -102,6 +103,28 @@ def expire_stale_proposals(conn: sqlite3.Connection) -> int:
         return cursor.rowcount
 
 
+def _expires_in_hours(row: sqlite3.Row) -> float | None:
+    """Hours until the request-triggered TTL expires this proposal.
+
+    None for decided actions, a disabled TTL, or an unparseable timestamp.
+    The figure can dip slightly negative between the moment a proposal
+    crosses the cutoff and the read that sweeps it — honest, not clamped.
+    """
+    if row["state"] != DECIDABLE_STATE:
+        return None
+    ttl = action_ttl_hours()
+    if ttl <= 0:
+        return None
+    try:
+        proposed = datetime.strptime(row["proposed_at"], "%Y-%m-%d %H:%M:%S").replace(
+            tzinfo=timezone.utc
+        )
+    except (TypeError, ValueError):
+        return None
+    age_hours = (datetime.now(timezone.utc) - proposed).total_seconds() / 3600
+    return round(ttl - age_hours, 1)
+
+
 def _to_record(row: sqlite3.Row) -> ActionRecord:
     return ActionRecord(
         id=row["id"],
@@ -113,6 +136,7 @@ def _to_record(row: sqlite3.Row) -> ActionRecord:
         decided_at=row["decided_at"],
         decided_by=row["decided_by"],
         executed_at=row["executed_at"],
+        expires_in_hours=_expires_in_hours(row),
     )
 
 

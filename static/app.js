@@ -67,6 +67,8 @@ const state = {
   fraud: null, // GET /fraud/signals — unified watch strip (section I)
   watchStale: false, // last watch fetch failed on at least one lane
   whatif: new Map(), // action id → /analytics/whatif — decision-moment numbers
+  calibration: null, // GET /analytics/calibration — confidence vs verdicts (VI)
+  headline: null, // GET /analytics/headline — one-line jury brief (copy button)
   env: "local", // deploy environment from /health — drives the LIVE banner
   readonly: false, // SENTINEL_READONLY showcase mode — writes are disabled
   auditExpanded: false, // section V shows the newest entries until asked
@@ -131,6 +133,14 @@ const escapeHtml = (value) =>
 const utcNow = () =>
   new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) + " UTC";
 
+/* "4d ago" for a YYYY-MM-DD — relative context without touching the data. */
+function daysAgo(dateStr) {
+  const then = new Date(`${dateStr}T00:00:00Z`);
+  if (Number.isNaN(then.getTime())) return "";
+  const days = Math.floor((Date.now() - then.getTime()) / 86400000);
+  return days <= 0 ? "today" : days === 1 ? "1d ago" : `${days}d ago`;
+}
+
 async function fetchJson(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`${url} → HTTP ${response.status}`);
@@ -185,17 +195,21 @@ let intelSequence = 0; // last-writer-wins: stale analytics must never overwrite
 async function loadIntelligence() {
   const sequence = ++intelSequence;
   try {
-    const [analytics, trend, aiUsage, forecast] = await Promise.all([
+    const [analytics, trend, aiUsage, forecast, calibration, headline] = await Promise.all([
       fetchJson("/analytics/decisions"),
       fetchJson("/analytics/costs/trend"),
       fetchJson("/analytics/ai"),
       fetchJson("/analytics/costs/forecast"),
+      fetchJson("/analytics/calibration").catch(() => null),
+      fetchJson("/analytics/headline").catch(() => null),
     ]);
     if (sequence !== intelSequence) return;
     state.analytics = analytics;
     state.trend = trend;
     state.aiUsage = aiUsage;
     state.forecast = forecast;
+    state.calibration = calibration;
+    state.headline = headline;
     state.intelStale = false;
   } catch {
     if (sequence !== intelSequence) return;
@@ -232,6 +246,9 @@ function renderWatch() {
     securityBox.innerHTML = `<p class="meta watch-head">security — loads with the first scan</p>`;
   } else {
     const report = state.security;
+    // cross-lane correlation: a login storm on a spend-spike day is one
+    // story told by two lanes — the badge joins them by calendar date
+    const costSpikeDates = new Set(state.allAnomalies.map((anomaly) => anomaly.date));
     securityBox.innerHTML =
       `<p class="meta watch-head">security — ${report.signal_count} signal${report.signal_count === 1 ? "" : "s"} · ${escapeHtml(report.metric)} · mission ${escapeHtml(report.mission ?? "—")}</p>` +
       report.signals
@@ -239,7 +256,7 @@ function renderWatch() {
           (signal) => `
       <p class="watch-row ${signal.severity === "critical" ? "critical" : ""}">
         <span class="watch-glyph" aria-hidden="true">▣</span><span class="watch-strong">${escapeHtml(signal.service)}</span> · ${escapeHtml(signal.date)} ·
-        ${fmtNumber(signal.count)} events vs ${fmtNumber(signal.baseline)} baseline · z ${signal.z_score.toFixed(2)} · ${escapeHtml(signal.severity)}
+        ${fmtNumber(signal.count)} events vs ${fmtNumber(signal.baseline)} baseline · z ${signal.z_score.toFixed(2)} · ${escapeHtml(signal.severity)}${costSpikeDates.has(signal.date) ? ` · <span class="watch-strong">⇄ cost spike same day</span>` : ""}
       </p>`
         )
         .join("");
@@ -325,7 +342,7 @@ function renderAnomalies(report) {
       <span class="sq" aria-hidden="true"></span>
       <div>
         <p class="service">${escapeHtml(anomaly.service)}</p>
-        <p class="date">${escapeHtml(anomaly.date)}</p>
+        <p class="date">${escapeHtml(anomaly.date)}${daysAgo(anomaly.date) ? ` · ${daysAgo(anomaly.date)}` : ""}</p>
         <p class="figures">${fmtNumber(anomaly.cost)} <span class="dim">vs baseline ${fmtNumber(anomaly.service_mean)}</span></p>
         ${anomaly.service_mean > 0
           ? `<p class="ratio-note">${(anomaly.cost / anomaly.service_mean).toFixed(1)}× the usual daily spend</p>`
@@ -867,21 +884,44 @@ function renderDecisions() {
 
   state.actions.forEach((action) => {
     const detail = action.detail || {};
+    const cardKind = detail.kind; // fraud_hold | budget_risk | (cost card)
     const anomaly = detail.anomaly || {};
     const analysisReport = detail.analysis || {};
     const confidence = detail.confidence || {};
     const preferred = (detail.options || []).find((o) => o.stance === detail.preferred);
     const saving = preferredMonthlySaving(detail);
     const busy = state.hitlBusy.has(action.id);
-    const whatif = action.state === "proposed" ? state.whatif.get(action.id) : null;
-    const severity = anomaly.severity || "warning";
+    const whatif =
+      action.state === "proposed" && !cardKind ? state.whatif.get(action.id) : null;
+    const severity =
+      cardKind === "fraud_hold"
+        ? (detail.fraud?.score ?? 0) >= 90 ? "critical" : "warning"
+        : cardKind === "budget_risk"
+          ? "critical"
+          : anomaly.severity || "warning";
     const resolved = action.state === "rejected" || action.state === "executed";
     const card = document.createElement("article");
     card.className = `decision ${severity} ${resolved ? "resolved" : ""} ${action.state}`;
-    // evidence pack: anomaly + triage + reasoning + options on ONE card
-    card.innerHTML = `
-      <span class="sq" aria-hidden="true"></span>
-      <div>
+    // card body per lane: cost cards carry the full agent evidence pack;
+    // fraud and budget cards carry their deterministic arithmetic instead
+    let bodyHtml;
+    if (cardKind === "fraud_hold") {
+      const fraud = detail.fraud || {};
+      bodyHtml = `
+        <p class="dec-title">${escapeHtml(fraud.service || "payments")} — ${escapeHtml(action.title)}</p>
+        <p class="dec-copy">${escapeHtml(fraud.date || "—")} · amount ${fmtNumber(fraud.amount ?? 0)} USD · published rule score ${fraud.score ?? "—"} — ${escapeHtml(fraud.band === "hold_suggested" ? "hold suggested" : fraud.band || "")}</p>
+        <p class="dec-facts">${(fraud.rule_hits || []).map((hit) => `<span>${escapeHtml(hit.rule.replace("_", " "))} +${hit.points}</span>`).join("")}</p>
+        ${(fraud.reasons || []).length ? `<p class="meta">${escapeHtml(fraud.reasons.join(" · "))}</p>` : ""}
+        <p class="meta">${escapeHtml(detail.note || "")}</p>`;
+    } else if (cardKind === "budget_risk") {
+      const forecast = detail.forecast || {};
+      bodyHtml = `
+        <p class="dec-title">monthly budget — ${escapeHtml(action.title)}</p>
+        <p class="dec-copy">projected ${fmtNumber(forecast.projected_month_total ?? 0)} vs budget ${fmtNumber(forecast.monthly_budget ?? 0)} — overage ${fmtNumber(detail.overage ?? 0)} for ${escapeHtml(forecast.month || "the month")}</p>
+        <p class="dec-facts">${(detail.options || []).map((option) => `<span>${escapeHtml(option.stance)} — ${escapeHtml(option.title)}</span>`).join("")}</p>
+        <p class="meta">${escapeHtml(detail.note || "")}</p>`;
+    } else {
+      bodyHtml = `
         <p class="dec-title">${escapeHtml(anomaly.service || "service")} — ${escapeHtml(action.title)}</p>
         <p class="dec-copy">observed ${escapeHtml(anomaly.date || "—")} · z ${anomaly.z_score != null ? Number(anomaly.z_score).toFixed(2) : "—"} · triage ${escapeHtml(analysisReport.triage || "—")} — ${escapeHtml(analysisReport.summary || "no analyst summary recorded")}</p>
         <p class="dec-facts"><span>stance ${escapeHtml(detail.preferred || "—")}</span><span>risk ${escapeHtml(preferred ? preferred.risk : "—")}</span><span>est. saving ${fmtNumber(saving ?? 0)} / month</span><span>confidence ${confidence.score != null ? Math.round(confidence.score * 100) : "—"}%</span></p>
@@ -891,7 +931,11 @@ function renderDecisions() {
         ${memoryFold(detail)}
         ${traceFold(detail)}
         ${numericCheckLine(detail)}
-        ${whatif ? `<p class="meta">if approved — month projection ${fmtNumber(whatif.current_monthly_projection)} → ${fmtNumber(whatif.with_action_monthly_projection)} (−${fmtNumber(whatif.monthly_saving_if_executed)}/mo, simulated)</p>` : ""}
+        ${whatif ? `<p class="meta">if approved — month projection ${fmtNumber(whatif.current_monthly_projection)} → ${fmtNumber(whatif.with_action_monthly_projection)} (−${fmtNumber(whatif.monthly_saving_if_executed)}/mo, simulated)</p>` : ""}`;
+    }
+    card.innerHTML = `
+      <span class="sq" aria-hidden="true"></span>
+      <div>${bodyHtml}
       </div>
       <div class="dec-rail">
         <span class="chip ${action.decided_by === "system:timeout" ? "expired" : action.state}">${
@@ -902,6 +946,7 @@ function renderDecisions() {
               : escapeHtml(action.state)
         }</span>
         <p class="dec-status">${escapeHtml(actionStatusLine(action))}</p>
+        ${action.expires_in_hours != null ? `<p class="meta">${action.expires_in_hours >= 48 ? `expires in ~${Math.round(action.expires_in_hours / 24)}d` : `expires in ~${Math.max(0, Math.round(action.expires_in_hours))}h`}</p>` : ""}
         ${action.event_id != null ? `<button class="row-action" type="button" data-view-signal="${action.event_id}" aria-label="jump to the ${escapeHtml(anomaly.service || "")} signal in investigation">view signal ↑</button>` : ""}
         ${action.state === "proposed" && !busy && !state.readonly ? `
           <input type="text" class="rationale-input" placeholder="rationale — feeds decision memory" maxlength="500" data-rationale-for="${action.id}" aria-label="rationale for the ${escapeHtml(anomaly.service || "")} decision" />
@@ -1011,7 +1056,15 @@ function renderIntelligence() {
     <p class="meta tele-line">avg confidence — <span class="tele-fig">${
       telemetry.avg_confidence == null ? "—" : `${Math.round(telemetry.avg_confidence * 100)}%`
     }</span></p>
-    <p class="meta tele-line">ledger — <span class="tele-fig">${telemetry.requests_total}</span> agent calls · <span class="tele-fig">${telemetry.cache_hits}</span> cached · <span class="tele-fig">${telemetry.debates}</span> debate${telemetry.debates === 1 ? "" : "s"}</p>
+    <p class="meta tele-line">ledger — <span class="tele-fig">${telemetry.requests_total}</span> agent calls · <span class="tele-fig">${telemetry.cache_hits}</span> cached · <span class="tele-fig">${telemetry.debates}</span> debate${telemetry.debates === 1 ? "" : "s"}${telemetry.debates_overturned ? ` · <span class="tele-fig">${telemetry.debates_overturned}</span> overturned` : ""}</p>
+    ${
+      state.calibration && state.calibration.decisions_with_confidence
+        ? `<p class="meta tele-line">calibration — ${state.calibration.buckets
+            .filter((bucket) => bucket.decisions)
+            .map((bucket) => `${escapeHtml(bucket.range)}: ${Math.round((bucket.approval_rate ?? 0) * 100)}% (${bucket.decisions})`)
+            .join(" · ")}</p>`
+        : ""
+    }
     <p class="meta tele-line">${sources ? `sources — ${sources}` : "no agent calls ledgered yet"}</p>
     ${
       quota
@@ -1261,10 +1314,11 @@ async function runPulse() {
     });
     state.audit.unshift({
       time: utcNow(),
-      title: `Pulse swept the estate — ${report.signals} cost + ${report.security_signals} security signal${report.security_signals === 1 ? "" : "s"}`,
+      title: `Pulse swept the estate — ${report.signals} cost + ${report.security_signals} security + ${report.fraud_signals ?? 0} fraud signals`,
       copy:
         `mission ${report.mission ?? "—"} · REFLEX ${report.reflex_ms ?? "—"} ms · ` +
         `${report.analyzed} analyzed · ${report.proposals_filed} filed · ${report.proposals_reused} reused · ` +
+        `${(report.fraud_holds_filed ?? 0) + (report.budget_cards_filed ?? 0) ? `${report.fraud_holds_filed ?? 0} fraud hold(s) + ${report.budget_cards_filed ?? 0} budget card(s) filed · ` : ""}` +
         `LLM ${report.llm_calls_used}/${report.llm_budget}${
           report.budget_exhausted ? " — budget exhausted, fallbacks answered" : ""
         }.`,
@@ -1380,6 +1434,24 @@ document.addEventListener("click", (event) => {
   const pulseCta = event.target.closest("[data-run-pulse]");
   if (pulseCta) {
     runPulse();
+    return;
+  }
+
+  const copyBrief = event.target.closest("#copy-brief");
+  if (copyBrief && state.headline) {
+    navigator.clipboard
+      .writeText(state.headline.headline)
+      .then(() => {
+        state.audit.unshift({
+          time: utcNow(),
+          title: "Jury brief copied to the clipboard",
+          copy: state.headline.headline,
+        });
+        renderAudit();
+      })
+      .catch(() => {
+        /* clipboard can be unavailable — the headline stays visible in VI */
+      });
     return;
   }
 

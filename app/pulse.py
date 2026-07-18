@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app import db, fraud
 from app.analyst import analyze_event
+from app.analytics import file_budget_risk_action
 from app.chronicler import write_briefing
 from app.missions import MissionError, get_mission
 from app.recommender import recommend_for_event
@@ -176,6 +177,10 @@ def run_pulse(
             signal for signal in fraud.score_events() if signal.band != "clear"
         ]
         fraud.persist_flagged(conn, fraud_flagged)
+        # Three missions, one decision box: hold-suggested payments and a
+        # projected budget overrun file deterministic HITL cards (no LLM).
+        fraud_holds_filed = fraud.file_hold_actions(conn, fraud_flagged)
+        budget_cards_filed = file_budget_risk_action(conn)
 
         # Chronicler: one budgeted call narrates the run for the operator.
         # The facts are computed HERE, in Python — the agent only restates
@@ -185,6 +190,7 @@ def run_pulse(
             "cost_signals": len(links),
             "security_signals": security_report.signal_count,
             "fraud_flagged": len(fraud_flagged),
+            "cross_lane_cards": fraud_holds_filed + budget_cards_filed,
             "analyzed": analyzed_count,
             "proposals_filed": filed_count,
             "proposals_reused": reused_count,
@@ -208,6 +214,8 @@ def run_pulse(
         signals=len(links),
         security_signals=security_report.signal_count,
         fraud_signals=len(fraud_flagged),
+        fraud_holds_filed=fraud_holds_filed,
+        budget_cards_filed=budget_cards_filed,
         analyzed=analyzed_count,
         proposals_filed=filed_count,
         proposals_reused=reused_count,

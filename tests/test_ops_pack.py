@@ -35,10 +35,15 @@ def test_exhausted_budget_degrades_to_fallbacks_not_failures(client, monkeypatch
     assert body["budget_exhausted"] is True
     assert body["llm_calls_used"] == 0
     assert body["signals"] == 2  # detection is deterministic, unaffected
-    # every filed proposal came from the rule-based fallback lane
+    # every filed COST proposal came from the rule-based fallback lane;
+    # fraud-hold and budget cards never touch an LLM in the first place
     actions = client.get("/actions").json()["actions"]
-    assert actions
-    assert all(a["detail"]["source"] == "fallback" for a in actions)
+    cost_cards = [
+        a for a in actions
+        if a["detail"].get("kind") not in ("fraud_hold", "budget_risk")
+    ]
+    assert cost_cards
+    assert all(a["detail"]["source"] == "fallback" for a in cost_cards)
 
 
 def test_pulse_budget_env_parsing(monkeypatch):

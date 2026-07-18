@@ -19,6 +19,7 @@ Answers the operator's standing questions:
 
 import calendar
 import json
+import logging
 import os
 import sqlite3
 from datetime import date
@@ -39,6 +40,8 @@ from app.models import (
     HitlFunnel,
     ServiceTrendRow,
 )
+
+logger = logging.getLogger("cloudsentinel.analytics")
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 metrics_router = APIRouter(prefix="/metrics", tags=["analytics"])
@@ -65,12 +68,23 @@ def _funnel(conn: sqlite3.Connection) -> HitlFunnel:
         "SELECT count(*) FROM events WHERE kind = 'cost_anomaly' "
         "AND analysis_json IS NOT NULL"
     ).fetchone()[0]
+    # Actions now span lanes (fraud holds, the budget guard); the funnel
+    # stays the COST conversion story, so scope by the linked event's kind.
+    # Legacy rows without an event id predate the other lanes — cost.
+    cost_scope = (
+        "LEFT JOIN events e ON e.id = a.event_id "
+        "WHERE (e.kind = 'cost_anomaly' OR a.event_id IS NULL)"
+    )
     states = {
         row["state"]: row["n"]
-        for row in conn.execute("SELECT state, count(*) AS n FROM actions GROUP BY state")
+        for row in conn.execute(
+            f"SELECT a.state AS state, count(*) AS n FROM actions a {cost_scope} "
+            "GROUP BY a.state"
+        )
     }
     timeout_rejections = conn.execute(
-        "SELECT count(*) FROM actions WHERE decided_by = ?", (TIMEOUT_ACTOR,)
+        f"SELECT count(*) FROM actions a {cost_scope} AND a.decided_by = ?",
+        (TIMEOUT_ACTOR,),
     ).fetchone()[0]
     return HitlFunnel(
         signals=signals,
@@ -164,6 +178,18 @@ def _telemetry(conn: sqlite3.Connection) -> AgentTelemetry:
     cache_hits = conn.execute(
         "SELECT count(*) FROM ai_usage WHERE from_cache = 1"
     ).fetchone()[0]
+    # Did the skeptic ever CHANGE an outcome? Count persisted transcripts
+    # whose verdict overturned the draft stance — the debate's measurable
+    # effect, not just its occurrence.
+    overturned = 0
+    for row in conn.execute("SELECT detail_json FROM actions"):
+        try:
+            transcript = json.loads(row["detail_json"]).get("transcript")
+        except json.JSONDecodeError:
+            continue
+        if isinstance(transcript, dict) and transcript.get("agreed") is False:
+            overturned += 1
+
     return AgentTelemetry(
         triage_distribution=dict(sorted(triage.items())),
         avg_confidence=round(sum(scores) / len(scores), 4) if scores else None,
@@ -172,6 +198,7 @@ def _telemetry(conn: sqlite3.Connection) -> AgentTelemetry:
         by_source=by_source,
         by_agent=by_agent,
         debates=by_agent.get("skeptic", 0),
+        debates_overturned=overturned,
     )
 
 
@@ -403,6 +430,202 @@ def cost_forecast() -> CostForecastReport:
             f"the {remaining} unobserved day(s) of {month_prefix}"
         ),
     )
+
+
+CALIBRATION_METHOD = (
+    "operator approval rate per recommendation-confidence bucket; a "
+    "well-calibrated agent earns more approvals as its own confidence rises"
+)
+
+CALIBRATION_BUCKETS = ((0.0, 0.4), (0.4, 0.6), (0.6, 0.8), (0.8, 1.01))
+
+
+class CalibrationBucket(BaseModel):
+    range: str
+    decisions: int
+    approved: int
+    approval_rate: float | None
+
+
+class CalibrationReport(BaseModel):
+    method: str
+    decisions_with_confidence: int
+    buckets: list[CalibrationBucket]
+    note: str
+
+
+@router.get("/calibration")
+def confidence_calibration(
+    conn: sqlite3.Connection = Depends(db.get_db),
+) -> CalibrationReport:
+    """Does the agent KNOW how good it is? Confidence vs human verdicts."""
+    counts = [[0, 0] for _ in CALIBRATION_BUCKETS]  # [decisions, approved]
+    considered = 0
+    for row in conn.execute(
+        "SELECT verdict, input_context_json FROM decisions"
+    ):
+        try:
+            confidence = json.loads(row["input_context_json"])["confidence"]["score"]
+            confidence = float(confidence)
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            continue  # seeded verdicts and non-cost lanes carry no confidence
+        for index, (low, high) in enumerate(CALIBRATION_BUCKETS):
+            if low <= confidence < high:
+                counts[index][0] += 1
+                if row["verdict"] == "approved":
+                    counts[index][1] += 1
+                considered += 1
+                break
+    buckets = [
+        CalibrationBucket(
+            range=f"{low:.1f}–{min(high, 1.0):.1f}",
+            decisions=decided,
+            approved=approved,
+            approval_rate=round(approved / decided, 4) if decided else None,
+        )
+        for (low, high), (decided, approved) in zip(CALIBRATION_BUCKETS, counts)
+    ]
+    return CalibrationReport(
+        method=CALIBRATION_METHOD,
+        decisions_with_confidence=considered,
+        buckets=buckets,
+        note=(
+            "decisions without a recorded confidence (seeded history, "
+            "fraud holds, the budget guard) are excluded"
+        ),
+    )
+
+
+class HeadlineReport(BaseModel):
+    headline: str
+    generated_from: list[str]
+
+
+@router.get("/headline")
+def analytics_headline(
+    conn: sqlite3.Connection = Depends(db.get_db),
+) -> HeadlineReport:
+    """One jury-ready sentence, composed from the persisted aggregates."""
+    funnel = _funnel(conn)
+    quality = _quality(conn)
+    parts = [
+        f"{funnel.signals} signals → {funnel.analyzed} analyzed → "
+        f"{funnel.proposals} proposals",
+        f"{quality.human_decisions} human decision"
+        f"{'' if quality.human_decisions == 1 else 's'}"
+        + (
+            f" ({round(quality.approval_rate * 100)}% approved)"
+            if quality.approval_rate is not None
+            else ""
+        ),
+        f"{quality.approved_estimated_monthly_savings:.2f}/mo estimated "
+        "approved savings — computed, never generated",
+    ]
+    return HeadlineReport(
+        headline="; ".join(parts) + ".",
+        generated_from=["/analytics/decisions"],
+    )
+
+
+BUDGET_ACTION_NOTE = (
+    "deterministic budget guard — the forecast arithmetic projected a "
+    "month-end overrun; deciding this card records the operator's stance, "
+    "nothing is throttled automatically"
+)
+
+
+def file_budget_risk_action(conn: sqlite3.Connection) -> int:
+    """File one HITL card when the forecast projects a month-end overrun.
+
+    Pure arithmetic, no LLM: the trigger is ``projected_over_budget`` from
+    the same OLS forecast the dashboard shows, and the two options are
+    fixed templates. One card per calendar month (natural key on the
+    budget_risk event); a rejected card may be re-filed by a later sweep.
+    Inert unless SENTINEL_MONTHLY_BUDGET is set.
+    """
+    if monthly_budget() is None:
+        return 0
+    try:
+        forecast = cost_forecast()
+    except HTTPException:
+        return 0  # not enough observed days — nothing to guard yet
+    if not forecast.projected_over_budget:
+        return 0
+    overage = round(forecast.projected_month_total - forecast.monthly_budget, 2)
+    detail = {
+        "kind": "budget_risk",
+        "category": "BUDGET_GUARD",
+        "forecast": forecast.model_dump(),
+        "overage": overage,
+        "options": [
+            {
+                "stance": "CAUTIOUS",
+                "title": "Freeze non-essential scale-ups pending review",
+                "description": (
+                    "Hold elective capacity increases until the owning teams "
+                    "confirm the spend trajectory; revisit after the next "
+                    "billing day."
+                ),
+                "risk": "low",
+                "rollback": "available — lift the freeze at any time",
+            },
+            {
+                "stance": "BOLD",
+                "title": "Convene a same-day spend review on the top mover",
+                "description": (
+                    "Pull the owning team of the largest contributor into a "
+                    "same-day review and stage an immediate right-sizing "
+                    "decision."
+                ),
+                "risk": "medium",
+                "rollback": "not applicable — review only",
+            },
+        ],
+        "preferred": "CAUTIOUS",
+        "note": BUDGET_ACTION_NOTE,
+    }
+    with db.writing(conn):
+        event_id = db.upsert_event(
+            conn,
+            kind="budget_risk",
+            service="monthly-budget",
+            occurred_on=f"{forecast.month}-01",
+            payload_json=json.dumps(
+                {
+                    "month": forecast.month,
+                    "projected": forecast.projected_month_total,
+                    "budget": forecast.monthly_budget,
+                    "overage": overage,
+                }
+            ),
+        )
+        open_card = conn.execute(
+            "SELECT 1 FROM actions WHERE event_id = ? AND state != 'rejected' LIMIT 1",
+            (event_id,),
+        ).fetchone()
+        if open_card is not None:
+            return 0
+        conn.execute(
+            "INSERT INTO actions (event_id, title, detail_json) VALUES (?, ?, ?)",
+            (
+                event_id,
+                f"Budget guard — {forecast.month} projected "
+                f"{forecast.projected_month_total:.2f} vs {forecast.monthly_budget:.2f}",
+                json.dumps(detail),
+            ),
+        )
+    logger.info(
+        "[BUDGET] %s",
+        json.dumps(
+            {
+                "month": forecast.month,
+                "projected": forecast.projected_month_total,
+                "budget": forecast.monthly_budget,
+            },
+            sort_keys=True,
+        ),
+    )
+    return 1
 
 
 # --- what-if: the Time Machine embryo, deterministic (S3 value pack) --------
