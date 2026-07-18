@@ -26,6 +26,7 @@ open transaction, untrusted payloads spotlighted.
 
 import json
 import logging
+import re
 import sqlite3
 from typing import Literal
 
@@ -61,6 +62,62 @@ DECISION_MEMORY_LIMIT = 5
 
 
 _warned_mission_fallback = False
+
+
+# Stakes-aware confidence bar (S3-⑤, deterministic): a BOLD answer to a
+# critical signal must clear a HIGHER confidence bar before skipping the
+# skeptic. Still strictly within the locked debate-lite triggers (low
+# confidence / disagreement, at most one extra call) — the bar moves, the
+# trigger set does not.
+CRITICAL_BOLD_CONFIDENCE_MARGIN = 0.15
+MAX_EFFECTIVE_THRESHOLD = 0.95
+
+# Hallucination post-check (S3-⑤): currency-looking figures in the LLM's
+# narrative are verified against the Python-computed figures within ±5%.
+# Plain small integers ("8 instances", "30 days") are not money claims and
+# are deliberately out of scope.
+NUMERIC_TOLERANCE = 0.05
+MIN_CHECKED_FIGURE = 50.0
+_MONEY_PATTERN = re.compile(
+    r"\$\s?\d+(?:,\d{3})*(?:\.\d+)?|\b\d{1,3}(?:,\d{3})+(?:\.\d+)?\b|\b\d+\.\d{2}\b"
+)
+
+
+def verify_narrative_figures(
+    report: "RecommenderReport", savings: dict, anomaly: dict
+) -> dict:
+    """±5% check of narrative money figures against computed arithmetic.
+
+    Returns ``{"status": "ok"|"flagged", "figures": [...]}`` — flagged
+    figures are surfaced, never silently trusted; the numbers the operator
+    acts on always come from the deterministic ``savings`` block anyway.
+    """
+    allowed = [
+        float(savings.get("daily_excess", 0.0)),
+        float(savings.get("cautious_monthly", 0.0)),
+        float(savings.get("bold_monthly", 0.0)),
+        float(anomaly.get("cost", 0.0)),
+        float(anomaly.get("service_mean", 0.0)),
+    ]
+    flagged: list[dict] = []
+    for option in report.options:
+        for text in (option.title, option.description, option.rollback):
+            for raw in _MONEY_PATTERN.findall(text):
+                value = float(raw.lstrip("$ ").replace(",", ""))
+                if value < MIN_CHECKED_FIGURE:
+                    continue
+                verified = any(
+                    base > 0 and abs(value - base) / base <= NUMERIC_TOLERANCE
+                    for base in allowed
+                )
+                if not verified:
+                    flagged.append({"figure": raw.strip(), "stance": option.stance})
+    if flagged:
+        logger.warning(
+            "[RECOMMENDER] numeric post-check flagged %d narrative figure(s)",
+            len(flagged),
+        )
+    return {"status": "flagged" if flagged else "ok", "figures": flagged}
 
 
 def debate_threshold() -> float:
@@ -265,13 +322,32 @@ def ensure_two_options(report: RecommenderReport, anomaly: dict) -> RecommenderR
 
 
 def escalation_trigger(
-    analyst_triage: str, confidence_score: float, threshold: float | None = None
+    analyst_triage: str,
+    confidence_score: float,
+    threshold: float | None = None,
+    *,
+    severity: str | None = None,
+    preferred: str | None = None,
 ) -> str | None:
-    """Debate-lite fires on low confidence OR analyst/recommender disagreement."""
+    """Debate-lite fires on low confidence OR analyst/recommender disagreement.
+
+    The confidence bar is stakes-aware and deterministic: a BOLD stance on
+    a critical-severity signal raises the bar by a fixed margin, so the
+    model's self-reported confidence alone can never wave a high-stakes
+    action past the skeptic.
+    """
     if threshold is None:
         threshold = debate_threshold()
-    if confidence_score < threshold:
-        return f"low confidence ({confidence_score:.2f} < {threshold:.2f})"
+    effective = threshold
+    if severity == "critical" and preferred == "BOLD":
+        effective = min(
+            threshold + CRITICAL_BOLD_CONFIDENCE_MARGIN, MAX_EFFECTIVE_THRESHOLD
+        )
+    if confidence_score < effective:
+        reason = f"low confidence ({confidence_score:.2f} < {effective:.2f})"
+        if effective != threshold:
+            reason += " — stakes-raised bar (critical signal, BOLD stance)"
+        return reason
     if analyst_triage != "REAL":
         return (
             f"analyst-recommender disagreement (triage {analyst_triage} "
@@ -367,6 +443,8 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
             analyst_report.get("triage", "REAL"),
             report.confidence.score,
             threshold=escalation_threshold,
+            severity=anomaly.get("severity"),
+            preferred=report.preferred,
         )
         transcript = None
         if escalation_reason is not None and source != "fallback":
@@ -410,6 +488,9 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
             "model": model_used,
             "escalation_reason": escalation_reason,
             "transcript": transcript,
+            # Post-check runs on the FINAL narrative (after any skeptic
+            # revision) so what the operator reads is what was verified.
+            "numeric_check": verify_narrative_figures(report, savings, anomaly),
         }
 
     report = RecommenderReport.model_validate(envelope["report"])
@@ -429,6 +510,7 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
         "confidence": report.confidence.model_dump(),
         "escalation_reason": escalation_reason,
         "transcript": transcript,
+        "numeric_check": envelope.get("numeric_check"),
         "source": source,
         "model": envelope["model"],
         "analysis": analyst_report,

@@ -16,6 +16,7 @@ signal — re-running Pulse is idempotent and cheap.
 
 import json
 import logging
+import os
 import sqlite3
 
 from fastapi import APIRouter, Depends, Query
@@ -26,12 +27,29 @@ from app.missions import MissionError, get_mission
 from app.recommender import recommend_for_event
 from app.detection import DEFAULT_THRESHOLD, load_daily_costs, run_detection
 from app.models import PulseChainLink, PulseReport
+from app.llm import llm_call_budget
 from app.reflex import reflex_scan
 from app.security import persist_signals, scan_security
 
 logger = logging.getLogger("cloudsentinel.pulse")
 
 router = APIRouter(tags=["agents"])
+
+# One pulse may spend at most this many provider calls (S3-⑤). The mock
+# demo needs ~6 (2 signals x analyst+reflection+recommender); 8 leaves
+# headroom for a debate without letting a runaway chain burn the day's
+# free-tier quota.
+PULSE_BUDGET_ENV = "SENTINEL_PULSE_LLM_BUDGET"
+DEFAULT_PULSE_LLM_BUDGET = 8
+
+
+def pulse_llm_budget() -> int:
+    raw = os.environ.get(PULSE_BUDGET_ENV, "").strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return DEFAULT_PULSE_LLM_BUDGET
+    return value if value >= 0 else DEFAULT_PULSE_LLM_BUDGET
 
 
 @router.post("/pulse")
@@ -81,60 +99,69 @@ def run_pulse(
     filed_count = 0
     reused_count = 0
 
-    for anomaly in anomalies:
-        with db.writing(conn):
-            event_id = db.upsert_event(
-                conn,
-                kind="cost_anomaly",
-                service=anomaly.service,
-                occurred_on=anomaly.date,
-                payload_json=anomaly.model_dump_json(exclude={"id"}),
-            )
-        logger.info(
-            "[SIGNAL] %s",
-            json.dumps(
-                {
-                    "event_id": event_id,
-                    "service": anomaly.service,
-                    "date": anomaly.date,
-                    "z_score": anomaly.z_score,
-                    "severity": anomaly.severity,
-                },
-                sort_keys=True,
-            ),
-        )
+    budget_limit = pulse_llm_budget()
+    with llm_call_budget(budget_limit) as budget:
+        for anomaly in anomalies:
+                with db.writing(conn):
+                    event_id = db.upsert_event(
+                        conn,
+                        kind="cost_anomaly",
+                        service=anomaly.service,
+                        occurred_on=anomaly.date,
+                        payload_json=anomaly.model_dump_json(exclude={"id"}),
+                    )
+                logger.info(
+                    "[SIGNAL] %s",
+                    json.dumps(
+                        {
+                            "event_id": event_id,
+                            "service": anomaly.service,
+                            "date": anomaly.date,
+                            "z_score": anomaly.z_score,
+                            "severity": anomaly.severity,
+                        },
+                        sort_keys=True,
+                    ),
+                )
 
-        event = conn.execute(
-            "SELECT * FROM events WHERE id = ?", (event_id,)
-        ).fetchone()
-        if event["analysis_json"]:
-            envelope = json.loads(event["analysis_json"])
-            triage = envelope["report"]["triage"]
-        else:
-            analysis = analyze_event(conn, event)
-            triage = analysis.triage
-            analyzed_count += 1
-            event = conn.execute(
-                "SELECT * FROM events WHERE id = ?", (event_id,)
-            ).fetchone()
+                event = conn.execute(
+                    "SELECT * FROM events WHERE id = ?", (event_id,)
+                ).fetchone()
+                if event["analysis_json"]:
+                    envelope = json.loads(event["analysis_json"])
+                    triage = envelope["report"]["triage"]
+                else:
+                    analysis = analyze_event(conn, event)
+                    triage = analysis.triage
+                    analyzed_count += 1
+                    event = conn.execute(
+                        "SELECT * FROM events WHERE id = ?", (event_id,)
+                    ).fetchone()
 
-        recommendation = recommend_for_event(conn, event)
-        if recommendation.reused:
-            reused_count += 1
-        else:
-            filed_count += 1
+                recommendation = recommend_for_event(conn, event)
+                if recommendation.reused:
+                    reused_count += 1
+                else:
+                    filed_count += 1
 
-        links.append(
-            PulseChainLink(
-                event_id=event_id,
-                service=anomaly.service,
-                severity=anomaly.severity,
-                triage=triage,
-                action_id=recommendation.action_id,
-                action_state=recommendation.action_state,
-                preferred=recommendation.preferred,
-                reused=recommendation.reused,
-            )
+                links.append(
+                    PulseChainLink(
+                        event_id=event_id,
+                        service=anomaly.service,
+                        severity=anomaly.severity,
+                        triage=triage,
+                        action_id=recommendation.action_id,
+                        action_state=recommendation.action_state,
+                        preferred=recommendation.preferred,
+                        reused=recommendation.reused,
+                    )
+                )
+
+    if budget.exhausted:
+        logger.warning(
+            "pulse llm budget exhausted after %d call(s); remaining agents "
+            "answered with rule-based fallbacks",
+            budget.used,
         )
 
     # Unified detection: the security lane runs through the same line and
@@ -151,5 +178,8 @@ def run_pulse(
         analyzed=analyzed_count,
         proposals_filed=filed_count,
         proposals_reused=reused_count,
+        llm_budget=budget_limit,
+        llm_calls_used=budget.used,
+        budget_exhausted=budget.exhausted,
         chain=links,
     )

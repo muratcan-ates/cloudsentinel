@@ -14,12 +14,15 @@ Design constraints:
   ``response_schema`` translation silently drops them.
 """
 
+import contextvars
 import logging
+import math
 import os
 import re
 import time
 import types
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Callable, Literal, Union, get_args, get_origin
 
@@ -47,6 +50,23 @@ MAX_RETRY_DELAY_SECONDS = 120.0
 DATA_DELIMITER_OPEN = "<<untrusted-data>>"
 DATA_DELIMITER_CLOSE = "<</untrusted-data>>"
 
+# Hard per-call transport timeout for the live provider (Sprint 3, S3-⑤):
+# a hung request must fail into the retry/fallback machinery, not wedge a
+# worker thread indefinitely.
+LLM_TIMEOUT_ENV = "SENTINEL_LLM_TIMEOUT_SECONDS"
+DEFAULT_LLM_TIMEOUT_SECONDS = 30.0
+
+
+def llm_timeout_seconds() -> float:
+    raw = os.environ.get(LLM_TIMEOUT_ENV, "").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        return DEFAULT_LLM_TIMEOUT_SECONDS
+    if math.isfinite(value) and value > 0:
+        return value
+    return DEFAULT_LLM_TIMEOUT_SECONDS
+
 
 class Confidence(BaseModel):
     """Self-assessed confidence attached to agent output."""
@@ -57,6 +77,57 @@ class Confidence(BaseModel):
 
 class LLMUnavailableError(Exception):
     """No live completion could be obtained within the retry budget."""
+
+
+# --- per-scope call budget (Sprint 3, S3-⑤) ---------------------------------
+#
+# A budget caps how many provider calls one logical unit of work (a pulse,
+# a demo run) may spend. Overruns raise LLMUnavailableError, which lands on
+# the SAME fallback paths quota exhaustion already uses: agents degrade to
+# their rule-based answers instead of failing, and the budget object records
+# that it ran dry so reports can say so honestly.
+
+
+@dataclass
+class CallBudget:
+    """Mutable counter for provider calls inside one budget scope."""
+
+    limit: int
+    used: int = 0
+    exhausted: bool = False
+
+
+_call_budget: contextvars.ContextVar[CallBudget | None] = contextvars.ContextVar(
+    "sentinel_llm_call_budget", default=None
+)
+
+
+@contextmanager
+def llm_call_budget(limit: int):
+    """Cap provider calls inside this scope; yields the live counter."""
+    budget = CallBudget(limit=limit)
+    token = _call_budget.set(budget)
+    try:
+        yield budget
+    finally:
+        _call_budget.reset(token)
+
+
+def charge_call_budget() -> None:
+    """Consume one call from the active budget scope, if any.
+
+    Raises LLMUnavailableError once the scope is dry — callers already
+    treat that as "no live answer" and fall back deterministically.
+    """
+    budget = _call_budget.get()
+    if budget is None:
+        return
+    if budget.used >= budget.limit:
+        budget.exhausted = True
+        raise LLMUnavailableError(
+            f"llm call budget exhausted ({budget.limit} calls in this scope)"
+        )
+    budget.used += 1
 
 
 @dataclass
@@ -148,7 +219,12 @@ class GeminiProvider(LLMProvider):
             key = api_key or os.environ.get("GEMINI_API_KEY")
             if not key:
                 raise RuntimeError("GEMINI_API_KEY is not set")
-            client = genai.Client(api_key=key)
+            # Hard transport timeout (milliseconds): a hung call fails into
+            # the transient-retry path instead of blocking a worker thread.
+            client = genai.Client(
+                api_key=key,
+                http_options={"timeout": int(llm_timeout_seconds() * 1000)},
+            )
         self._client = client
         self._model = model
         self._max_attempts = max_attempts
@@ -166,6 +242,7 @@ class GeminiProvider(LLMProvider):
         system_instruction: str | None = None,
         response_schema: type[BaseModel] | None = None,
     ) -> LLMResult:
+        charge_call_budget()
         config: dict = {}
         if system_instruction is not None:
             config["system_instruction"] = system_instruction
@@ -276,6 +353,7 @@ class FakeProvider(LLMProvider):
         system_instruction: str | None = None,
         response_schema: type[BaseModel] | None = None,
     ) -> LLMResult:
+        charge_call_budget()  # the budget is observable under the fake too
         parsed = None
         if response_schema is not None:
             payload = (

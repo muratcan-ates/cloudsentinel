@@ -90,6 +90,9 @@ class AnalysisResponse(BaseModel):
     summary: str
     probable_cause: str
     evidence_ids: list[str]
+    # The calendar date each cited evidence row falls on, so the dashboard
+    # can ring the cited days by DATE rather than by fragile index math.
+    cited_dates: list[str] = []
     confidence: ConfidenceReport
     source: Literal["gemini", "fake", "fallback"]
     model: str
@@ -212,6 +215,12 @@ class PulseReport(BaseModel):
     analyzed: int
     proposals_filed: int
     proposals_reused: int
+    # Quota guardrail (S3-⑤): how many provider calls this pulse spent
+    # against its cap, and whether it ran dry (agents then answer with
+    # their rule-based fallbacks instead of failing).
+    llm_budget: int = 0
+    llm_calls_used: int = 0
+    budget_exhausted: bool = False
     chain: list[PulseChainLink]
 
 
