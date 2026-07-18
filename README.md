@@ -99,9 +99,11 @@ CloudSentinel is an agentic decision-support system that monitors cloud cost and
 - **Unified watch** — mock security events ride the identical detection line as cost (own mission, own event kind, never routed into the cost agents); payment events get a published deterministic rule score with per-rule point attribution — suggestions only
 - **Guardrail pack** — per-pulse LLM call budget (overridable per run), hard transport timeout, ±5% numeric post-check of narrative figures, stakes-raised debate bar for bold answers to critical signals, prompt spotlighting for untrusted data
 - **Operations intelligence** — HITL funnel, approved savings, window-over-window trend, month-end forecast with budget signal, what-if and before/after ROI, detection precision proxy, and a self-FinOps ledger of the system's own LLM spend
-- Live dashboard: anomaly feed, cost ledger, investigation evidence, decision inbox (with operator identity + rationale capture), audit ledger and operations intelligence — four palettes, WCAG AA, strict CSP
-- REST API (FastAPI, 31 endpoints) with self-hosted Swagger documentation (no CDN)
-- Demo operations, all env-gated: whole-week date rebase, demo reset with seeded verdict history, read-only public showcase mode
+- Live dashboard: anomaly feed with a live sentinel radar, cost ledger, investigation evidence, decision inbox (with operator identity + rationale capture), audit ledger and operations intelligence — real page rooms (`/watch`, `/investigate`, `/decide`, `/intel`), four palettes, WCAG AA, strict CSP
+- **Shift-handover brief** (`GET /analytics/handover`) — the standing operator questions answered from persisted state, printable to one page; a **guided jury tour** (`?tour=1`) walks the rooms in reading order
+- **Fully self-contained** — every font is self-hosted (`static/fonts/`) and Swagger is vendored, so the CSP allows no remote host on any path; shareable deep links (`?threshold=&service=`) open on the exact scene, and a `[BOOT]` manifest names each instance on startup
+- REST API (FastAPI, 32 endpoints) with self-hosted Swagger documentation (no CDN)
+- Demo operations, all env-gated: whole-week date rebase, demo reset with seeded verdict history, read-only public showcase mode; a borderline signal makes the sensitivity slider meaningful (lower it, a third warning surfaces)
 
 ## What It Does / What It Deliberately Does Not
 
@@ -208,7 +210,7 @@ cloudsentinel/
 ├── configs/              mission YAMLs — finops, security, fraud
 ├── static/               dashboard — tokenized design system, 4 palettes, vendored Swagger UI
 ├── scripts/              smoke test, failure drill, detection benchmark, Gemini spike
-├── tests/                380 pytest cases incl. performance budgets
+├── tests/                387 pytest cases incl. performance budgets
 ├── docs/                 architecture & agent design
 ├── Makefile              setup / run / test / demo / smoke / drill
 └── ProjectManagement/    sprint evidence packs (boards, screenshots)
@@ -285,7 +287,7 @@ docker run -p 8000:8000 cloudsentinel
 | **Python 3.12** | Core language (pinned in venv, CI and Docker) |
 | **FastAPI + Uvicorn** | REST API and ASGI server |
 | **Pydantic v2** | Typed request/response models and validation |
-| **pytest + httpx** | Automated test suite (380 tests, incl. performance budgets) |
+| **pytest + httpx** | Automated test suite (387 tests, incl. performance budgets) |
 | **SQLite** (stdlib `sqlite3`) | WAL-mode persistence core: action lifecycle, decision memory, LLM cache, idempotency |
 | **Docker** | Containerized, deployment-ready packaging |
 | **Gemini** (`google-genai`) | LLM provider layer with quota-aware retry and rule-based fallback |
@@ -469,7 +471,7 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Expected point completion within the sprint**: 13 points
 
-- **Point Completion Logic**: Sprint 2 carries 13 of the 36 total backlog points: Gemini agent spike (2), Analyst agent (3), Recommender with debate-lite (3), human-in-the-loop lifecycle (3), decision memory (2). All five stories are code-complete as of July 12 — the suite has since grown to 380 automated tests (~7s on the fake provider) — and formal completion is assessed at the July 19 review and demo.
+- **Point Completion Logic**: Sprint 2 carries 13 of the 36 total backlog points: Gemini agent spike (2), Analyst agent (3), Recommender with debate-lite (3), human-in-the-loop lifecycle (3), decision memory (2). All five stories are code-complete as of July 12 — the suite has since grown to 387 automated tests (~7s on the fake provider) — and formal completion is assessed at the July 19 review and demo.
 
 - **Daily Scrum**: daily communication continues over WhatsApp with team meetings on Slack; evidence screenshots are collected in `ProjectManagement/Sprint2Documents/` through the sprint.
 
@@ -492,7 +494,7 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
   Both planted spikes are detected, triaged REAL, filed as proposals; the compute action was approved and executed — SIMULATION, the database action still awaits the hand. Palette directions for the design decision: [night](ProjectManagement/Sprint2Documents/dashboard_night.png) · [paper](ProjectManagement/Sprint2Documents/dashboard_paper.png) · [Swagger — 13 endpoints](ProjectManagement/Sprint2Documents/swagger_13_endpoints.png).
 
-- **Sprint Review**: Sprint 2 closed with all five committed stories completed (13/13 points), demoed end to end at the July 19 review over `POST /pulse`: detect → Analyst triage with cited evidence → debate-lite skeptic → Recommender options with Python-computed savings → decision inbox → operator verdict → decision memory. Everything ran on the deterministic provider (the live Gemini key is provisioned separately from a billing-disabled project), which is itself the demo's point: the agent layer degrades honestly and never blocks on quota. Beyond the committed scope, the second week of the sprint pulled the Sprint 3 core forward — detection-quality controls, the mission DSL and reflex engine, the unified security and fraud watch, the guardrail pack, the operations-intelligence analytics, the chronicler agent, the persisted agent trace, the live agent-feed panel, cross-lane HITL cards (fraud holds and the budget guard) and self-hosted Swagger under one strict CSP — growing the suite from 27 tests at Sprint 1 close to **378 tests over 31 endpoints**. Decisions taken: the fraud lane stays rule-based and in-repo; deployment (Render, `render.yaml` ready) and the live-key spike open Sprint 3; the final palette decision is carried into the Sprint 3 design session with the three-way switcher shipped.
+- **Sprint Review**: Sprint 2 closed with all five committed stories completed (13/13 points), demoed end to end at the July 19 review over `POST /pulse`: detect → Analyst triage with cited evidence → debate-lite skeptic → Recommender options with Python-computed savings → decision inbox → operator verdict → decision memory. Everything ran on the deterministic provider (the live Gemini key is provisioned separately from a billing-disabled project), which is itself the demo's point: the agent layer degrades honestly and never blocks on quota. Beyond the committed scope, the second week of the sprint pulled the Sprint 3 core forward — detection-quality controls, the mission DSL and reflex engine, the unified security and fraud watch, the guardrail pack, the operations-intelligence analytics, the chronicler agent, the persisted agent trace, the live agent-feed panel, cross-lane HITL cards (fraud holds and the budget guard) and self-hosted Swagger under one strict CSP — growing the suite from 27 tests at Sprint 1 close to **378 tests over 32 endpoints**. Decisions taken: the fraud lane stays rule-based and in-repo; deployment (Render, `render.yaml` ready) and the live-key spike open Sprint 3; the final palette decision is carried into the Sprint 3 design session with the three-way switcher shipped.
 
   | Story | Points | Result |
   |---|---|---|

@@ -104,7 +104,7 @@ flowchart LR
 | `idempotency` | scoped decision keys with canonical responses |
 | `pulse_log` | every pulse report — `GET /pulse/last` replays the latest run |
 
-## API Surface (implemented — 31 endpoints)
+## API Surface (implemented — 32 endpoints)
 
 | Area | Endpoints |
 |---|---|
@@ -114,7 +114,7 @@ flowchart LR
 | Memory | `GET /decisions` (search) · `GET /decisions/similar` · `GET /decisions/export` |
 | Lanes | `GET /security/signals` · `GET /fraud/signals` (band / min_score filters) |
 | Missions | `GET /reflex/suggestions` |
-| Analytics | `GET /analytics/decisions` · `/costs/trend` · `/costs/forecast` · `/whatif` · `/roi` · `/ai` · `/calibration` · `/headline` · `GET /metrics/detection` |
+| Analytics | `GET /analytics/decisions` · `/costs/trend` · `/costs/forecast` · `/whatif` · `/roi` · `/ai` · `/calibration` · `/headline` · `/handover` · `GET /metrics/detection` |
 | Ops | `GET /health` (version, provider, readonly) · `POST /ops/demo-reset` (env-gated) |
 | Agent bus | `GET /agents` (roster) · `GET /agents/feed` (live cursor stream) |
 
