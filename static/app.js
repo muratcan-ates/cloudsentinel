@@ -1494,12 +1494,11 @@ operatorInput.addEventListener("change", () => {
 });
 
 function pulseNoteLine(report, when) {
-  return (
-    `last pulse ${when} — ${report.signals} cost + ${report.security_signals} security` +
-    ` + ${report.fraud_signals ?? 0} fraud signal${report.signals + report.security_signals + (report.fraud_signals ?? 0) === 1 ? "" : "s"}` +
-    ` · LLM ${report.llm_calls_used}/${report.llm_budget}` +
-    (report.briefing ? ` — ${report.briefing.headline}` : "")
-  );
+  // the briefing headline already narrates the lane counts — no repetition
+  const story = report.briefing
+    ? report.briefing.headline
+    : `${report.signals} cost + ${report.security_signals} security + ${report.fraud_signals ?? 0} fraud signals`;
+  return `last pulse ${when} — ${story} · LLM ${report.llm_calls_used}/${report.llm_budget}`;
 }
 
 /* The last pulse survives reloads: hydrate the colophon note (and the
