@@ -224,3 +224,15 @@ def test_docs_are_self_hosted_under_the_strict_csp():
     assert client.get("/static/vendor/swagger-ui.css").status_code == 200
     # ReDoc is dropped rather than vendored: one API browser is product.
     assert client.get("/redoc").status_code == 404
+
+
+def test_dashboard_ships_permalink_and_tour():
+    """Deep-link params (?threshold=&service=) and the guided jury tour."""
+    c = TestClient(app)
+    app_js = c.get("/static/app.js").text
+    assert "syncUrlParams" in app_js
+    assert "pendingServiceFilter" in app_js
+    assert "startTour" in app_js
+    assert "TOUR_STOPS" in app_js
+    page = c.get("/").text
+    assert "data-tour-launch" in page

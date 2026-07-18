@@ -1155,6 +1155,55 @@ function renderAudit() {
   }
 }
 
+/* ---------- guided jury tour (?tour=1) ----------
+   A five-stop walk through the rooms, so a first-time viewer reads the
+   product in the right order. Vanilla DOM, no inline handlers, and it
+   respects the same no-reload navigation the navbar uses. */
+const TOUR_STOPS = [
+  { view: "watch", title: "1 / 5 · Watch", body: "Cost, security and fraud anomalies surface here through one detection line. The radar sweeps the live signal field; drag sensitivity and a borderline signal appears." },
+  { view: "investigate", title: "2 / 5 · Investigation", body: "Pick a signal for its 14-day evidence, the Analyst's cited triage and the Recommender's two options — cautious and bold — with savings computed in Python." },
+  { view: "decide", title: "3 / 5 · Decision desk", body: "Every critical action waits for a human. Approve or reject with a rationale; nothing executes unapproved, and execution is always simulated." },
+  { view: "intel", title: "4 / 5 · Intelligence", body: "The funnel, approved value, forecast, calibration and the self-FinOps ledger — pure arithmetic over what the pipeline persisted. Print a shift handover from here." },
+  { view: "all", title: "5 / 5 · The whole broadsheet", body: "Open the agent feed (bottom right) and hit Pulse: watch six agents reason in the open, hop by hop, in real time." },
+];
+
+function startTour() {
+  if (document.getElementById("tour-card")) return;
+  let step = 0;
+  const card = document.createElement("aside");
+  card.id = "tour-card";
+  card.setAttribute("role", "dialog");
+  card.setAttribute("aria-label", "Guided tour");
+  document.body.appendChild(card);
+  const render = () => {
+    const s = TOUR_STOPS[step];
+    applyView(s.view);
+    window.scrollTo({ top: 0 });
+    card.innerHTML =
+      `<p class="tour-title microcap">${escapeHtml(s.title)}</p>` +
+      `<p class="tour-body">${escapeHtml(s.body)}</p>` +
+      `<div class="tour-actions">` +
+      `<button class="row-action" type="button" data-tour="skip">skip</button>` +
+      `<button class="row-action" type="button" data-tour="next">${step === TOUR_STOPS.length - 1 ? "done ✓" : "next →"}</button>` +
+      `</div>`;
+  };
+  card.addEventListener("click", (event) => {
+    const action = event.target.closest("[data-tour]")?.dataset.tour;
+    if (!action) return;
+    if (action === "skip" || step === TOUR_STOPS.length - 1) {
+      card.remove();
+      return;
+    }
+    step += 1;
+    render();
+  });
+  render();
+}
+
+if (new URLSearchParams(location.search).get("tour") === "1") {
+  setTimeout(startTour, 400);
+}
+
 /* Shift handover: fetch the brief, typeset it into the print-only block and
    print. Reuses the ledger print stylesheet — one page, ink on paper. */
 async function printHandover() {
@@ -1371,6 +1420,31 @@ function populateServiceFilter() {
     option.textContent = service.service;
     serviceFilter.appendChild(option);
   }
+  // apply a ?service= permalink once the options exist (one-shot)
+  if (pendingServiceFilter) {
+    const match = [...serviceFilter.options].some((o) => o.value === pendingServiceFilter);
+    if (match) serviceFilter.value = pendingServiceFilter;
+    pendingServiceFilter = null;
+  }
+}
+
+/* Shareable deep links: the sensitivity and service filter live in the URL
+   (?threshold=&service=), so a link sent to the jury opens on the exact
+   scene. The view stays in the path; theme and other params are preserved. */
+const initialParams = new URLSearchParams(location.search);
+let pendingServiceFilter = initialParams.get("service");
+const initialThreshold = parseFloat(initialParams.get("threshold"));
+if (Number.isFinite(initialThreshold) && initialThreshold >= 0.5 && initialThreshold <= 4) {
+  thresholdInput.value = String(initialThreshold);
+  thresholdValue.textContent = initialThreshold.toFixed(2);
+}
+
+function syncUrlParams() {
+  const params = new URLSearchParams(location.search);
+  params.set("threshold", parseFloat(thresholdInput.value).toFixed(2));
+  if (serviceFilter.value) params.set("service", serviceFilter.value);
+  else params.delete("service");
+  history.replaceState({}, "", `${location.pathname}?${params}`);
 }
 
 let scanSequence = 0; // last-writer-wins guard: a stale response must never overwrite a newer one
@@ -1406,6 +1480,7 @@ async function scan() {
     sortAnomalies();
     populateServiceFilter();
     renderAll(anomalies);
+    syncUrlParams();
     editionLine.textContent =
       `SYSTEM ONLINE — ${state.env === "render" ? "LIVE ON RENDER — " : ""}` +
       `${state.readonly ? "READ-ONLY DEMO — " : ""}` +
@@ -1608,6 +1683,13 @@ document.addEventListener("click", (event) => {
   const handoverBtn = event.target.closest("#handover-print-btn");
   if (handoverBtn) {
     printHandover();
+    return;
+  }
+
+  const tourLaunch = event.target.closest("[data-tour-launch]");
+  if (tourLaunch) {
+    event.preventDefault();
+    startTour();
     return;
   }
 

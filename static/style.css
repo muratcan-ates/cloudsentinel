@@ -1621,3 +1621,24 @@ main .ledger-wide {
   body.printing-handover #print-stamp { display: none !important; }
   body.printing-handover #handover-print { display: block; border: none; }
 }
+
+/* ---------- guided jury tour card ---------- */
+#tour-card {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  z-index: 50;
+  width: min(460px, 92vw);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  padding: 16px 20px;
+  box-shadow: 0 14px 50px rgba(0, 0, 0, 0.4), 0 0 24px color-mix(in srgb, var(--accent) 25%, transparent);
+  animation: room-in 0.28s ease;
+}
+#tour-card .tour-title { color: var(--accent); }
+#tour-card .tour-body { font-size: var(--fs-body); color: var(--ink-dim); margin: 6px 0 12px; }
+#tour-card .tour-actions { display: flex; justify-content: space-between; }
+@media (prefers-reduced-motion: reduce) { #tour-card { animation: none; } }
+@media print { #tour-card { display: none; } }
