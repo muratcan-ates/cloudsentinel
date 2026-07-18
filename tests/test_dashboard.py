@@ -107,16 +107,22 @@ def test_dashboard_ships_the_intelligence_panel():
     assert "/analytics/costs/trend" in app_js
 
 
-def test_docs_render_under_scoped_csp():
-    """Swagger UI boots from cdn.jsdelivr.net with an inline init script; the
-    dashboard's strict policy would render /docs blank, so the docs pages get
-    a scoped CSP while every other path keeps script-src 'self'."""
+def test_docs_are_self_hosted_under_the_strict_csp():
+    """Swagger UI is vendored (static/vendor/), boots from an external script
+    file, and therefore runs under the same script-src 'self' policy as the
+    dashboard — no CDN exception anywhere, on any path."""
     docs = client.get("/docs")
     assert docs.status_code == 200
-    assert "swagger-ui" in docs.text
-    assert "https://cdn.jsdelivr.net" in docs.headers["content-security-policy"]
+    assert "/static/vendor/swagger-ui-bundle.js" in docs.text
+    assert "/static/vendor/swagger-init.js" in docs.text
+    assert "<script>" not in docs.text  # boot must not be inline
 
-    for path in ("/", "/health"):
+    for path in ("/docs", "/", "/health"):
         csp = client.get(path).headers["content-security-policy"]
         assert "script-src 'self';" in csp
         assert "cdn.jsdelivr.net" not in csp
+
+    assert client.get("/static/vendor/swagger-ui-bundle.js").status_code == 200
+    assert client.get("/static/vendor/swagger-ui.css").status_code == 200
+    # ReDoc is dropped rather than vendored: one API browser is product.
+    assert client.get("/redoc").status_code == 404

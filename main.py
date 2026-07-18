@@ -81,26 +81,6 @@ CONTENT_SECURITY_POLICY = "; ".join(
         "object-src 'none'",
     ]
 )
-# Swagger UI and ReDoc load their bundles from cdn.jsdelivr.net and boot via
-# an inline script, so the dashboard policy above renders them as a blank
-# page. The API docs get a scoped policy instead; every other path keeps
-# script-src 'self'.
-DOCS_CONTENT_SECURITY_POLICY = "; ".join(
-    [
-        "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
-        "font-src 'self'",
-        "img-src 'self' data: https://fastapi.tiangolo.com",
-        "connect-src 'self'",
-        "frame-ancestors 'none'",
-        "base-uri 'none'",
-        "form-action 'self'",
-        "object-src 'none'",
-    ]
-)
-DOCS_PATHS = {"/docs", "/redoc"}
-
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
@@ -115,6 +95,12 @@ async def lifespan(_: FastAPI):
     yield
 
 
+# FastAPI's built-in docs pages boot Swagger UI from cdn.jsdelivr.net via an
+# inline script — both blocked by the strict CSP. The bundle is vendored
+# instead (static/vendor/, swagger-ui-dist 5.32.9) and served from a static
+# page whose boot script is an external file, so /docs runs under the same
+# script-src 'self' policy as the dashboard. ReDoc is dropped rather than
+# vendored: one API browser is product, two is surface area.
 app = FastAPI(
     title="CloudSentinel API",
     description=(
@@ -123,6 +109,8 @@ app = FastAPI(
     ),
     version="0.1.0",
     lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
 )
 
 
@@ -202,12 +190,7 @@ async def guard_expensive_endpoints(request: Request, call_next):
 async def add_security_headers(request: Request, call_next):
     """Attach hardening headers to every response (dashboard, static, API)."""
     response = await call_next(request)
-    response.headers.setdefault(
-        "Content-Security-Policy",
-        DOCS_CONTENT_SECURITY_POLICY
-        if request.url.path in DOCS_PATHS
-        else CONTENT_SECURITY_POLICY,
-    )
+    response.headers.setdefault("Content-Security-Policy", CONTENT_SECURITY_POLICY)
     for header, value in SECURITY_HEADERS.items():
         response.headers.setdefault(header, value)
     return response
@@ -403,6 +386,12 @@ def get_anomalies(
 def dashboard() -> FileResponse:
     """Serve the CloudSentinel dashboard."""
     return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/docs", include_in_schema=False)
+def api_docs() -> FileResponse:
+    """Serve the self-hosted Swagger UI (no CDN, same CSP as everything)."""
+    return FileResponse(STATIC_DIR / "docs.html")
 
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
