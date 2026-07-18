@@ -100,6 +100,7 @@ def reflex_scan(
     records: list,
     mission: MissionConfig,
     threshold: float | None = None,
+    leave_one_out: bool | None = None,
 ) -> ReflexResult:
     """Run the mission's detection pass and measure its wall-clock cost."""
     detection = mission.detection
@@ -115,6 +116,7 @@ def reflex_scan(
         window=env_window if env_window is not None else detection.baseline_window_days,
         seasonal=env_seasonal if env_seasonal is not None else detection.seasonal,
         critical_z=detection.critical_z,
+        leave_one_out=leave_one_out,
     )
     latency_ms = (time.perf_counter() - started) * 1000
     return ReflexResult(

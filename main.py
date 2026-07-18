@@ -475,6 +475,13 @@ def get_anomalies(
         min_length=1,
         description="If set, only return anomalies for this service (case-insensitive).",
     ),
+    leave_one_out: bool | None = Query(
+        None,
+        description=(
+            "Exclude each record from its own baseline (contamination-resistant "
+            "scoring); omitted, the SENTINEL_LEAVE_ONE_OUT default governs."
+        ),
+    ),
     conn: sqlite3.Connection = Depends(db.get_db),
 ) -> AnomalyReport:
     """Return cost records that deviate anomalously from their service's baseline.
@@ -492,7 +499,9 @@ def get_anomalies(
     # measures the pass; if the mission config is unloadable the scan must
     # still answer (demo-critical endpoint), just without the mission tags.
     try:
-        reflex = reflex_scan(records, get_mission(), threshold)
+        reflex = reflex_scan(
+            records, get_mission(), threshold, leave_one_out=leave_one_out
+        )
         run, mission_name, reflex_ms = reflex.run, reflex.mission, reflex.latency_ms
         threshold = reflex.threshold
     except MissionError:
@@ -501,7 +510,11 @@ def get_anomalies(
             exc_info=True,
         )
         threshold = threshold if threshold is not None else DEFAULT_THRESHOLD
-        run, mission_name, reflex_ms = run_detection(records, threshold), None, None
+        run, mission_name, reflex_ms = (
+            run_detection(records, threshold, leave_one_out=leave_one_out),
+            None,
+            None,
+        )
     anomalies = run.anomalies
     if anomalies:
         with db.writing(conn):

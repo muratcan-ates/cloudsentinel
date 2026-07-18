@@ -30,6 +30,10 @@ Detection-quality controls (Sprint 3, pure Python by locked decision):
   that cannot mathematically reach the requested threshold would
   silently disable detection — those services fall back to the flat
   baseline instead.
+- ``SENTINEL_LEAVE_ONE_OUT=1`` scores each record against a baseline that
+  excludes that record, so a single large outlier can no longer inflate the
+  centre and spread it is then measured against (the contaminated-baseline
+  weakness the review and the backlog both named). Default off.
 - Every flagged anomaly records which detector and parameters produced
   it (``detector`` / ``detector_params``) so "why was this flagged" has
   a durable answer in the event payload.
@@ -54,6 +58,7 @@ DEFAULT_THRESHOLD = 2.0
 DETECTOR_ENV = "SENTINEL_DETECTOR"  # zscore (default) | mad
 WINDOW_ENV = "SENTINEL_BASELINE_WINDOW_DAYS"
 SEASONAL_ENV = "SENTINEL_SEASONAL"  # "1"/"true" opts into day-of-week baselines
+LEAVE_ONE_OUT_ENV = "SENTINEL_LEAVE_ONE_OUT"  # "1"/"true": exclude each point from its own baseline
 REBASE_ENV = "SENTINEL_REBASE_DATES"  # "1" shifts demo data toward today
 
 DEFAULT_WINDOW_DAYS = 28
@@ -81,6 +86,12 @@ def seasonal_enabled() -> bool:
     # _env_seasonal) so SENTINEL_SEASONAL means the same thing whether a scan
     # runs through the mission or the degraded env-defaults fallback.
     return os.environ.get(SEASONAL_ENV, "").strip().lower() in ("1", "true")
+
+
+def leave_one_out_enabled() -> bool:
+    # Same truthy set as the other detector knobs so the flag means the same
+    # thing whether a scan resolves it from the environment or a caller.
+    return os.environ.get(LEAVE_ONE_OUT_ENV, "").strip().lower() in ("1", "true")
 
 
 def demo_rebase_delta() -> timedelta:
@@ -249,6 +260,7 @@ def run_detection(
     window: int | None = None,
     seasonal: bool | None = None,
     critical_z: float | None = None,
+    leave_one_out: bool | None = None,
 ) -> DetectionRun:
     """Score each service's recent records against its rolling baseline.
 
@@ -258,6 +270,7 @@ def run_detection(
     mode = detector if detector in ("zscore", "mad") else detector_mode()
     window_days = window if window and window >= MIN_HISTORY else baseline_window_days()
     use_seasonal = seasonal_enabled() if seasonal is None else seasonal
+    use_loo = leave_one_out_enabled() if leave_one_out is None else leave_one_out
     critical_cutoff = (
         critical_z if critical_z is not None and critical_z > 0 else CRITICAL_Z_SCORE
     )
@@ -309,42 +322,56 @@ def run_detection(
                 seasonal_applied = True
 
         for group in groups:
-            baseline = _baseline([record["cost"] for record in group], mode)
-            if baseline is None:
-                continue
-            label = baseline.label + ("+weekday" if seasonal_applied else "")
-            for record in group:
+            costs = [record["cost"] for record in group]
+            group_baseline = _baseline(costs, mode)
+            for index, record in enumerate(group):
+                # Leave-one-out excludes the record under test from its own
+                # baseline, so a single large outlier can no longer inflate the
+                # centre and spread it is then measured against — the
+                # contaminated-baseline weakness the review and the Sprint 3
+                # backlog both named. Default off: existing scans are untouched.
+                if use_loo:
+                    others = costs[:index] + costs[index + 1:]
+                    baseline = _baseline(others, mode) if len(others) >= 2 else None
+                else:
+                    baseline = group_baseline
+                if baseline is None:
+                    continue
+                label = baseline.label + ("+weekday" if seasonal_applied else "")
+                if use_loo:
+                    label += "+loo"
                 # The published (rounded) score decides flagging and severity,
                 # so a reader recomputing from the payload always agrees with
                 # the stored severity — no raw-vs-rounded disagreement band.
                 score = round(
                     (record["cost"] - baseline.center) / baseline.spread, 2
                 )
-                if abs(score) >= threshold:
-                    anomalies.append(
-                        Anomaly(
-                            service=service,
-                            date=record["date"],
-                            cost=record["cost"],
-                            service_mean=round(baseline.center, 2),
-                            z_score=score,
-                            severity=(
-                                "critical"
-                                if abs(score) >= critical_cutoff
-                                else "warning"
-                            ),
-                            detector=label,
-                            # Persisted into the event payload on purpose: a
-                            # config change re-keys LLM caches, and that is
-                            # correct — a different detector asks a different
-                            # question about the same numbers.
-                            detector_params={
-                                "window_days": window_days,
-                                "min_history": MIN_HISTORY,
-                                "seasonal": seasonal_applied,
-                            },
-                        )
+                if abs(score) < threshold:
+                    continue
+                # Persisted into the event payload on purpose: a config change
+                # re-keys LLM caches, and that is correct — a different detector
+                # asks a different question about the same numbers.
+                params = {
+                    "window_days": window_days,
+                    "min_history": MIN_HISTORY,
+                    "seasonal": seasonal_applied,
+                }
+                if use_loo:
+                    params["leave_one_out"] = True
+                anomalies.append(
+                    Anomaly(
+                        service=service,
+                        date=record["date"],
+                        cost=record["cost"],
+                        service_mean=round(baseline.center, 2),
+                        z_score=score,
+                        severity=(
+                            "critical" if abs(score) >= critical_cutoff else "warning"
+                        ),
+                        detector=label,
+                        detector_params=params,
                     )
+                )
 
     anomalies.sort(key=lambda a: abs(a.z_score), reverse=True)
     insufficient.sort()
