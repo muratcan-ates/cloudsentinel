@@ -5,11 +5,11 @@
    keeps the audit trail. Nothing ever executes without an operator decision,
    and execution is simulated by design. */
 
-/* Palette: ?theme=mission|paper|cobalt still wins so review links keep
+/* Palette: ?theme=mission|paper|horizon|dawn still wins so review links keep
    working; otherwise the choice persisted from the colophon switch applies.
-   The default identity stays cobalt — the switch promotes night (mission)
+   The default identity stays horizon — the switch promotes night (mission)
    and paper from hidden preview flags to first-class modes. */
-const THEMES = ["cobalt", "mission", "paper", "dawn"];
+const THEMES = ["horizon", "mission", "paper", "dawn"];
 
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
@@ -26,7 +26,7 @@ try {
   /* storage can be unavailable (private mode) — the default carries */
 }
 applyTheme(
-  THEMES.includes(themeParam) ? themeParam : THEMES.includes(storedTheme) ? storedTheme : "cobalt"
+  THEMES.includes(themeParam) ? themeParam : THEMES.includes(storedTheme) ? storedTheme : "horizon"
 );
 
 const thresholdInput = document.getElementById("threshold");

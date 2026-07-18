@@ -5,13 +5,13 @@
 
    THEMES — every color flows through the semantic tokens below, so a
    palette decision changes exactly one block:
-     :root / [data-theme="cobalt"]   refined cobalt (current identity, default)
+     :root / [data-theme="horizon"]  horizon — night-blue sky, turquoise signal (default)
      [data-theme="mission"]          mission control — night mode, neutral graphite
      [data-theme="paper"]            paper ledger — bone & ink, cobalt as accent
    The colophon carries a persisted switch between the three; ?theme= links
    still override it for reviews.
 
-   Cobalt theme rule: green appears exactly 4 times — nameplate period,
+   Horizon theme rule: turquoise appears sparingly — nameplate period,
    status square, slider thumb, threshold numeral. To add one, remove one. */
 
 /* ---------- design tokens: scale ---------- */
@@ -53,25 +53,26 @@
 /* ---------- design tokens: color themes ---------- */
 
 :root,
-:root[data-theme="cobalt"] {
-  /* refined cobalt: deeper, calmer surface; warm off-white ink */
-  --surface: #1d27ba;
-  --surface-raised: rgba(255, 255, 255, 0.05);
-  --ink: #f5f4ee;
-  --ink-dim: rgba(245, 244, 238, 0.72);
-  --ink-faint: rgba(245, 244, 238, 0.42);
-  --hair: rgba(245, 244, 238, 0.2);
-  --accent: #46e886;   /* the green budget */
+:root[data-theme="horizon"] {
+  /* horizon: a deep night-blue sky lit by turquoise signal marks and
+     sky-blue micro-light — clear, not cold */
+  --surface: #0b1c36;
+  --surface-raised: rgba(126, 200, 246, 0.06);
+  --ink: #eef4fb;
+  --ink-dim: rgba(238, 244, 251, 0.72);
+  --ink-faint: rgba(238, 244, 251, 0.42);
+  --hair: rgba(238, 244, 251, 0.18);
+  --accent: #2fe0c8;   /* the turquoise budget */
   --alert: #ff7a70;    /* critical only */
-  --info: #86eef7;     /* micro marks only */
+  --info: #7ec8f6;     /* sky-blue micro marks */
   --chart-line: var(--ink);
-  --chart-area-hi: rgba(245, 244, 238, 0.16);
-  --chart-area-lo: rgba(245, 244, 238, 0.02);
-  --chart-band: rgba(245, 244, 238, 0.08);
-  --dot-a: rgba(255, 255, 255, 0.035);
-  --dot-b: rgba(255, 255, 255, 0.028);
-  --glow-a: rgba(134, 238, 247, 0.10);
-  --glow-b: rgba(70, 232, 134, 0.06);
+  --chart-area-hi: rgba(126, 200, 246, 0.16);
+  --chart-area-lo: rgba(126, 200, 246, 0.02);
+  --chart-band: rgba(238, 244, 251, 0.08);
+  --dot-a: rgba(200, 226, 255, 0.035);
+  --dot-b: rgba(200, 226, 255, 0.028);
+  --glow-a: rgba(126, 200, 246, 0.13);
+  --glow-b: rgba(47, 224, 200, 0.09);
   --selection-bg: var(--ink);
   --selection-fg: var(--surface);
 }
@@ -100,7 +101,7 @@
 }
 
 :root[data-theme="paper"] {
-  /* paper ledger: bone surface, ink type, cobalt demoted to the accent */
+  /* paper ledger: bone surface, ink type, deep cobalt blue as the accent */
   --surface: #f2efe6;
   --surface-raised: rgba(22, 26, 46, 0.04);
   --ink: #181c30;

@@ -99,7 +99,7 @@ CloudSentinel is an agentic decision-support system that monitors cloud cost and
 - **Unified watch** — mock security events ride the identical detection line as cost (own mission, own event kind, never routed into the cost agents); payment events get a published deterministic rule score with per-rule point attribution — suggestions only
 - **Guardrail pack** — per-pulse LLM call budget (overridable per run), hard transport timeout, ±5% numeric post-check of narrative figures, stakes-raised debate bar for bold answers to critical signals, prompt spotlighting for untrusted data
 - **Operations intelligence** — HITL funnel, approved savings, window-over-window trend, month-end forecast with budget signal, what-if and before/after ROI, detection precision proxy, and a self-FinOps ledger of the system's own LLM spend
-- Live dashboard: anomaly feed, cost ledger, investigation evidence, decision inbox (with operator identity + rationale capture), audit ledger and operations intelligence — three palettes, WCAG AA, strict CSP
+- Live dashboard: anomaly feed, cost ledger, investigation evidence, decision inbox (with operator identity + rationale capture), audit ledger and operations intelligence — four palettes, WCAG AA, strict CSP
 - REST API (FastAPI, 31 endpoints) with self-hosted Swagger documentation (no CDN)
 - Demo operations, all env-gated: whole-week date rebase, demo reset with seeded verdict history, read-only public showcase mode
 
@@ -206,7 +206,7 @@ cloudsentinel/
 │   ├── models.py         Pydantic schemas
 │   └── data/             mock datasets — cost, security events, payment events
 ├── configs/              mission YAMLs — finops, security, fraud
-├── static/               dashboard — tokenized design system, 3 palettes, vendored Swagger UI
+├── static/               dashboard — tokenized design system, 4 palettes, vendored Swagger UI
 ├── scripts/              smoke test, failure drill, detection benchmark, Gemini spike
 ├── tests/                380 pytest cases incl. performance budgets
 ├── docs/                 architecture & agent design
@@ -319,7 +319,7 @@ Sprint 2's committed stories were code-complete by July 12 and the sprint closed
 | Live dashboard | Sections I–V run against the real API: investigation triage, recommendation filing, decision inbox, audit ledger | ✅ [`static/`](static/) |
 | Quota & safety discipline | Deterministic fake provider for tests/CI, rule-based fallbacks tagged in the UI, spotlighted untrusted data, security headers + CSP + CORS | ✅ [`app/llm.py`](app/llm.py) · [`main.py`](main.py) |
 | Contributor tooling | Conventional-commit hook + identity check script | ✅ [`scripts/check_identity.sh`](scripts/check_identity.sh) |
-| Dashboard interactivity | Persisted palette switch (cobalt / **night** / paper), sortable signal ledger (z / date / a–z), click-to-filter cost rows, monotone-curve charts that never overshoot the data | ✅ [`static/`](static/) |
+| Dashboard interactivity | Persisted palette switch (horizon / **night** / paper / dawn), sortable signal ledger (z / date / a–z), click-to-filter cost rows, monotone-curve charts that never overshoot the data | ✅ [`static/`](static/) |
 | Swagger CSP regression fix | `/docs` rendered blank under the strict dashboard CSP; a docs-scoped policy restored it, locked by regression tests | ✅ [`main.py`](main.py) · [`tests/test_dashboard.py`](tests/test_dashboard.py) |
 | Performance budgets | Wall-clock budgets over scans, aggregations, CSV export and the full pulse chain on mock data | ✅ [`tests/test_performance.py`](tests/test_performance.py) |
 
@@ -350,7 +350,7 @@ In line with [docs/architecture.md](docs/architecture.md) and the sprint point p
 | Fraud rule-score lane + cross-lane HITL cards (holds, budget guard) | Sprint 3 → pulled forward | ✅ shipped |
 | Mission DSL, reflex engine, guardrail pack, operations analytics, chronicler, agent bus + live feed | Sprint 3 → pulled forward | ✅ shipped |
 | Continuous integration — tests on every push | Sprint 2 → 3 | 🔄 blocked on token scope only |
-| Dashboard palette revision after UI reference research | Sprint 2 → 3 | 🔄 switcher shipped (cobalt / night / paper, persisted); final decision at the design session |
+| Dashboard palette revision after UI reference research | Sprint 2 → 3 | 🔄 switcher shipped (horizon / night / paper / dawn, persisted); final decision at the design session |
 | Live Gemini key spike (real RPM/RPD measurement) | Sprint 3 | planned |
 | User's-eye UX pass — gaps, friction and flow measured from the operator's seat | Sprint 3 | planned |
 | Deployment (Render + UptimeRobot), live demo & 3-minute product video | Sprint 3 | planned |
