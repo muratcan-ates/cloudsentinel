@@ -9,7 +9,7 @@ must be observable without a live key, because that is how the demo runs.
 import pytest
 from fastapi.testclient import TestClient
 
-from app import db
+from app import chronicler, db
 from main import app
 
 
@@ -113,6 +113,44 @@ def test_pulse_report_carries_the_briefing(client):
     finally:
         conn.close()
     assert rows == 1  # exactly one ledgered briefing call per pulse
+
+
+def test_chronicler_briefing_is_served_from_cache(client):
+    # identical facts twice: the first call spends a (fake) call and caches,
+    # the second replays the envelope without spending — same as the analyst
+    # and recommender lanes, whose cache-hit paths are already covered.
+    facts = {
+        "cost_signals": 2,
+        "security_signals": 1,
+        "fraud_flagged": 0,
+        "cross_lane_cards": 0,
+        "analyzed": 2,
+        "proposals_filed": 2,
+        "proposals_reused": 0,
+        "top_service": "network",
+    }
+    conn = db.connect()
+    try:
+        first = chronicler.write_briefing(conn, facts)
+        second = chronicler.write_briefing(conn, facts)
+    finally:
+        conn.close()
+
+    assert first["source"] == "fake"
+    assert first["from_cache"] is False
+    assert second["from_cache"] is True
+    assert second["headline"] == first["headline"]
+    assert second["summary"] == first["summary"]
+    assert second["watch_next"] == first["watch_next"]
+
+    conn = db.connect()
+    try:
+        usage = conn.execute(
+            "SELECT from_cache FROM ai_usage WHERE agent = 'chronicler' ORDER BY id"
+        ).fetchall()
+    finally:
+        conn.close()
+    assert [row["from_cache"] for row in usage] == [0, 1]
 
 
 def test_dry_budget_briefing_falls_back_deterministically(client, monkeypatch):

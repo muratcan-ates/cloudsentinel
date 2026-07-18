@@ -50,6 +50,34 @@ def test_fraud_holds_never_inflate_the_cost_funnel(client):
     assert funnel["proposals"] == funnel["signals"]
 
 
+def test_rejected_fraud_hold_is_refiled_on_a_later_sweep(client):
+    report = client.post("/pulse").json()
+    assert report["fraud_holds_filed"] == 2
+    card = next(
+        a for a in client.get("/actions").json()["actions"]
+        if a["detail"].get("kind") == "fraud_hold"
+    )
+    tx_id = card["detail"]["fraud"]["id"]
+
+    rejected = client.post(
+        f"/actions/{card['id']}/reject",
+        json={"actor": "op", "rationale": "false alarm — the customer verified it"},
+    )
+    assert rejected.status_code == 200
+
+    # reuse guard is state != 'rejected': the rejected card re-files, the
+    # still-open second hold is reused, so exactly one card is filed anew.
+    resweep = client.post("/pulse").json()
+    assert resweep["fraud_holds_filed"] == 1
+    fresh = [
+        a for a in client.get("/actions").json()["actions"]
+        if a["detail"].get("kind") == "fraud_hold"
+        and a["detail"]["fraud"]["id"] == tx_id
+        and a["state"] == "proposed"
+    ]
+    assert fresh, "the rejected fraud hold should re-file as a fresh proposed card"
+
+
 # --- budget guard ----------------------------------------------------------------
 
 
@@ -79,6 +107,22 @@ def test_budget_guard_is_inert_without_the_knob(client):
     finally:
         conn.close()
     assert rows == 0
+
+
+def test_rejected_budget_guard_card_is_refiled(client, monkeypatch):
+    monkeypatch.setenv("SENTINEL_MONTHLY_BUDGET", "100")  # far below spend
+    assert client.post("/pulse").json()["budget_cards_filed"] == 1
+    card = next(
+        a for a in client.get("/actions").json()["actions"]
+        if a["detail"].get("kind") == "budget_risk"
+    )
+    rejected = client.post(
+        f"/actions/{card['id']}/reject",
+        json={"actor": "op", "rationale": "seasonal spike, expected this month"},
+    )
+    assert rejected.status_code == 200
+    # same reuse semantics as the fraud lane: a rejected card re-files.
+    assert client.post("/pulse").json()["budget_cards_filed"] == 1
 
 
 # --- calibration -----------------------------------------------------------------

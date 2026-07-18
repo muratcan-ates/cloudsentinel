@@ -41,6 +41,21 @@ def test_feed_cursor_returns_only_new_events(client):
     assert "REJECTED" in fresh["events"][0]["message"]
 
 
+def test_feed_limit_paginates_in_order(client):
+    client.post("/pulse")  # emits the whole cast — well over a page of 3
+    total = client.get("/agents/feed").json()
+    assert total["count"] >= 4
+
+    page = client.get("/agents/feed", params={"limit": 3}).json()
+    assert page["count"] == 3
+    assert page["last_id"] == page["events"][-1]["id"]
+    assert [e["id"] for e in page["events"]] == sorted(e["id"] for e in page["events"])
+
+    rest = client.get("/agents/feed", params={"after": page["last_id"]}).json()
+    assert all(e["id"] > page["last_id"] for e in rest["events"])  # no overlap
+    assert page["count"] + rest["count"] == total["count"]  # the page + remainder cover it
+
+
 def test_roster_names_the_six_agents_with_guardrails(client):
     body = client.get("/agents").json()
     assert body["count"] == 6
@@ -48,3 +63,20 @@ def test_roster_names_the_six_agents_with_guardrails(client):
     names = [agent["name"] for agent in body["agents"]]
     assert names == ["reflex", "analyst", "recommender", "skeptic", "chronicler", "operator"]
     assert all(agent["guardrails"] for agent in body["agents"])
+
+
+def test_roster_threshold_falls_back_when_the_mission_is_unloadable(client, monkeypatch):
+    from app import bus
+    from app.missions import MissionError
+
+    def _unloadable(*args, **kwargs):
+        raise MissionError("mission config unavailable")
+
+    monkeypatch.setattr(bus, "get_mission", _unloadable)
+    body = client.get("/agents").json()
+    # the roster is code-defined, so it stands even when the mission YAML is
+    # gone; only the debate threshold (read from the mission) goes null.
+    assert body["count"] == 6
+    assert body["debate_threshold"] is None
+    names = [agent["name"] for agent in body["agents"]]
+    assert names == ["reflex", "analyst", "recommender", "skeptic", "chronicler", "operator"]
