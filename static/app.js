@@ -1268,18 +1268,6 @@ function radarAngle(name) {
 function renderRadar() {
   const svg = document.getElementById("sentinel-radar");
   if (!svg) return;
-  const rings = [30, 58, 86]
-    .map((r) => `<circle class="ring" cx="100" cy="100" r="${r}"/>`)
-    .join("");
-  const cross =
-    `<line class="cross" x1="100" y1="10" x2="100" y2="190"/>` +
-    `<line class="cross" x1="10" y1="100" x2="190" y2="100"/>`;
-  const sweep =
-    `<defs><linearGradient id="sweep-grad" x1="0" y1="0" x2="1" y2="0">` +
-    `<stop offset="0" stop-color="currentColor" stop-opacity="0.35"/>` +
-    `<stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>` +
-    `<g class="radar-sweep" style="color: var(--accent)">` +
-    `<path d="M100,100 L100,12 A88,88 0 0 1 152,29 Z" fill="url(#sweep-grad)"/></g>`;
   const blip = (angle, radius, cls) => {
     const x = 100 + Math.cos(angle) * radius - 3;
     const y = 100 + Math.sin(angle) * radius - 3;
@@ -1297,8 +1285,31 @@ function renderRadar() {
       blip(radarAngle(signal.service + signal.date), 86, "security")
     ),
   ].join("");
-  svg.innerHTML =
-    rings + cross + sweep + blips + `<rect class="radar-core" x="97" y="97" width="6" height="6"/>`;
+  // The rings, cross-hair, sweep and core are static — build them ONCE. A
+  // 60s auto-scan calls this each minute; reassigning the whole SVG would
+  // re-create the .radar-sweep element and restart its CSS spin from angle
+  // 0, a visible once-a-minute jump. Only the blip layer re-renders.
+  let blipLayer = svg.querySelector("#radar-blips");
+  if (!blipLayer) {
+    const rings = [30, 58, 86]
+      .map((r) => `<circle class="ring" cx="100" cy="100" r="${r}"/>`)
+      .join("");
+    const cross =
+      `<line class="cross" x1="100" y1="10" x2="100" y2="190"/>` +
+      `<line class="cross" x1="10" y1="100" x2="190" y2="100"/>`;
+    const sweep =
+      `<defs><linearGradient id="sweep-grad" x1="0" y1="0" x2="1" y2="0">` +
+      `<stop offset="0" stop-color="currentColor" stop-opacity="0.35"/>` +
+      `<stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>` +
+      `<g class="radar-sweep" style="color: var(--accent)">` +
+      `<path d="M100,100 L100,12 A88,88 0 0 1 152,29 Z" fill="url(#sweep-grad)"/></g>`;
+    svg.innerHTML =
+      rings + cross + sweep +
+      `<g id="radar-blips"></g>` +
+      `<rect class="radar-core" x="97" y="97" width="6" height="6"/>`;
+    blipLayer = svg.querySelector("#radar-blips");
+  }
+  blipLayer.innerHTML = blips;
 }
 
 function renderAll(report) {
@@ -1885,8 +1896,24 @@ applyView(viewFromPath(location.pathname));
 /* The watchroom never sleeps: a quiet background re-scan keeps every
    figure current (and rolling) without a hand on the controls. */
 const AUTO_SCAN_MS = 60000;
+
+/* A background scan rebuilds the decision cards, so it must never fire
+   while the operator is entering a rationale — mid-typing (the input is
+   focused) OR typed-but-not-yet-submitted (a box holds text after a blur).
+   Either way the value lives only in the DOM until the verdict click reads
+   it, so a silent re-render would drop it. */
+function operatorIsMidRationale() {
+  const active = document.activeElement;
+  if (active && active.classList && active.classList.contains("rationale-input")) {
+    return true;
+  }
+  return Array.from(document.querySelectorAll(".rationale-input")).some(
+    (input) => input.value.trim() !== ""
+  );
+}
+
 setInterval(() => {
-  if (!document.hidden && !pulseBusy) scan();
+  if (!document.hidden && !pulseBusy && !operatorIsMidRationale()) scan();
 }, AUTO_SCAN_MS);
 
 /* ---------- live agent feed (right rail) ----------
