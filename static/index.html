@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Jacquard+24&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=UnifrakturMaguntia&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/static/style.css?v=s4.0" />
+  <link rel="stylesheet" href="/static/style.css?v=s4.1" />
   <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
   <meta name="description" content="CloudSentinel — cloud cost and security anomaly watch: detection, evidence-cited AI triage and human-approved remediation, execution simulated by design." />
   <meta property="og:title" content="CloudSentinel — Anomaly Watch" />
@@ -197,6 +197,17 @@
     </footer>
   </div>
 
-  <script src="/static/app.js?v=s4.0"></script>
+  <aside class="agent-feed" id="agent-feed" aria-label="Live agent feed">
+    <button id="feed-toggle" type="button" aria-expanded="false" title="live inter-agent traffic — every hop of the chain as it happens">
+      <span class="live-dot" aria-hidden="true"></span> agent feed
+    </button>
+    <div class="feed-body" id="feed-body" hidden>
+      <p class="microcap feed-head"><span class="live-dot" aria-hidden="true"></span> agents talking — live</p>
+      <ol id="feed-list" aria-live="polite"></ol>
+      <p class="meta feed-empty" id="feed-empty">quiet — run a scan or a Pulse and watch the chain talk</p>
+    </div>
+  </aside>
+
+  <script src="/static/app.js?v=s4.1"></script>
 </body>
 </html>

@@ -128,6 +128,18 @@ def test_dashboard_ships_the_value_and_demo_controls():
     assert "read-only" in app_js
 
 
+def test_dashboard_ships_the_live_agent_feed():
+    """The agent bus streams into a side rail; motion respects the visitor."""
+    page = client.get("/").text
+    assert 'id="agent-feed"' in page
+    assert 'id="feed-toggle"' in page
+    app_js = client.get("/static/app.js").text
+    assert "/agents/feed" in app_js
+    css = client.get("/static/style.css").text
+    assert "prefers-reduced-motion" in css
+    assert "agent-skeptic" in css  # each voice has a color
+
+
 def test_dashboard_ships_the_cross_lane_and_calibration_ui():
     """Fraud-hold / budget-guard card variants, the calibration line, the
     copy-brief button and the cross-lane correlation badge are product."""

@@ -1591,6 +1591,74 @@ if (printStamp) {
   printStamp.textContent = `CloudSentinel — decision ledger · produced ${today}`;
 }
 
+/* ---------- live agent feed (right rail) ----------
+   The agent bus persists every inter-agent event as it happens; this panel
+   polls the cursor endpoint (plain polling, no sockets) so a running pulse
+   streams its conversation into the rail in near-real time. */
+
+const feedToggle = document.getElementById("feed-toggle");
+const feedBody = document.getElementById("feed-body");
+const feedList = document.getElementById("feed-list");
+const feedEmpty = document.getElementById("feed-empty");
+const FEED_POLL_MS = 2500;
+const FEED_MAX_ROWS = 80;
+const feedState = { lastId: 0, open: false, timer: null, seen: 0 };
+
+function feedEntryHtml(event) {
+  const time = (event.at || "").slice(11, 19);
+  return `<li class="feed-item agent-${escapeHtml(event.agent)}">
+    <span class="feed-time">${escapeHtml(time)}</span>
+    <span class="feed-agent">${escapeHtml(event.agent)}</span>
+    <span class="feed-msg">${escapeHtml(event.message)}</span>
+  </li>`;
+}
+
+async function pollFeed() {
+  if (document.hidden) return;
+  try {
+    const report = await fetchJson(`/agents/feed?after=${feedState.lastId}`);
+    if (!report.count) return;
+    feedState.lastId = report.last_id;
+    feedState.seen += report.count;
+    feedEmpty.hidden = true;
+    feedList.insertAdjacentHTML(
+      "beforeend",
+      report.events.map(feedEntryHtml).join("")
+    );
+    while (feedList.children.length > FEED_MAX_ROWS) {
+      feedList.removeChild(feedList.firstChild);
+    }
+    if (feedState.open) feedList.lastElementChild?.scrollIntoView({ block: "nearest" });
+    feedToggle.classList.add("has-traffic");
+  } catch {
+    /* feed unreachable — the panel simply stays quiet until the next poll */
+  }
+}
+
+feedToggle.addEventListener("click", () => {
+  feedState.open = !feedState.open;
+  feedBody.hidden = !feedState.open;
+  feedToggle.setAttribute("aria-expanded", String(feedState.open));
+  document.getElementById("agent-feed").classList.toggle("open", feedState.open);
+  try {
+    localStorage.setItem("sentinel-feed-open", feedState.open ? "1" : "");
+  } catch {
+    /* best effort */
+  }
+  if (feedState.open) {
+    pollFeed();
+    feedList.lastElementChild?.scrollIntoView({ block: "nearest" });
+  }
+});
+
+try {
+  if (localStorage.getItem("sentinel-feed-open") === "1") feedToggle.click();
+} catch {
+  /* storage unavailable — the panel starts collapsed */
+}
+feedState.timer = setInterval(pollFeed, FEED_POLL_MS);
+pollFeed();
+
 /* First paint: the ledger seeds and the empty-state panels do not depend on the
    API, so they render even if the very first scan fails. */
 renderInvestigation();

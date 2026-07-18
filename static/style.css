@@ -632,7 +632,15 @@ main {
   transition: color 0.15s ease;
 }
 .head-action:hover,
-.row-action:hover { color: var(--ink); }
+/* interactive things announce themselves: an accent sweep on hover/focus
+   instead of print-flat text — the page is an instrument, not a page proof */
+.row-action:hover,
+.row-action:focus-visible {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+}
+.row-action:active { transform: translateY(1px); }
 .head-action { margin-left: auto; }
 .entry-rail .row-action { display: inline-block; margin-top: var(--sp-2); }
 
@@ -1109,4 +1117,187 @@ footer {
     margin-bottom: var(--sp-4);
     font-variant-numeric: tabular-nums;
   }
+}
+
+/* ==========================================================================
+   VIBRANCY PASS — the page is a live instrument, not a page proof.
+   Motion is quiet and purposeful; prefers-reduced-motion turns it off.
+   ========================================================================== */
+
+/* primary verbs get real button chrome — interaction announces itself */
+#rescan,
+#pulse-run {
+  border: 1px solid var(--hair);
+  padding: 6px 14px;
+  text-decoration: none;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease,
+    transform 0.1s ease, box-shadow 0.2s ease;
+}
+#rescan:hover,
+#rescan:focus-visible {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+#pulse-run {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+#pulse-run:hover,
+#pulse-run:focus-visible {
+  color: var(--surface);
+  background: var(--accent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+#rescan:active,
+#pulse-run:active { transform: translateY(1px); }
+#pulse-run:disabled {
+  color: var(--ink-faint);
+  border-color: var(--hair);
+  background: none;
+  box-shadow: none;
+  cursor: default;
+}
+
+/* the system breathes: a live pulse on the edition line */
+.edition::before { animation: live-breathe 2.4s ease-in-out infinite; }
+@keyframes live-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* summary cards lift and light on hover — they are doors, not print */
+.sum {
+  transition: transform 0.18s ease, background 0.18s ease;
+  border-top: 2px solid transparent;
+}
+.sum:hover {
+  transform: translateY(-2px);
+  background: var(--surface-raised);
+  border-top-color: var(--accent);
+}
+.sum:hover .sum-fig { color: var(--accent); }
+.sum .sum-fig { transition: color 0.18s ease; }
+
+/* state chips carry color again — reserved, but alive */
+.chip.proposed { border-color: var(--info); color: var(--info); }
+.chip.approved { border-color: var(--accent); color: var(--accent); }
+.chip.executed { border-color: var(--accent); color: var(--accent); }
+.chip.expired,
+.chip.rejected { border-color: var(--hair); color: var(--ink-faint); }
+.decision.proposed .sq { animation: live-breathe 2.4s ease-in-out infinite; }
+
+/* spend bars glow under the pointer */
+.bar-fill {
+  background: linear-gradient(90deg, var(--ink-dim), var(--ink));
+  transition: width 0.6s ease, background 0.2s ease;
+}
+.cost-row:hover .bar-fill {
+  background: linear-gradient(90deg, var(--accent), var(--ink));
+}
+
+/* inputs light their underline when awake */
+#operator-name:focus,
+.rationale-input:focus { border-bottom-color: var(--accent); }
+select:hover { border-bottom-color: var(--accent); }
+
+/* signal rail selection gets an accent spine */
+.signal-option.is-selected { box-shadow: inset 2px 0 0 var(--accent); }
+
+/* ---------- live agent feed (right rail) ---------- */
+
+.agent-feed {
+  position: fixed;
+  right: 0;
+  bottom: 24px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: min(360px, 92vw);
+}
+#feed-toggle {
+  border: 1px solid var(--hair);
+  border-right: none;
+  background: var(--surface);
+  color: var(--ink-dim);
+  padding: 8px 14px;
+  text-decoration: none;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+#feed-toggle:hover,
+#feed-toggle.has-traffic { color: var(--ink); border-color: var(--accent); }
+.live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-right: 6px;
+  animation: live-breathe 1.6s ease-in-out infinite;
+}
+.feed-body {
+  width: min(360px, 92vw);
+  max-height: 46vh;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--hair);
+  border-right: none;
+  padding: 10px 14px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+}
+.feed-head { color: var(--ink); margin-bottom: 6px; }
+#feed-list { list-style: none; margin: 0; padding: 0; }
+.feed-item {
+  display: grid;
+  grid-template-columns: 52px 92px 1fr;
+  gap: 8px;
+  padding: 5px 0;
+  border-top: 1px solid var(--hair);
+  font-size: var(--fs-meta);
+  color: var(--ink-dim);
+  animation: feed-in 0.25s ease;
+}
+@keyframes feed-in {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: none; }
+}
+.feed-time { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.feed-agent {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+}
+.feed-msg { color: var(--ink-dim); }
+.feed-empty { padding-top: 6px; }
+
+/* each voice has a color — the conversation reads at a glance */
+.agent-reflex .feed-agent { color: var(--info); }
+.agent-analyst .feed-agent { color: var(--info); }
+.agent-reflection .feed-agent { color: var(--info); }
+.agent-recommender .feed-agent { color: var(--accent); }
+.agent-skeptic .feed-agent { color: var(--alert); }
+.agent-chronicler .feed-agent { color: var(--ink); }
+.agent-operator .feed-agent { color: var(--ink); }
+.agent-operator .feed-msg { color: var(--ink); }
+.agent-fraud-watch .feed-agent { color: var(--alert); }
+.agent-budget-guard .feed-agent { color: var(--alert); }
+
+/* quiet hands: motion off when the visitor asks */
+@media (prefers-reduced-motion: reduce) {
+  .edition::before,
+  .live-dot,
+  .decision.proposed .sq { animation: none; }
+  .feed-item { animation: none; }
+  .sum,
+  .sum .sum-fig,
+  #rescan,
+  #pulse-run,
+  .row-action,
+  .bar-fill { transition: none; }
+  .sum:hover { transform: none; }
+}
+
+@media print {
+  .agent-feed { display: none; }
 }
