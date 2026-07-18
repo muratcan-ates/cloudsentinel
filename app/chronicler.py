@@ -20,7 +20,12 @@ import sqlite3
 from pydantic import BaseModel
 
 from app import db
-from app.llm import generate_with_fallback, get_provider, wrap_untrusted
+from app.llm import (
+    generate_with_fallback,
+    get_provider,
+    register_fake_composer,
+    wrap_untrusted,
+)
 
 logger = logging.getLogger("cloudsentinel.chronicler")
 
@@ -69,6 +74,14 @@ def rule_based_briefing(facts: dict) -> BriefingReport:
         else "No open deviation stands out — the next scheduled scan is the watch point."
     )
     return BriefingReport(headline=headline, summary=summary, watch_next=watch_next)
+
+
+def _fake_briefing_payload(facts: dict) -> dict:
+    """Demo mode narrates the actual run facts, same as the fallback."""
+    return rule_based_briefing(facts).model_dump()
+
+
+register_fake_composer(BriefingReport, _fake_briefing_payload)
 
 
 def write_briefing(conn: sqlite3.Connection, facts: dict) -> dict:

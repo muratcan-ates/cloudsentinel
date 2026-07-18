@@ -123,3 +123,41 @@ def test_dry_budget_briefing_falls_back_deterministically(client, monkeypatch):
     assert briefing["model"] == "rule-based"
     # the deterministic narrative restates the run's computed facts
     assert str(body["signals"]) in briefing["headline"]
+
+
+# --- context-aware fake lane -----------------------------------------------------
+
+
+def test_fake_lane_narrates_the_actual_signal(client):
+    """Under SENTINEL_FAKE_LLM the cards must read like the real anomaly,
+    not like schema filler — the jury-day quota insurance."""
+    report = client.get("/anomalies").json()
+    anomaly = report["anomalies"][0]
+    analysis = client.post(f"/anomalies/{anomaly['id']}/analyze").json()
+    assert analysis["source"] == "fake"
+    assert anomaly["service"] in analysis["summary"]
+    assert "fake" not in analysis["summary"]
+    assert analysis["evidence_ids"]  # cited rows ring the evidence chart
+
+    recommendation = client.post(f"/anomalies/{anomaly['id']}/recommend").json()
+    titles = " ".join(option["title"] for option in recommendation["options"])
+    assert anomaly["service"] in titles
+    if recommendation["transcript"] is not None:
+        assert "stance" in recommendation["transcript"]["skeptic_rationale"]
+
+    pulse = client.post("/pulse").json()
+    assert pulse["briefing"]["source"] == "fake"
+    assert "signal" in pulse["briefing"]["headline"]
+    assert "fake" not in pulse["briefing"]["headline"]
+
+
+def test_unregistered_schemas_keep_the_generic_fake(client):
+    from pydantic import BaseModel
+
+    from app.llm import FakeProvider
+
+    class UnknownShape(BaseModel):
+        note: str
+
+    result = FakeProvider().generate("anything", response_schema=UnknownShape)
+    assert result.parsed.note == "fake"

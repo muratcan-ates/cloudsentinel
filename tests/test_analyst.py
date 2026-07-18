@@ -197,7 +197,8 @@ def test_analyze_returns_deterministic_fake_report(client):
     assert response.status_code == 200
     body = response.json()
     assert body["event_id"] == event_id
-    assert body["triage"] == "REAL"  # FakeProvider picks the first Literal
+    # the context-aware fake keeps the generic path's structural values
+    assert body["triage"] == "REAL"
     assert body["confidence"]["score"] == 0.5
     assert body["source"] == "fake"
     assert body["model"] == "fake"

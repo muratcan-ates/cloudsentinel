@@ -15,6 +15,7 @@ Design constraints:
 """
 
 import contextvars
+import json
 import logging
 import math
 import os
@@ -309,6 +310,41 @@ class GeminiProvider(LLMProvider):
         ) from last_error
 
 
+# --- context-aware fake output ----------------------------------------------
+#
+# The generic fake payload fills every string with "fake" — structurally
+# valid, but a demo (or a jury-day quota outage) then shows lifeless cards.
+# Agent modules may register a COMPOSER for their response schema: it
+# receives the prompt's first untrusted-data payload (parsed JSON) and
+# returns a realistic, deterministic payload dict. Composers must keep the
+# generic path's structural values (triage class, confidence score) so the
+# fake lane stays behaviorally identical — only the narrative gains life.
+# _example_payload remains the fallback for unregistered schemas.
+
+FakeComposer = Callable[[dict], dict]
+_fake_composers: dict[str, FakeComposer] = {}
+
+
+def register_fake_composer(schema: type[BaseModel], composer: FakeComposer) -> None:
+    _fake_composers[schema.__name__] = composer
+
+
+def extract_untrusted_payload(prompt: str) -> dict:
+    """First untrusted-data block of the prompt as a dict ({} on any miss)."""
+    start = prompt.find(DATA_DELIMITER_OPEN)
+    if start < 0:
+        return {}
+    start += len(DATA_DELIMITER_OPEN)
+    end = prompt.find(DATA_DELIMITER_CLOSE, start)
+    if end < 0:
+        return {}
+    try:
+        parsed = json.loads(prompt[start:end].strip())
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
 def _example_value(annotation) -> object:
     """Produce a deterministic sample value for a schema field."""
     origin = get_origin(annotation)
@@ -356,11 +392,21 @@ class FakeProvider(LLMProvider):
         charge_call_budget()  # the budget is observable under the fake too
         parsed = None
         if response_schema is not None:
-            payload = (
-                self._canned_payload
-                if self._canned_payload is not None
-                else _example_payload(response_schema)
-            )
+            payload = self._canned_payload
+            if payload is None:
+                composer = _fake_composers.get(response_schema.__name__)
+                if composer is not None:
+                    try:
+                        payload = composer(extract_untrusted_payload(prompt))
+                    except Exception:
+                        logger.warning(
+                            "fake composer for %s failed; using the generic payload",
+                            response_schema.__name__,
+                            exc_info=True,
+                        )
+                        payload = None
+            if payload is None:
+                payload = _example_payload(response_schema)
             parsed = response_schema.model_validate(payload)
         return LLMResult(text=self._canned_text, parsed=parsed, source="fake", model="fake")
 

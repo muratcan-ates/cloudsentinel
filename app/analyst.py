@@ -37,6 +37,7 @@ from app.llm import (
     LLMProvider,
     generate_with_fallback,
     get_provider,
+    register_fake_composer,
     wrap_untrusted,
 )
 from app.detection import CRITICAL_Z_SCORE, load_daily_costs
@@ -74,6 +75,53 @@ class AnalystReport(BaseModel):
     probable_cause: str
     evidence_ids: list[str]
     confidence: Confidence
+
+
+def _fake_analyst_payload(payload: dict) -> dict:
+    """Context-aware demo output: the fake lane narrates the ACTUAL anomaly.
+
+    Structural values stay identical to the generic fake (triage REAL,
+    confidence 0.5) so guardrail behavior — reflection, the debate bar —
+    does not shift; only the narrative comes alive. The reflection prompt's
+    first untrusted block is the draft report itself: recognizing that
+    shape and returning it unchanged models an approving reviewer.
+    """
+    if "triage" in payload and "summary" in payload:
+        return payload  # reflection pass: approve the draft
+    anomaly = payload.get("anomaly") or {}
+    history = payload.get("history") or []
+    service = anomaly.get("service", "the service")
+    cost = float(anomaly.get("cost") or 0.0)
+    mean = float(anomaly.get("service_mean") or 0.0)
+    z = float(anomaly.get("z_score") or 0.0)
+    downward = cost <= mean
+    cited = [row["eid"] for row in history if isinstance(row, dict) and "eid" in row][-3:]
+    return {
+        "triage": "REAL",
+        "summary": (
+            f"{service} recorded {cost:.2f} on {anomaly.get('date', 'the flagged day')} "
+            f"against a {mean:.2f} baseline — z {z:+.2f}, "
+            f"{'a collapse below' if downward else 'well clear of'} its recent range."
+        ),
+        "probable_cause": (
+            f"The drop pattern suggests a billing/ingestion gap or a paused workload "
+            f"on {service}; confirm the export before treating it as real."
+            if downward
+            else f"The recent daily history points to unplanned capacity or traffic "
+            f"growth on {service} rather than a one-day artifact."
+        ),
+        "evidence_ids": cited,
+        "confidence": {
+            "score": 0.5,
+            "rationale": (
+                "Demo-mode heuristic over the cited rows — no live model "
+                "reviewed this, so confidence stays deliberately modest."
+            ),
+        },
+    }
+
+
+register_fake_composer(AnalystReport, _fake_analyst_payload)
 
 
 def build_evidence(service: str) -> list[dict]:

@@ -39,6 +39,7 @@ from app.llm import (
     Confidence,
     generate_with_fallback,
     get_provider,
+    register_fake_composer,
     wrap_untrusted,
 )
 from app.missions import MissionError, get_mission
@@ -292,6 +293,51 @@ def rule_based_options(anomaly: dict) -> list[RecommendedOption]:
             rollback="available — reapply the prior sizing profile",
         ),
     ]
+
+
+def _fake_recommender_payload(payload: dict) -> dict:
+    """Context-aware demo output built on the deterministic option templates.
+
+    Confidence stays at the generic fake's 0.5 so the debate-lite trigger
+    behaves identically; the narrative simply describes the real anomaly.
+    """
+    anomaly = payload.get("anomaly") or {}
+    downward = float(anomaly.get("cost") or 0.0) <= float(
+        anomaly.get("service_mean") or 0.0
+    )
+    return {
+        "category": "INVESTIGATION" if downward else "RIGHTSIZING",
+        "options": [option.model_dump() for option in rule_based_options(anomaly)],
+        "preferred": "CAUTIOUS",
+        "confidence": {
+            "score": 0.5,
+            "rationale": (
+                "Demo-mode templates over the computed savings — modest by "
+                "design so the skeptic reviews the call."
+            ),
+        },
+    }
+
+
+def _fake_skeptic_payload(payload: dict) -> dict:
+    """The demo skeptic examines the actual draft and concurs, on record."""
+    draft = payload.get("draft_recommendation") or {}
+    preferred = draft.get("preferred")
+    if preferred not in ("CAUTIOUS", "BOLD"):
+        preferred = "CAUTIOUS"
+    return {
+        "agree": True,
+        "preferred": preferred,
+        "rationale": (
+            f"The {preferred} stance matches the analysis: the savings are "
+            "computed arithmetic, the rollback is stated, and nothing here "
+            "justifies a higher blast radius."
+        ),
+    }
+
+
+register_fake_composer(RecommenderReport, _fake_recommender_payload)
+register_fake_composer(SkepticVerdict, _fake_skeptic_payload)
 
 
 def rule_based_report(anomaly: dict) -> RecommenderReport:
