@@ -37,6 +37,7 @@ def test_dashboard_hidden_from_openapi_schema():
         "/costs/summary/export",
         "/decisions/similar",
         "/health",
+        "/metrics/detection",
         "/pulse"
     }
 

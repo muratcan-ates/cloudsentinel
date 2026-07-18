@@ -54,12 +54,19 @@ class Anomaly(BaseModel):
     service_mean: float
     z_score: float
     severity: Literal["critical", "warning"]
+    # Detector registry: which statistics produced this flag (defaults keep
+    # payloads persisted before Sprint 3 parseable).
+    detector: str = "zscore"
+    detector_params: dict = Field(default_factory=dict)
 
 
 class AnomalyReport(BaseModel):
     threshold: float
     records_analyzed: int
     anomaly_count: int
+    detector: str = "zscore"
+    window_days: int = 28
+    insufficient_data_services: list[str] = Field(default_factory=list)
     anomalies: list[Anomaly]
 
 
@@ -234,6 +241,23 @@ class DecisionAnalyticsReport(BaseModel):
     funnel: HitlFunnel
     quality: DecisionQuality
     telemetry: AgentTelemetry
+
+
+class DetectionPrecisionRow(BaseModel):
+    service: str
+    approved: int
+    rejected: int
+    precision_proxy: float | None
+
+
+class DetectionPrecisionReport(BaseModel):
+    window_days: int
+    approved: int
+    rejected: int
+    decided: int
+    precision_proxy: float | None
+    method: str
+    services: list[DetectionPrecisionRow]
 
 
 class ServiceTrendRow(BaseModel):

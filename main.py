@@ -23,15 +23,16 @@ import sqlite3
 from app import db
 from app.actions import router as actions_router
 from app.analyst import router as analyst_router
+from app.analytics import metrics_router as metrics_router
 from app.analytics import router as analytics_router
 from app.decisions import router as decisions_router
 from app.pulse import router as pulse_router
 from app.recommender import router as recommender_router
 from app.detection import (
     build_daily_series,
-    detect_anomalies,
     load_daily_costs,
     load_dataset,
+    run_detection,
     summarize_costs,
 )
 from app.models import AnomalyReport, CostSummaryReport, DailyCostReport, HealthStatus
@@ -118,6 +119,7 @@ app.include_router(actions_router)
 app.include_router(analyst_router)
 app.include_router(analytics_router)
 app.include_router(decisions_router)
+app.include_router(metrics_router)
 app.include_router(pulse_router)
 app.include_router(recommender_router)
 
@@ -254,18 +256,19 @@ def get_anomalies(
     ),
     conn: sqlite3.Connection = Depends(db.get_db),
 ) -> AnomalyReport:
-    """Return cost records that deviate anomalously from their service's mean.
+    """Return cost records that deviate anomalously from their service's baseline.
 
-    Anomaly detection always runs over the full dataset so that each
-    service's mean/stdev is computed from its complete history; the
-    optional `service` filter only narrows what's returned. Every
+    Detection scores each service's rolling baseline window (see
+    app/detection.py for the window, detector and seasonality controls);
+    the optional `service` filter only narrows what's returned. Every
     detected anomaly is persisted as an event with a stable id (upsert
     by natural key), which `POST /anomalies/{id}/analyze` targets —
     request-triggered scanning is the deployment model, so the scan is
     also the ingestion point.
     """
     records = load_daily_costs()
-    anomalies = detect_anomalies(records, threshold)
+    run = run_detection(records, threshold)
+    anomalies = run.anomalies
     if anomalies:
         with db.writing(conn):
             for anomaly in anomalies:
@@ -283,6 +286,9 @@ def get_anomalies(
         threshold=threshold,
         records_analyzed=len(records),
         anomaly_count=len(anomalies),
+        detector=run.detector,
+        window_days=run.window_days,
+        insufficient_data_services=run.insufficient_data_services,
         anomalies=anomalies,
     )
 

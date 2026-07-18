@@ -2,7 +2,8 @@
 
 from fastapi.testclient import TestClient
 
-from main import app, detect_anomalies
+from app.detection import detect_anomalies
+from main import app
 
 client = TestClient(app)
 
@@ -84,8 +85,10 @@ def test_empty_service_filter_is_rejected():
 
 
 def test_zero_stdev_service_is_skipped():
+    # 8 records clears MIN_HISTORY, so this exercises the stdev==0 guard
+    # itself rather than the insufficient-history gate.
     records = [
         {"date": f"2026-06-{20 + i:02d}", "service": "flatline", "cost": 10.0}
-        for i in range(5)
+        for i in range(8)
     ]
     assert detect_anomalies(records, threshold=2.0) == []

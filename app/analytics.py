@@ -30,11 +30,19 @@ from app.models import (
     CostTrendReport,
     DecisionAnalyticsReport,
     DecisionQuality,
+    DetectionPrecisionReport,
+    DetectionPrecisionRow,
     HitlFunnel,
     ServiceTrendRow,
 )
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
+metrics_router = APIRouter(prefix="/metrics", tags=["analytics"])
+
+PRECISION_METHOD = (
+    "operator approvals over decided proposals; a rejection is treated "
+    "as a detector false positive (proxy ground truth)"
+)
 
 SAVINGS_METHOD = (
     "sum of the preferred option's deterministic monthly projection "
@@ -168,6 +176,59 @@ def decision_analytics(
         funnel=_funnel(conn),
         quality=_quality(conn),
         telemetry=_telemetry(conn),
+    )
+
+
+@metrics_router.get("/detection")
+def detection_precision(
+    window_days: int = Query(
+        30,
+        ge=1,
+        le=365,
+        description="How many days of operator verdicts to measure over.",
+    ),
+    conn: sqlite3.Connection = Depends(db.get_db),
+) -> DetectionPrecisionReport:
+    """Operator verdicts as detector ground truth (the P1.5 feedback loop).
+
+    Decision memory already records every human verdict; this endpoint
+    closes the loop by reading rejections as detector false positives.
+    Coarse by design — a rejection can also mean "real but not worth
+    acting on" — hence the explicit proxy label in ``method``.
+    """
+    rows = conn.execute(
+        "SELECT service, verdict, count(*) AS n FROM decisions "
+        "WHERE created_at >= datetime('now', ?) GROUP BY service, verdict",
+        (f"-{window_days} days",),
+    ).fetchall()
+    per_service: dict[str, dict[str, int]] = {}
+    for row in rows:
+        counts = per_service.setdefault(row["service"], {"approved": 0, "rejected": 0})
+        counts[row["verdict"]] = row["n"]
+
+    def proxy(approved: int, rejected: int) -> float | None:
+        decided = approved + rejected
+        return round(approved / decided, 4) if decided else None
+
+    services = [
+        DetectionPrecisionRow(
+            service=service,
+            approved=counts["approved"],
+            rejected=counts["rejected"],
+            precision_proxy=proxy(counts["approved"], counts["rejected"]),
+        )
+        for service, counts in sorted(per_service.items())
+    ]
+    approved = sum(row.approved for row in services)
+    rejected = sum(row.rejected for row in services)
+    return DetectionPrecisionReport(
+        window_days=window_days,
+        approved=approved,
+        rejected=rejected,
+        decided=approved + rejected,
+        precision_proxy=proxy(approved, rejected),
+        method=PRECISION_METHOD,
+        services=services,
     )
 
 

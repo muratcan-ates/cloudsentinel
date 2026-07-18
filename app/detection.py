@@ -1,13 +1,45 @@
 """Data loading and anomaly detection over cloud cost records.
 
-Detection uses a z-score per record against its service's historical
-mean; records at or above CRITICAL_Z_SCORE are critical, the rest are
-warnings. The data source is synthetic (data/mock_costs.json); real
+Detection scores each record inside a rolling baseline window against its
+service's recent history and flags records whose deviation meets the
+threshold; records at or above CRITICAL_Z_SCORE are critical, the rest
+are warnings. The data source is synthetic (data/mock_costs.json); real
 providers come in later sprints.
+
+Detection-quality controls (Sprint 3, pure Python by locked decision):
+
+- Rolling baseline: statistics come from a true calendar window — the
+  ``SENTINEL_BASELINE_WINDOW_DAYS`` days (default 28) ending at the
+  dataset's newest date — not from each service's whole history. A
+  months-old regime cannot poison today's baseline, only records inside
+  the window are scored, and a service whose data stopped before the
+  window ages out into the insufficient-data list instead of being
+  scored against fossils.
+- Insufficient history: services with fewer than ``MIN_HISTORY`` records
+  in the window are excluded from flagging and reported separately —
+  two data points are not a baseline.
+- ``SENTINEL_DETECTOR=mad`` switches the baseline to median + scaled
+  median-absolute-deviation, which a single extreme spike cannot poison
+  the way it inflates a mean/stdev. A flat-median series (MAD = 0)
+  falls back to the classic z-score so real spikes are still caught.
+- ``SENTINEL_SEASONAL=1`` opts into day-of-week baselines (Mondays are
+  compared with Mondays) whenever every weekday bucket in the window
+  holds at least ``MIN_WEEKDAY_SAMPLES`` records AND is large enough to
+  matter statistically: with a self-inclusive population stdev the
+  largest attainable |z| in an n-sample group is sqrt(n-1), so a bucket
+  that cannot mathematically reach the requested threshold would
+  silently disable detection — those services fall back to the flat
+  baseline instead.
+- Every flagged anomaly records which detector and parameters produced
+  it (``detector`` / ``detector_params``) so "why was this flagged" has
+  a durable answer in the event payload.
 """
 
 import json
+import os
 import statistics
+from dataclasses import dataclass
+from datetime import date, timedelta
 from pathlib import Path
 
 from app.models import Anomaly, DailyServiceSeries, ServiceCostSummary
@@ -16,6 +48,33 @@ DATA_FILE = Path(__file__).parent / "data" / "mock_costs.json"
 
 # Flagged records at or above this |z-score| are critical; the rest are warnings.
 CRITICAL_Z_SCORE = 3.0
+
+DETECTOR_ENV = "SENTINEL_DETECTOR"  # zscore (default) | mad
+WINDOW_ENV = "SENTINEL_BASELINE_WINDOW_DAYS"
+SEASONAL_ENV = "SENTINEL_SEASONAL"  # "1" opts into day-of-week baselines
+
+DEFAULT_WINDOW_DAYS = 28
+MIN_HISTORY = 7
+MIN_WEEKDAY_SAMPLES = 3
+MAD_SCALE = 1.4826  # normal-consistency constant: scaled MAD estimates sigma
+
+
+def detector_mode() -> str:
+    raw = os.environ.get(DETECTOR_ENV, "").strip().lower()
+    return raw if raw in ("zscore", "mad") else "zscore"
+
+
+def baseline_window_days() -> int:
+    raw = os.environ.get(WINDOW_ENV, "").strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return DEFAULT_WINDOW_DAYS
+    return value if value >= MIN_HISTORY else DEFAULT_WINDOW_DAYS
+
+
+def seasonal_enabled() -> bool:
+    return os.environ.get(SEASONAL_ENV, "").strip() == "1"
 
 
 def load_dataset() -> dict:
@@ -57,7 +116,7 @@ def build_daily_series(records: list) -> dict:
     length as the date axis; costs on the same service+date accumulate.
     """
     dates = sorted({record["date"] for record in records})
-    date_index = {date: i for i, date in enumerate(dates)}
+    date_index = {date_: i for i, date_ in enumerate(dates)}
     by_service = {}
     for record in records:
         values = by_service.setdefault(record["service"], [0.0] * len(dates))
@@ -76,32 +135,183 @@ def build_daily_series(records: list) -> dict:
     return {"dates": dates, "services": services, "totals": totals}
 
 
-def detect_anomalies(records: list, threshold: float) -> list[Anomaly]:
-    """Flag records whose z-score against their service's history meets the threshold."""
-    by_service = {}
-    for record in records:
-        by_service.setdefault(record["service"], []).append(record)
+@dataclass
+class _Baseline:
+    center: float
+    spread: float
+    label: str  # which detector actually produced these statistics
 
-    anomalies = []
-    for service, service_records in by_service.items():
-        costs = [r["cost"] for r in service_records]
+
+def _baseline(costs: list[float], mode: str) -> _Baseline | None:
+    """Build the comparison statistics for one group of costs.
+
+    Returns None for a group with no measurable spread — a perfectly flat
+    series carries no deviation signal under either detector.
+    """
+    if mode == "mad":
+        median = statistics.median(costs)
+        mad = statistics.median(abs(cost - median) for cost in costs)
+        if mad > 0:
+            return _Baseline(center=median, spread=MAD_SCALE * mad, label="mad")
+        # Flat median with real outliers (over half the window identical):
+        # scaled MAD collapses to zero and would hide every spike, so the
+        # classic z-score takes over for this group, honestly labeled.
         mean = statistics.mean(costs)
         stdev = statistics.pstdev(costs)
         if stdev == 0:
+            return None
+        return _Baseline(center=mean, spread=stdev, label="mad->zscore")
+    mean = statistics.mean(costs)
+    stdev = statistics.pstdev(costs)
+    if stdev == 0:
+        return None
+    return _Baseline(center=mean, spread=stdev, label="zscore")
+
+
+def _weekday(record: dict) -> int | None:
+    try:
+        return date.fromisoformat(str(record["date"])).weekday()
+    except ValueError:
+        return None
+
+
+def _window_cutoff(records: list, window_days: int) -> str | None:
+    """First ISO date inside the calendar window ending at the newest record.
+
+    Anchored to the dataset's newest date (not the wall clock) so mock
+    and historical datasets window correctly. Returns None when any date
+    is unparseable — callers then fall back to a record-count slice.
+    """
+    try:
+        newest = max(date.fromisoformat(str(record["date"])) for record in records)
+    except ValueError:
+        return None
+    return (newest - timedelta(days=window_days - 1)).isoformat()
+
+
+@dataclass
+class DetectionRun:
+    """Everything one detection pass produced, registry included."""
+
+    anomalies: list[Anomaly]
+    insufficient_data_services: list[str]
+    detector: str
+    window_days: int
+    seasonal: bool
+
+
+def run_detection(
+    records: list,
+    threshold: float,
+    *,
+    detector: str | None = None,
+    window: int | None = None,
+    seasonal: bool | None = None,
+) -> DetectionRun:
+    """Score each service's recent records against its rolling baseline.
+
+    Keyword overrides exist for tests and the benchmark harness; the
+    endpoints resolve them from the environment.
+    """
+    mode = detector if detector in ("zscore", "mad") else detector_mode()
+    window_days = window if window and window >= MIN_HISTORY else baseline_window_days()
+    use_seasonal = seasonal_enabled() if seasonal is None else seasonal
+
+    by_service: dict[str, list[dict]] = {}
+    for record in records:
+        by_service.setdefault(record["service"], []).append(record)
+    cutoff = _window_cutoff(records, window_days) if records else None
+
+    anomalies: list[Anomaly] = []
+    insufficient: list[str] = []
+    for service, service_records in by_service.items():
+        service_records.sort(key=lambda record: str(record["date"]))
+        if cutoff is not None:
+            # True calendar window: a service whose data stopped before the
+            # window holds nothing here and ages out via the insufficient
+            # list instead of being scored against fossil records.
+            windowed = [
+                record for record in service_records if str(record["date"]) >= cutoff
+            ]
+        else:
+            windowed = service_records[-window_days:]
+        if len(windowed) < MIN_HISTORY:
+            insufficient.append(service)
             continue
-        for record in service_records:
-            z_score = (record["cost"] - mean) / stdev
-            if abs(z_score) >= threshold:
-                anomalies.append(
-                    Anomaly(
-                        service=service,
-                        date=record["date"],
-                        cost=record["cost"],
-                        service_mean=round(mean, 2),
-                        z_score=round(z_score, 2),
-                        severity="critical" if abs(z_score) >= CRITICAL_Z_SCORE else "warning",
-                    )
+
+        # Day-of-week baselines only when every weekday bucket in the window
+        # is sampled well enough to be a baseline of its own — statistically,
+        # not just by count: with a self-inclusive pstdev the largest
+        # attainable |z| in an n-sample group is sqrt(n-1), so a bucket with
+        # n - 1 <= threshold^2 could never flag anything and would silently
+        # disable detection. Such services keep their flat baseline.
+        groups: list[list[dict]] = [windowed]
+        seasonal_applied = False
+        if use_seasonal:
+            buckets: dict[int, list[dict]] = {}
+            for record in windowed:
+                weekday = _weekday(record)
+                if weekday is None:
+                    buckets = {}
+                    break
+                buckets.setdefault(weekday, []).append(record)
+            if buckets and all(
+                len(bucket) >= MIN_WEEKDAY_SAMPLES
+                and len(bucket) - 1 > threshold * threshold
+                for bucket in buckets.values()
+            ):
+                groups = list(buckets.values())
+                seasonal_applied = True
+
+        for group in groups:
+            baseline = _baseline([record["cost"] for record in group], mode)
+            if baseline is None:
+                continue
+            label = baseline.label + ("+weekday" if seasonal_applied else "")
+            for record in group:
+                # The published (rounded) score decides flagging and severity,
+                # so a reader recomputing from the payload always agrees with
+                # the stored severity — no raw-vs-rounded disagreement band.
+                score = round(
+                    (record["cost"] - baseline.center) / baseline.spread, 2
                 )
+                if abs(score) >= threshold:
+                    anomalies.append(
+                        Anomaly(
+                            service=service,
+                            date=record["date"],
+                            cost=record["cost"],
+                            service_mean=round(baseline.center, 2),
+                            z_score=score,
+                            severity=(
+                                "critical"
+                                if abs(score) >= CRITICAL_Z_SCORE
+                                else "warning"
+                            ),
+                            detector=label,
+                            # Persisted into the event payload on purpose: a
+                            # config change re-keys LLM caches, and that is
+                            # correct — a different detector asks a different
+                            # question about the same numbers.
+                            detector_params={
+                                "window_days": window_days,
+                                "min_history": MIN_HISTORY,
+                                "seasonal": seasonal_applied,
+                            },
+                        )
+                    )
 
     anomalies.sort(key=lambda a: abs(a.z_score), reverse=True)
-    return anomalies
+    insufficient.sort()
+    return DetectionRun(
+        anomalies=anomalies,
+        insufficient_data_services=insufficient,
+        detector=mode,
+        window_days=window_days,
+        seasonal=use_seasonal,
+    )
+
+
+def detect_anomalies(records: list, threshold: float) -> list[Anomaly]:
+    """Compatibility wrapper: the anomaly list of a full detection run."""
+    return run_detection(records, threshold).anomalies
