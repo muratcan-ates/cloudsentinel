@@ -57,6 +57,9 @@ def test_dashboard_hidden_from_openapi_schema():
         "/pulse",
         "/pulse/last",
         "/reflex/suggestions",
+        "/routines",
+        "/routines/{routine_id}",
+        "/routines/{routine_id}/run",
         "/security/signals"
     }
 

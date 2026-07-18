@@ -56,6 +56,11 @@ def _daily_totals(records: list) -> list[float]:
 @router.get("")
 def insights(conn: sqlite3.Connection = Depends(db.get_db)) -> InsightsReport:
     """Reflect on persisted history and advise — deterministic, HITL-safe."""
+    return compute_insights(conn)
+
+
+def compute_insights(conn: sqlite3.Connection) -> InsightsReport:
+    """History synthesis, callable by the route, routines and self-review."""
     observations: list[str] = []
     predictions: list[InsightPrediction] = []
     recommendations: list[InsightRecommendation] = []

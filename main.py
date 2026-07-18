@@ -48,6 +48,7 @@ from app.recommender import router as recommender_router
 from app.fraud import router as fraud_router
 from app.reflex import reflex_scan
 from app.reflex import router as reflex_router
+from app.routines import router as routines_router
 from app.security import router as security_router
 from app.detection import (
     DEFAULT_THRESHOLD,
@@ -173,6 +174,7 @@ app.include_router(insights_router)
 app.include_router(metrics_router)
 app.include_router(ops_router)
 app.include_router(reflex_router)
+app.include_router(routines_router)
 app.include_router(security_router)
 app.include_router(pulse_router)
 app.include_router(recommender_router)
