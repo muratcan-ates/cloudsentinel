@@ -7,7 +7,8 @@ Turns a persisted cost-anomaly event into a triaged analysis:
 - a self-assessed confidence score with rationale
 
 Quota discipline (locked plan decisions):
-- Reflection (a second self-review pass) runs only for |z| >= 3 signals.
+- Reflection (a second self-review pass) runs only for critical-severity
+  signals, as the detection layer classified them.
 - Results are cached in ``llm_cache`` keyed by model + system + prompt;
   a cache hit answers without any provider call.
 - Every provider call (and every cache hit) lands in the ``ai_usage``
@@ -108,10 +109,25 @@ def build_reflection_prompt(draft: AnalystReport, original_prompt: str) -> str:
     )
 
 
+def payload_is_critical(anomaly: dict) -> bool:
+    """Severity as the detection layer decided it, from the payload itself.
+
+    The detector already classified the signal (missions may tune the
+    critical cutoff), so the payload's own ``severity`` is authoritative;
+    recomputing against the module constant would disagree with tuned
+    missions. Payloads persisted before severity existed fall back to the
+    constant comparison.
+    """
+    severity = anomaly.get("severity")
+    if severity in ("critical", "warning"):
+        return severity == "critical"
+    return abs(float(anomaly.get("z_score", 0.0))) >= CRITICAL_Z_SCORE
+
+
 def rule_based_report(anomaly: dict, evidence: list[dict]) -> AnalystReport:
     """Deterministic triage used when no LLM answer can be obtained."""
     z_score = float(anomaly.get("z_score", 0.0))
-    critical = abs(z_score) >= CRITICAL_Z_SCORE
+    critical = payload_is_critical(anomaly)
     anomaly_row = next(
         (row["eid"] for row in evidence if row["date"] == anomaly.get("date")),
         None,
@@ -121,12 +137,11 @@ def rule_based_report(anomaly: dict, evidence: list[dict]) -> AnalystReport:
         summary=(
             f"{anomaly.get('service', 'unknown')} spent {anomaly.get('cost')} "
             f"on {anomaly.get('date')}, z-score {z_score:+.2f} against its "
-            "historical mean."
+            "service baseline."
         ),
         probable_cause=(
-            "Rule-based triage without LLM review: the z-score magnitude "
-            f"{'meets' if critical else 'stays below'} the critical threshold "
-            f"({CRITICAL_Z_SCORE:.1f})."
+            "Rule-based triage without LLM review: the detection layer "
+            f"classified this signal {'critical' if critical else 'warning'}."
         ),
         evidence_ids=[anomaly_row] if anomaly_row else [],
         confidence=Confidence(
@@ -180,7 +195,7 @@ def analyze_event(conn: sqlite3.Connection, event: sqlite3.Row) -> AnalysisRespo
         source, reflected, from_cache = result.source, False, False
         model_used = result.model
 
-        if source != "fallback" and abs(float(anomaly.get("z_score", 0.0))) >= CRITICAL_Z_SCORE:
+        if source != "fallback" and payload_is_critical(anomaly):
             reflection_prompt = build_reflection_prompt(report, prompt)
             # Best-effort by locked decision: ANY reflection failure keeps
             # the draft — it already cost quota and must reach the ledger.

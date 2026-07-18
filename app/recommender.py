@@ -39,6 +39,7 @@ from app.llm import (
     get_provider,
     wrap_untrusted,
 )
+from app.missions import MissionError, get_mission
 from app.models import (
     ConfidenceReport,
     RecommendationResponse,
@@ -53,8 +54,34 @@ router = APIRouter(tags=["agents"])
 PROJECTION_DAYS = 30
 CAUTIOUS_CONTAINMENT = 0.35
 BOLD_CONTAINMENT = 0.70
+# Fallback only: the operative escalation threshold lives in the mission
+# YAML (S3-①); this constant answers when no mission config is loadable.
 CONFIDENCE_DEBATE_THRESHOLD = 0.6
 DECISION_MEMORY_LIMIT = 5
+
+
+_warned_mission_fallback = False
+
+
+def debate_threshold() -> float:
+    """Mission-configured debate-lite threshold, with a safe fallback.
+
+    The fallback is logged once per process — silently reverting an
+    operator's configured threshold forever would mask a broken config.
+    """
+    global _warned_mission_fallback
+    try:
+        return get_mission().escalation.confidence_debate_threshold
+    except MissionError:
+        if not _warned_mission_fallback:
+            logger.warning(
+                "mission config unavailable; using the built-in debate "
+                "threshold %.2f",
+                CONFIDENCE_DEBATE_THRESHOLD,
+                exc_info=True,
+            )
+            _warned_mission_fallback = True
+        return CONFIDENCE_DEBATE_THRESHOLD
 
 RECOMMENDER_SYSTEM_INSTRUCTION = (
     "You are CloudSentinel's remediation recommender. Given an analyzed cost "
@@ -109,7 +136,9 @@ def estimated_savings(anomaly: dict) -> dict:
         "cautious_monthly": round(excess * PROJECTION_DAYS * CAUTIOUS_CONTAINMENT, 2),
         "bold_monthly": round(excess * PROJECTION_DAYS * BOLD_CONTAINMENT, 2),
         "method": (
-            f"deviation projection: (cost - service mean) x {PROJECTION_DAYS} days "
+            # "baseline", not "mean": under the MAD detector this figure is a
+            # median, and the money math must describe itself honestly.
+            f"deviation projection: (cost - service baseline) x {PROJECTION_DAYS} days "
             f"x containment factor ({CAUTIOUS_CONTAINMENT} cautious / {BOLD_CONTAINMENT} bold)"
         ),
     }
@@ -235,13 +264,14 @@ def ensure_two_options(report: RecommenderReport, anomaly: dict) -> RecommenderR
     return report
 
 
-def escalation_trigger(analyst_triage: str, confidence_score: float) -> str | None:
+def escalation_trigger(
+    analyst_triage: str, confidence_score: float, threshold: float | None = None
+) -> str | None:
     """Debate-lite fires on low confidence OR analyst/recommender disagreement."""
-    if confidence_score < CONFIDENCE_DEBATE_THRESHOLD:
-        return (
-            f"low confidence ({confidence_score:.2f} < "
-            f"{CONFIDENCE_DEBATE_THRESHOLD:.2f})"
-        )
+    if threshold is None:
+        threshold = debate_threshold()
+    if confidence_score < threshold:
+        return f"low confidence ({confidence_score:.2f} < {threshold:.2f})"
     if analyst_triage != "REAL":
         return (
             f"analyst-recommender disagreement (triage {analyst_triage} "
@@ -302,7 +332,17 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
     prompt = build_prompt(anomaly, analyst_report, savings, decision_memory)
     skeptic_prompt: str | None = None
 
-    cached = db.cache_get(conn, model, prompt, RECOMMENDER_SYSTEM_INSTRUCTION)
+    escalation_threshold = debate_threshold()
+    # Cached envelopes replay their stored escalation decision, so the
+    # threshold that produced it must partition the cache key: a mission
+    # tuned to a new threshold gets fresh envelopes, not replays computed
+    # under the old one. Hash-only scope — the provider still receives the
+    # plain system instruction.
+    cache_scope = (
+        RECOMMENDER_SYSTEM_INSTRUCTION
+        + f"\x00debate_threshold={escalation_threshold:.2f}"
+    )
+    cached = db.cache_get(conn, model, prompt, cache_scope)
     if cached is not None and cached["response_json"]:
         envelope = json.loads(cached["response_json"])
         from_cache = True
@@ -324,7 +364,9 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
         model_used = result.model
 
         escalation_reason = escalation_trigger(
-            analyst_report.get("triage", "REAL"), report.confidence.score
+            analyst_report.get("triage", "REAL"),
+            report.confidence.score,
+            threshold=escalation_threshold,
         )
         transcript = None
         if escalation_reason is not None and source != "fallback":
@@ -417,7 +459,7 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
                 prompt,
                 preferred_option.title,
                 json.dumps(envelope),
-                system_instruction=RECOMMENDER_SYSTEM_INSTRUCTION,
+                system_instruction=cache_scope,
             )
         # Re-check under the write lock: a racing duplicate loses here.
         existing = _existing_open_action(conn, event["id"])

@@ -67,6 +67,10 @@ class AnomalyReport(BaseModel):
     detector: str = "zscore"
     window_days: int = 28
     insufficient_data_services: list[str] = Field(default_factory=list)
+    # Reflex registry: which mission ran the scan and how long the
+    # deterministic pass actually took (measured, not claimed).
+    mission: str | None = None
+    reflex_ms: float | None = None
     anomalies: list[Anomaly]
 
 
@@ -201,6 +205,8 @@ class PulseChainLink(BaseModel):
 
 class PulseReport(BaseModel):
     threshold: float
+    mission: str | None = None
+    reflex_ms: float | None = None
     signals: int
     analyzed: int
     proposals_filed: int

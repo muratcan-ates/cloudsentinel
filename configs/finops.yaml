@@ -1,0 +1,34 @@
+# CloudSentinel mission definition — FinOps cost watch.
+# Loaded with yaml.safe_load and validated by app/missions.py::MissionConfig;
+# a config that fails validation refuses to boot the mission (no silent
+# defaults for a malformed file).
+mission: finops
+title: FinOps cost anomaly watch
+description: >
+  Watch daily cloud spend per service, flag deviations from the rolling
+  baseline, and route flagged signals through analyst review into the
+  human decision inbox.
+
+# Intent alignment (organizational > role): agents inherit the mission's
+# purpose; role_intent narrows it per agent so behavior stays scoped.
+organizational_intent: >
+  Keep cloud spend accountable: surface anomalous cost movement early,
+  explain it with cited evidence, and never let a remediation run
+  without an accountable human decision.
+role_intent:
+  analyst: triage signals with cited evidence and honest confidence
+  recommender: propose reversible-first remediations with computed savings
+  operator: own every approve and reject; execution stays simulated
+
+detection:
+  source: cost
+  threshold: 2.0
+  critical_z: 3.0
+  detector: zscore
+  baseline_window_days: 28
+  seasonal: false
+
+escalation:
+  # Debate-lite fires below this recommender confidence (or on
+  # analyst/recommender disagreement — that rule is structural).
+  confidence_debate_threshold: 0.6

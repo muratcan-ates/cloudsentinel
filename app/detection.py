@@ -46,8 +46,10 @@ from app.models import Anomaly, DailyServiceSeries, ServiceCostSummary
 
 DATA_FILE = Path(__file__).parent / "data" / "mock_costs.json"
 
-# Flagged records at or above this |z-score| are critical; the rest are warnings.
+# Flagged records at or above this |z-score| are critical; the rest are
+# warnings. Missions may override per scan via run_detection(critical_z=...).
 CRITICAL_Z_SCORE = 3.0
+DEFAULT_THRESHOLD = 2.0
 
 DETECTOR_ENV = "SENTINEL_DETECTOR"  # zscore (default) | mad
 WINDOW_ENV = "SENTINEL_BASELINE_WINDOW_DAYS"
@@ -207,15 +209,19 @@ def run_detection(
     detector: str | None = None,
     window: int | None = None,
     seasonal: bool | None = None,
+    critical_z: float | None = None,
 ) -> DetectionRun:
     """Score each service's recent records against its rolling baseline.
 
-    Keyword overrides exist for tests and the benchmark harness; the
-    endpoints resolve them from the environment.
+    Keyword overrides exist for the reflex engine, tests and the benchmark
+    harness; called bare, the knobs resolve from the environment.
     """
     mode = detector if detector in ("zscore", "mad") else detector_mode()
     window_days = window if window and window >= MIN_HISTORY else baseline_window_days()
     use_seasonal = seasonal_enabled() if seasonal is None else seasonal
+    critical_cutoff = (
+        critical_z if critical_z is not None and critical_z > 0 else CRITICAL_Z_SCORE
+    )
 
     by_service: dict[str, list[dict]] = {}
     for record in records:
@@ -285,7 +291,7 @@ def run_detection(
                             z_score=score,
                             severity=(
                                 "critical"
-                                if abs(score) >= CRITICAL_Z_SCORE
+                                if abs(score) >= critical_cutoff
                                 else "warning"
                             ),
                             detector=label,

@@ -202,6 +202,8 @@ function renderAnomalies(report) {
   document.getElementById("anomaly-meta").textContent =
     `${report.records_analyzed} records scanned · threshold ${report.threshold.toFixed(2)} · ` +
     `${report.anomaly_count} anomal${report.anomaly_count === 1 ? "y" : "ies"} detected` +
+    // measured, not claimed: the API reports how long the reflex pass took
+    (typeof report.reflex_ms === "number" ? ` · REFLEX ${report.reflex_ms.toFixed(1)} ms` : "") +
     (serviceFilter.value ? ` · service ${serviceFilter.value}` : "");
 
   anomalyList.innerHTML = "";
@@ -218,7 +220,7 @@ function renderAnomalies(report) {
       <div>
         <p class="service">${escapeHtml(anomaly.service)}</p>
         <p class="date">${escapeHtml(anomaly.date)}</p>
-        <p class="figures">${fmtNumber(anomaly.cost)} <span class="dim">vs mean ${fmtNumber(anomaly.service_mean)}</span></p>
+        <p class="figures">${fmtNumber(anomaly.cost)} <span class="dim">vs baseline ${fmtNumber(anomaly.service_mean)}</span></p>
         ${anomaly.service_mean > 0
           ? `<p class="ratio-note">${(anomaly.cost / anomaly.service_mean).toFixed(1)}× the usual daily spend</p>`
           : ""}

@@ -26,9 +26,13 @@ from app.analyst import router as analyst_router
 from app.analytics import metrics_router as metrics_router
 from app.analytics import router as analytics_router
 from app.decisions import router as decisions_router
+from app.missions import MissionError, get_mission
 from app.pulse import router as pulse_router
 from app.recommender import router as recommender_router
+from app.reflex import reflex_scan
+from app.reflex import router as reflex_router
 from app.detection import (
+    DEFAULT_THRESHOLD,
     build_daily_series,
     load_daily_costs,
     load_dataset,
@@ -120,6 +124,7 @@ app.include_router(analyst_router)
 app.include_router(analytics_router)
 app.include_router(decisions_router)
 app.include_router(metrics_router)
+app.include_router(reflex_router)
 app.include_router(pulse_router)
 app.include_router(recommender_router)
 
@@ -243,11 +248,14 @@ def export_cost_summary_csv() -> Response:
 
 @app.get("/anomalies")
 def get_anomalies(
-    threshold: float = Query(
-        2.0,
+    threshold: float | None = Query(
+        None,
         gt=0,
         allow_inf_nan=False,
-        description="Z-score threshold at which a daily cost record is flagged.",
+        description=(
+            "Z-score threshold at which a daily cost record is flagged; "
+            "omitted, the mission's detection threshold governs."
+        ),
     ),
     service: str | None = Query(
         None,
@@ -267,7 +275,20 @@ def get_anomalies(
     also the ingestion point.
     """
     records = load_daily_costs()
-    run = run_detection(records, threshold)
+    # The reflex engine resolves the mission's detection settings and
+    # measures the pass; if the mission config is unloadable the scan must
+    # still answer (demo-critical endpoint), just without the mission tags.
+    try:
+        reflex = reflex_scan(records, get_mission(), threshold)
+        run, mission_name, reflex_ms = reflex.run, reflex.mission, reflex.latency_ms
+        threshold = reflex.threshold
+    except MissionError:
+        logging.getLogger("cloudsentinel.reflex").warning(
+            "mission config unavailable; scanning with environment defaults",
+            exc_info=True,
+        )
+        threshold = threshold if threshold is not None else DEFAULT_THRESHOLD
+        run, mission_name, reflex_ms = run_detection(records, threshold), None, None
     anomalies = run.anomalies
     if anomalies:
         with db.writing(conn):
@@ -289,6 +310,8 @@ def get_anomalies(
         detector=run.detector,
         window_days=run.window_days,
         insufficient_data_services=run.insufficient_data_services,
+        mission=mission_name,
+        reflex_ms=reflex_ms,
         anomalies=anomalies,
     )
 

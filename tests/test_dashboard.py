@@ -38,7 +38,8 @@ def test_dashboard_hidden_from_openapi_schema():
         "/decisions/similar",
         "/health",
         "/metrics/detection",
-        "/pulse"
+        "/pulse",
+        "/reflex/suggestions"
     }
 
 

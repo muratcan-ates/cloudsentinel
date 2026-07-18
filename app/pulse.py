@@ -22,9 +22,11 @@ from fastapi import APIRouter, Depends, Query
 
 from app import db
 from app.analyst import analyze_event
+from app.missions import MissionError, get_mission
 from app.recommender import recommend_for_event
-from app.detection import detect_anomalies, load_daily_costs
+from app.detection import DEFAULT_THRESHOLD, load_daily_costs, run_detection
 from app.models import PulseChainLink, PulseReport
+from app.reflex import reflex_scan
 
 logger = logging.getLogger("cloudsentinel.pulse")
 
@@ -33,17 +35,45 @@ router = APIRouter(tags=["agents"])
 
 @router.post("/pulse")
 def run_pulse(
-    threshold: float = Query(
-        2.0,
+    threshold: float | None = Query(
+        None,
         gt=0,
         allow_inf_nan=False,
-        description="Z-score threshold for the detection pass.",
+        description=(
+            "Z-score threshold for the detection pass; omitted, the "
+            "mission's detection threshold governs."
+        ),
     ),
     conn: sqlite3.Connection = Depends(db.get_db),
 ) -> PulseReport:
     """Run detect → analyze → recommend for every current signal."""
     records = load_daily_costs()
-    anomalies = detect_anomalies(records, threshold)
+    # Reflex first: the deterministic pass carries the mission's settings
+    # and its measured latency opens the tagged log chain.
+    try:
+        reflex = reflex_scan(records, get_mission(), threshold)
+        run, mission_name, reflex_ms = reflex.run, reflex.mission, reflex.latency_ms
+        threshold = reflex.threshold
+    except MissionError:
+        logger.warning(
+            "mission config unavailable; pulsing with environment defaults",
+            exc_info=True,
+        )
+        threshold = threshold if threshold is not None else DEFAULT_THRESHOLD
+        run, mission_name, reflex_ms = run_detection(records, threshold), None, None
+    anomalies = run.anomalies
+    logger.info(
+        "[REFLEX] %s",
+        json.dumps(
+            {
+                "mission": mission_name,
+                "latency_ms": reflex_ms,
+                "signals": len(anomalies),
+                "detector": run.detector,
+            },
+            sort_keys=True,
+        ),
+    )
 
     links: list[PulseChainLink] = []
     analyzed_count = 0
@@ -108,6 +138,8 @@ def run_pulse(
 
     return PulseReport(
         threshold=threshold,
+        mission=mission_name,
+        reflex_ms=reflex_ms,
         signals=len(links),
         analyzed=analyzed_count,
         proposals_filed=filed_count,

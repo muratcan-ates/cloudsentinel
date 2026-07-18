@@ -79,9 +79,10 @@ def test_pulse_emits_the_tagged_log_stream(client, caplog):
     with caplog.at_level(logging.INFO, logger="cloudsentinel"):
         report = client.post("/pulse").json()
     tags = [record.message.split(" ", 1)[0] for record in caplog.records]
-    for tag in ("[SIGNAL]", "[ANALYST]", "[DEBATE]", "[RECOMMENDER]"):
+    for tag in ("[REFLEX]", "[SIGNAL]", "[ANALYST]", "[DEBATE]", "[RECOMMENDER]"):
         assert tag in tags, f"{tag} missing from the log stream"
     # one [SIGNAL] and one [ANALYST] line per hop — not just "at least one"
+    assert tags.count("[REFLEX]") == 1  # the reflex pass opens the chain once
     assert tags.count("[SIGNAL]") == report["signals"]
     assert tags.count("[ANALYST]") == report["analyzed"]
     # the payload after each tag is machine-readable JSON
