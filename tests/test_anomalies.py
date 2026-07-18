@@ -2,7 +2,7 @@
 
 from fastapi.testclient import TestClient
 
-from app.detection import detect_anomalies
+from app.detection import run_detection
 from main import app
 
 client = TestClient(app)
@@ -91,4 +91,4 @@ def test_zero_stdev_service_is_skipped():
         {"date": f"2026-06-{20 + i:02d}", "service": "flatline", "cost": 10.0}
         for i in range(8)
     ]
-    assert detect_anomalies(records, threshold=2.0) == []
+    assert run_detection(records, threshold=2.0).anomalies == []

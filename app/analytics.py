@@ -322,6 +322,12 @@ def ai_usage(conn: sqlite3.Connection = Depends(db.get_db)) -> AiUsageReport:
     cache_hits = conn.execute(
         "SELECT count(*) FROM ai_usage WHERE from_cache = 1"
     ).fetchone()[0]
+    # Live provider calls only: a cache replay re-records its original source
+    # ('gemini') with from_cache=1 and consumes no quota, so it must not
+    # inflate the live-call count — mirror live_today's from_cache=0 filter.
+    live_calls = conn.execute(
+        "SELECT count(*) FROM ai_usage WHERE source = 'gemini' AND from_cache = 0"
+    ).fetchone()[0]
     live_today = conn.execute(
         "SELECT count(*) FROM ai_usage WHERE source = 'gemini' "
         "AND from_cache = 0 AND date(created_at) = date('now')"
@@ -336,7 +342,7 @@ def ai_usage(conn: sqlite3.Connection = Depends(db.get_db)) -> AiUsageReport:
     ]
     return AiUsageReport(
         requests_total=sum(by_agent.values()),
-        live_calls=by_source.get("gemini", 0),
+        live_calls=live_calls,
         cache_hits=cache_hits,
         fallback_answers=by_source.get("fallback", 0),
         live_calls_today=live_today,

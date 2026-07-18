@@ -235,6 +235,25 @@ def test_telemetry_ledger_counts_are_pinned(client):
     assert telemetry["debates"] == 1
 
 
+def test_ai_usage_live_calls_exclude_cache_replays(client):
+    """A cached Gemini answer re-records source='gemini' with from_cache=1 and
+    burns no quota, so /analytics/ai must count it as a cache hit, never a live
+    call — guards the self-accounting 'cached answers consume no quota' claim."""
+    conn = db.connect()
+    try:
+        db.record_ai_usage(conn, agent="analyst", model="m", source="gemini", prompt="live-1")
+        db.record_ai_usage(conn, agent="recommender", model="m", source="gemini", prompt="live-2")
+        db.record_ai_usage(
+            conn, agent="analyst", model="m", source="gemini", prompt="replay", from_cache=True
+        )
+    finally:
+        conn.close()
+
+    body = client.get("/analytics/ai").json()
+    assert body["cache_hits"] == 1
+    assert body["live_calls"] == 2  # the replay is a cache hit, not a live call
+
+
 # --- /analytics/costs/trend -----------------------------------------------------
 
 

@@ -53,7 +53,7 @@ DEFAULT_THRESHOLD = 2.0
 
 DETECTOR_ENV = "SENTINEL_DETECTOR"  # zscore (default) | mad
 WINDOW_ENV = "SENTINEL_BASELINE_WINDOW_DAYS"
-SEASONAL_ENV = "SENTINEL_SEASONAL"  # "1" opts into day-of-week baselines
+SEASONAL_ENV = "SENTINEL_SEASONAL"  # "1"/"true" opts into day-of-week baselines
 REBASE_ENV = "SENTINEL_REBASE_DATES"  # "1" shifts demo data toward today
 
 DEFAULT_WINDOW_DAYS = 28
@@ -77,7 +77,10 @@ def baseline_window_days() -> int:
 
 
 def seasonal_enabled() -> bool:
-    return os.environ.get(SEASONAL_ENV, "").strip() == "1"
+    # Accept the same truthy set as the mission path's parser (reflex.py
+    # _env_seasonal) so SENTINEL_SEASONAL means the same thing whether a scan
+    # runs through the mission or the degraded env-defaults fallback.
+    return os.environ.get(SEASONAL_ENV, "").strip().lower() in ("1", "true")
 
 
 def demo_rebase_delta() -> timedelta:
@@ -352,8 +355,3 @@ def run_detection(
         window_days=window_days,
         seasonal=use_seasonal,
     )
-
-
-def detect_anomalies(records: list, threshold: float) -> list[Anomaly]:
-    """Compatibility wrapper: the anomaly list of a full detection run."""
-    return run_detection(records, threshold).anomalies

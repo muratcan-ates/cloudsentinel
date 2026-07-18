@@ -1,10 +1,16 @@
-"""CloudSentinel API — anomaly detection over cloud cost data.
+"""CloudSentinel API — agent-assisted anomaly watch over cloud cost,
+security and fraud signals.
 
-Sprint 1 scope: anomaly detection over daily cost records (z-score against
-each service's historical mean), a per-service cost summary with CSV export,
-a daily trend series, a liveness check, and a dashboard served at the root.
-All application code lives in the app/ package (models, detection, agents,
-persistence); this module is the thin ASGI entry point.
+A deterministic detection core (rolling baseline · z-score / MAD · weekly
+seasonality) feeds a visible-reasoning agent chain — analyst triage,
+recommender options with Python-computed savings, a debate-lite skeptic and
+a chronicler briefing — over a Gemini (deterministic fake by default)
+provider. Critical decisions stay with a human operator (human-in-the-loop);
+verdicts persist as decision memory and surface through the
+operations-intelligence analytics. All application code lives in the app/
+package (detection, missions/reflex, the agents, persistence, analytics);
+this module is the thin ASGI entry point that wires the routers, the security
+headers and the dashboard.
 """
 
 import csv
@@ -143,10 +149,13 @@ def _log_boot_manifest() -> None:
 app = FastAPI(
     title="CloudSentinel API",
     description=(
-        "Monitors cloud cost data, detects anomalies and reports them "
-        "for operator review (human-in-the-loop)."
+        "Agent-assisted anomaly watch over cloud cost, security and fraud "
+        "signals: a deterministic detection core feeds a visible-reasoning "
+        "agent chain (analyst, recommender, debate-lite skeptic, chronicler); "
+        "critical actions stay with a human operator (human-in-the-loop) and "
+        "persist as decision memory with operations-intelligence analytics."
     ),
-    version="0.1.0",
+    version="0.3.0",
     lifespan=lifespan,
     docs_url=None,
     redoc_url=None,
@@ -305,6 +314,11 @@ def readiness_check(response: Response) -> ReadinessStatus:
     checks: list[ReadinessCheck] = []
 
     try:
+        # Match the API's lazy self-init (get_db): an ASGI runner that defers
+        # the lifespan must not let /ready report 503 while the endpoints
+        # already serve fine by building the schema on first use. init_db is
+        # idempotent, so this is a no-op once the schema exists.
+        db.init_db(db.db_path())
         conn = db.connect()
         try:
             conn.execute("SELECT count(*) FROM events").fetchone()

@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app import db
-from app.fraud import band_for, score_breakdown, simple_score
+from app.fraud import band_for, score_breakdown
 from app.missions import FraudRules
 from main import app
 
@@ -70,9 +70,9 @@ def test_score_clamps_at_100():
         "home_country": "TR",
         "tx_last_10m": 99,
     }
-    score, reasons = simple_score(event)
+    score, hits = score_breakdown(event)
     assert score == 100
-    assert len(reasons) == 4
+    assert len(hits) == 4
 
 
 def test_flagged_reasons_are_concrete():
@@ -85,9 +85,9 @@ def test_flagged_reasons_are_concrete():
         "home_country": "TR",
         "tx_last_10m": 2,
     }
-    score, reasons = simple_score(event)
+    score, hits = score_breakdown(event)
     assert score == 25
-    assert reasons == ["amount 3.4x the account's typical"]
+    assert [hit.detail for hit in hits] == ["amount 3.4x the account's typical"]
 
 
 def test_rule_hits_attribute_every_point(client):

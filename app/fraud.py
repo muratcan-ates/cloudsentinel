@@ -151,14 +151,6 @@ def score_breakdown(
     return min(sum(hit.points for hit in hits), 100), hits
 
 
-def simple_score(
-    event: dict, new_account_days: int = NEW_ACCOUNT_DAYS
-) -> tuple[int, list[str]]:
-    """Deterministic rule score with plain-text reasons (compat shape)."""
-    score, hits = score_breakdown(event, new_account_days)
-    return score, [hit.detail for hit in hits]
-
-
 def band_for(
     score: int, hold_band: int = HOLD_BAND, review_band: int = REVIEW_BAND
 ) -> str:
@@ -325,7 +317,8 @@ def get_fraud_signals(
 
     Like the other lanes, the scan is also the ingestion point: every
     non-clear signal persists with a stable event identity regardless of
-    any filter. ``count`` and ``bands`` describe ALL scored events, so
+    any filter. ``count`` is the number of non-clear signals (filter-stable),
+    and ``bands`` is the full band histogram over all scored events, so
     filtered views stay comparable.
     """
     try:
