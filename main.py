@@ -39,6 +39,7 @@ from app.analytics import metrics_router as metrics_router
 from app.analytics import router as analytics_router
 from app.bus import router as bus_router
 from app.decisions import router as decisions_router
+from app.insights import router as insights_router
 from app.llm import provider_mode
 from app.missions import MissionError, get_mission
 from app.ops import router as ops_router
@@ -168,6 +169,7 @@ app.include_router(bus_router)
 app.include_router(analytics_router)
 app.include_router(decisions_router)
 app.include_router(fraud_router)
+app.include_router(insights_router)
 app.include_router(metrics_router)
 app.include_router(ops_router)
 app.include_router(reflex_router)

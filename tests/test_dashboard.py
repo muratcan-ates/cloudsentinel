@@ -50,6 +50,7 @@ def test_dashboard_hidden_from_openapi_schema():
         "/decisions/similar",
         "/fraud/signals",
         "/health",
+        "/insights",
         "/metrics/detection",
         "/ops/demo-reset",
         "/ready",
