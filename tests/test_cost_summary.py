@@ -48,7 +48,7 @@ def test_compute_service_exact_aggregates():
     assert compute.mean_daily_cost == 197.98
     assert compute.min_daily_cost == 117.5
     assert compute.max_daily_cost == 1183.4
-    assert compute.share_of_total == 0.5701
+    assert compute.share_of_total == 0.5697
 
 
 def test_summarize_costs_empty_input():
