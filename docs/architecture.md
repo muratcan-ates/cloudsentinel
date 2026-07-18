@@ -65,14 +65,19 @@ flowchart LR
 
 ## Agent Roles (implemented)
 
+These are the six members `GET /agents` returns (`reflex`, `analyst`,
+`recommender`, `skeptic`, `chronicler`, `operator`); Reflection is the
+Analyst's critical-severity second pass, not a separate roster entry.
+
 | Agent | Backend | Responsibility | Trigger |
 |---|---|---|---|
+| Reflex | code (deterministic) | Resolves the mission's detection settings, runs the scan (measured latency), and routes detect → analyze → debate → recommend → inbox; reuse lanes keep re-runs idempotent and quota-cheap | `POST /pulse` or per-endpoint |
 | Analyst | Gemini / fake / rule-based fallback | Triage (REAL / SEASONAL / DATA_ERROR / KNOWN_CHANGE) with cited evidence rows and self-assessed confidence | per cost anomaly |
-| — Reflection | same | Second self-review pass challenging the draft | critical-severity signals only |
+| — Reflection | same | The Analyst's second self-review pass challenging the draft (a sub-pass, not a separate roster member) | critical-severity signals only |
 | Recommender | same | Exactly two options (cautious / bold) with risk + rollback; savings computed in Python | per analyzed anomaly |
 | Skeptic (debate-lite) | same | One adversarial review; verdict + transcript persisted | low confidence, disagreement, or a BOLD answer to a critical signal (stakes-raised bar) |
 | Chronicler | same | Narrates each pulse run (headline / summary / watch-next) from Python-computed facts | once per pulse, budget-charged |
-| Orchestrator | code (deterministic) | Routes detect → analyze → debate → recommend → inbox; reuse lanes keep re-runs idempotent and quota-cheap | `POST /pulse` or per-endpoint |
+| Operator | human-in-the-loop | Approves / rejects / executes proposals; verdicts persist as decision memory | per proposed action |
 
 ## Guardrails (implemented)
 
@@ -90,7 +95,9 @@ flowchart LR
   validated against the real evidence window.
 - **Quota discipline** — provider answers are cached by exact request;
   fallbacks are never cached; every call (live, fake, cached, fallback)
-  lands in the `ai_usage` ledger that `/analytics/ai` prices.
+  lands in the `ai_usage` ledger that `/analytics/ai` accounts for (calls,
+  cache hits, fallbacks and free-tier quota usage — no monetary pricing, the
+  project runs zero-cost by construction).
 
 ## Storage (sqlite3, WAL, seed-on-startup)
 
