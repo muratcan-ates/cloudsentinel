@@ -24,7 +24,7 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Response
 
 from app import bus, db
 from app.models import ActionDecisionRequest, ActionListReport, ActionRecord, ActionState
@@ -354,3 +354,140 @@ def execute_action(
         ),
     )
     return record
+
+
+def _render_report(record: ActionRecord, decision: sqlite3.Row | None) -> str:
+    """Compose a shareable Markdown incident report from one action.
+
+    Read-only and defensive: every field is optional, so a partially
+    populated or legacy action still renders a coherent document.
+    """
+    detail = record.detail if isinstance(record.detail, dict) else {}
+    anomaly = detail.get("anomaly") or {}
+    savings = detail.get("savings") or {}
+    options = detail.get("options") or []
+    execution = detail.get("execution") or {}
+
+    lines = [
+        f"# CloudSentinel Incident Report — action #{record.id}",
+        "",
+        f"**{record.title}**",
+        "",
+        f"- **State:** {record.state}",
+        f"- **Proposed:** {record.proposed_at}",
+    ]
+    if record.decided_at:
+        lines.append(f"- **Decided:** {record.decided_at} by `{record.decided_by}`")
+    if record.executed_at:
+        lines.append(f"- **Executed:** {record.executed_at} (simulated)")
+    lines.append("")
+
+    if anomaly:
+        cost = anomaly.get("cost", "—")
+        base = anomaly.get("service_mean", "—")
+        z = anomaly.get("z_score", "—")
+        sev = anomaly.get("severity", "—")
+        det = anomaly.get("detector", "—")
+        lines += [
+            "## Signal",
+            "",
+            f"- **Service:** {anomaly.get('service', '—')}",
+            f"- **Date:** {anomaly.get('date', '—')}",
+            f"- **Cost:** {cost} (baseline {base})",
+            f"- **z-score:** {z} · **severity:** {sev} · **detector:** {det}",
+            "",
+        ]
+
+    if savings:
+        lines += [
+            "## Computed savings",
+            "",
+            f"- Daily excess: {savings.get('daily_excess', '—')}",
+            f"- Cautious / month: {savings.get('cautious_monthly', '—')}",
+            f"- Bold / month: {savings.get('bold_monthly', '—')}",
+        ]
+        if savings.get("method"):
+            lines.append(f"- Method: {savings['method']}")
+        lines += ["", "> Money figures are computed in Python, not generated.", ""]
+
+    if options:
+        lines += ["## Recommended options", ""]
+        for opt in options:
+            if not isinstance(opt, dict):
+                continue
+            lines += [f"### {opt.get('stance', '—')} — {opt.get('title', '—')}", ""]
+            if opt.get("description"):
+                lines += [str(opt["description"]), ""]
+            lines += [
+                f"- Risk: {opt.get('risk', '—')}",
+                f"- Estimated monthly saving: {opt.get('estimated_monthly_saving', '—')}",
+                f"- Rollback: {opt.get('rollback', '—')}",
+                "",
+            ]
+
+    if detail.get("escalation_reason"):
+        lines += ["## Escalation", "", str(detail["escalation_reason"]), ""]
+
+    lines += ["## Human decision", ""]
+    if decision is not None:
+        rationale = decision["rationale"] or "(none recorded)"
+        lines += [
+            f"- **Verdict:** {decision['verdict']}",
+            f"- **By:** `{record.decided_by}` at {decision['created_at']}",
+            f"- **Rationale:** {rationale}",
+            "",
+        ]
+    elif record.state == DECIDABLE_STATE:
+        lines += ["- Awaiting an operator decision.", ""]
+    else:
+        lines += [f"- {record.state} (no rationale on record).", ""]
+
+    if execution:
+        lines += ["## Execution", "", f"- Mode: **{execution.get('mode', '—')}**"]
+        if execution.get("note"):
+            lines.append(f"- {execution['note']}")
+        lines.append("")
+
+    lines += [
+        "---",
+        "",
+        "*CloudSentinel — the machine watches, the human decides.*",
+        "",
+        "*Execution is simulated by design; data is synthetic for the "
+        "competition.*",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+@router.get(
+    "/{action_id}/report",
+    responses={404: {"description": "No action with this id exists."}},
+)
+def action_report(
+    action_id: int = ACTION_ID_PATH,
+    conn: sqlite3.Connection = Depends(db.get_db),
+) -> Response:
+    """Export a shareable Markdown incident report for one action.
+
+    Read-only: composes the signal, the recommended options with computed
+    savings, the human decision and rationale, and the (simulated) execution
+    marker into one downloadable document. No state is mutated.
+    """
+    row = conn.execute("SELECT * FROM actions WHERE id = ?", (action_id,)).fetchone()
+    if row is None:
+        raise HTTPException(
+            status_code=404, detail=f"action {action_id} does not exist"
+        )
+    decision = conn.execute(
+        "SELECT verdict, rationale, created_at FROM decisions "
+        "WHERE action_id = ? ORDER BY id DESC LIMIT 1",
+        (action_id,),
+    ).fetchone()
+    markdown = _render_report(_to_record(row), decision)
+    filename = f"cloudsentinel-incident-{action_id}.md"
+    return Response(
+        content=markdown,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
