@@ -981,3 +981,53 @@ footer {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* section VI — operations intelligence (BI panels fed by /analytics) */
+
+.intel-grid {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr 1fr;
+  gap: var(--sp-6);
+  margin-top: var(--sp-4);
+}
+.intel-block { min-width: 0; }
+.intel-block + .intel-block {
+  border-left: 1px solid var(--hair);
+  padding-left: var(--sp-6);
+}
+.intel-fig {
+  font-size: calc(var(--fs-hero) * 0.62);
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-top: var(--sp-2);
+}
+.intel-gap { margin-top: var(--sp-5); }
+.funnel-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-bottom: 1px solid var(--hair);
+  margin: var(--sp-3) 0;
+}
+.funnel-cell { padding: 0 16px 14px 0; }
+.funnel-cell + .funnel-cell { border-left: 1px solid var(--hair); padding-left: 16px; }
+.funnel-fig {
+  font-family: "Instrument Serif", serif;
+  font-size: var(--fs-figure);
+  line-height: 1.2;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  margin-top: 4px;
+}
+.funnel-cell.quiet .funnel-fig { color: var(--ink-dim); }
+.tele-line { margin-top: var(--sp-3); }
+.tele-line .tele-fig { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 880px) {
+  .intel-grid { grid-template-columns: 1fr; }
+  .intel-block + .intel-block {
+    border-left: none;
+    border-top: 1px solid var(--hair);
+    padding-left: 0;
+    padding-top: var(--sp-4);
+  }
+}

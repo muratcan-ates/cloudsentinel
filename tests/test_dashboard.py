@@ -66,6 +66,16 @@ def test_dashboard_ships_interactive_controls():
     assert 'data-anomaly-sort="z"' in page  # sortable signal table
 
 
+def test_dashboard_ships_the_intelligence_panel():
+    """Section VI typesets the /analytics aggregates — no generated numbers."""
+    page = client.get("/").text
+    assert 'id="sec-intelligence"' in page
+    assert "operations intelligence" in page
+    app_js = client.get("/static/app.js").text
+    assert "/analytics/decisions" in app_js
+    assert "/analytics/costs/trend" in app_js
+
+
 def test_docs_render_under_scoped_csp():
     """Swagger UI boots from cdn.jsdelivr.net with an inline init script; the
     dashboard's strict policy would render /docs blank, so the docs pages get

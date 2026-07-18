@@ -55,6 +55,9 @@ const state = {
   recommendBusy: new Set(), // event ids with a recommend request in flight
   hitlBusy: new Set(), // action ids with a decision request in flight
   actions: [], // live HITL actions from GET /actions — feeds section IV
+  analytics: null, // GET /analytics/decisions — funnel, quality, telemetry (section VI)
+  trend: null, // GET /analytics/costs/trend — window-over-window comparison (section VI)
+  intelStale: false, // last intelligence fetch failed — section VI must say so
   auditExpanded: false, // section V shows the newest entries until asked
   audit: [
     { time: "scan", title: "Cost Agent completed the scheduled scan", copy: "Every monitored service was compared against its historical baseline." },
@@ -150,6 +153,26 @@ async function loadActions() {
   } catch {
     if (sequence !== actionsSequence) return;
     state.actions = []; // the inbox degrades to its empty state
+  }
+}
+
+let intelSequence = 0; // last-writer-wins: stale analytics must never overwrite newer
+
+async function loadIntelligence() {
+  const sequence = ++intelSequence;
+  try {
+    const [analytics, trend] = await Promise.all([
+      fetchJson("/analytics/decisions"),
+      fetchJson("/analytics/costs/trend"),
+    ]);
+    if (sequence !== intelSequence) return;
+    state.analytics = analytics;
+    state.trend = trend;
+    state.intelStale = false;
+  } catch {
+    if (sequence !== intelSequence) return;
+    // keep the last successful figures; the render marks the feed stale
+    state.intelStale = true;
   }
 }
 
@@ -716,6 +739,104 @@ function renderDecisions() {
   });
 }
 
+/* Section VI — every figure is persisted arithmetic from /analytics; the
+   panel never invents a number, it only typesets what the API computed. */
+function renderIntelligence() {
+  const funnelBox = document.getElementById("intel-funnel");
+  const qualityLine = document.getElementById("intel-quality");
+  const savingsFig = document.getElementById("intel-savings");
+  const trendLine = document.getElementById("intel-trend");
+  const teleBox = document.getElementById("intel-telemetry");
+  const metaLine = document.getElementById("intel-meta");
+
+  if (!state.analytics) {
+    funnelBox.innerHTML = "";
+    teleBox.innerHTML = "";
+    metaLine.textContent = state.intelStale
+      ? "intelligence feed unreachable — it retries with the next scan or decision"
+      : "aggregating… — intelligence loads with the first scan";
+    return;
+  }
+  metaLine.textContent = state.intelStale
+    ? "intelligence feed unreachable — showing the last successful aggregates"
+    : "aggregates over everything the pipeline has persisted — pure arithmetic, no generation";
+
+  const { funnel, quality, telemetry } = state.analytics;
+  const cells = [
+    ["signals", funnel.signals],
+    ["analyzed", funnel.analyzed],
+    ["proposals", funnel.proposals],
+    ["pending", funnel.pending],
+    ["approved", funnel.approved + funnel.executed],
+    ["executed", funnel.executed],
+  ];
+  funnelBox.innerHTML =
+    `<div class="funnel-row">` +
+    cells
+      .slice(0, 3)
+      .map(([label, value]) => `<div class="funnel-cell"><p class="microcap">${label}</p><p class="funnel-fig">${value}</p></div>`)
+      .join("") +
+    `</div><div class="funnel-row">` +
+    cells
+      .slice(3)
+      .map(([label, value]) => `<div class="funnel-cell ${value === 0 ? "quiet" : ""}"><p class="microcap">${label}</p><p class="funnel-fig">${value}</p></div>`)
+      .join("") +
+    `</div>`;
+
+  const rate = quality.approval_rate;
+  const hours = quality.avg_decision_hours;
+  qualityLine.textContent =
+    `${quality.human_decisions} human decision${quality.human_decisions === 1 ? "" : "s"}` +
+    ` · approval rate ${rate == null ? "—" : `${Math.round(rate * 100)}%`}` +
+    ` · avg time to decide ${hours == null ? "—" : hours < 1 ? `${Math.round(hours * 60)}m` : `${hours.toFixed(1)}h`}` +
+    (funnel.timeout_rejections ? ` · ${funnel.timeout_rejections} expired unanswered` : "");
+
+  const currency = state.costs ? state.costs.currency : "USD";
+  savingsFig.innerHTML = `${fmtNumber(quality.approved_estimated_monthly_savings)} <small>${escapeHtml(currency)} / mo</small>`;
+
+  if (state.trend) {
+    const trend = state.trend;
+    const mover = trend.services[0];
+    const moverNote =
+      mover && mover.change != null
+        ? ` — top mover ${mover.service} (${mover.change >= 0 ? "+" : "−"}${fmtNumber(Math.abs(mover.change))})`
+        : "";
+    // change === null is the backend's "windows are not comparable" flag;
+    // change set but change_pct null means the prior window's spend was zero.
+    if (trend.change == null) {
+      trendLine.textContent =
+        `insufficient history for a ${trend.window_days}-day comparison — ` +
+        `current window holds ${trend.current_window_days} day${trend.current_window_days === 1 ? "" : "s"}`;
+    } else if (trend.change_pct == null) {
+      trendLine.textContent =
+        `spend ${trend.change >= 0 ? "rose" : "fell"} ${fmtNumber(Math.abs(trend.change))} ` +
+        `against a zero-spend prior ${trend.window_days} days` + moverNote;
+    } else {
+      trendLine.textContent =
+        `spend ${trend.change_pct >= 0 ? "rose" : "fell"} ${Math.abs(trend.change_pct).toFixed(1)}% ` +
+        `vs the prior ${trend.window_days} days` + moverNote;
+    }
+  } else {
+    trendLine.textContent = "—";
+  }
+
+  const triageEntries = Object.entries(telemetry.triage_distribution);
+  const sources = Object.entries(telemetry.by_source)
+    .map(([source, count]) => `${escapeHtml(source)} ${count}`)
+    .join(" · ");
+  teleBox.innerHTML = `
+    <p class="meta tele-line">triage — ${
+      triageEntries.length
+        ? triageEntries.map(([kind, count]) => `<span class="tele-fig">${escapeHtml(kind)} ×${count}</span>`).join(" · ")
+        : "no analyses recorded yet"
+    }</p>
+    <p class="meta tele-line">avg confidence — <span class="tele-fig">${
+      telemetry.avg_confidence == null ? "—" : `${Math.round(telemetry.avg_confidence * 100)}%`
+    }</span></p>
+    <p class="meta tele-line">ledger — <span class="tele-fig">${telemetry.requests_total}</span> agent calls · <span class="tele-fig">${telemetry.cache_hits}</span> cached · <span class="tele-fig">${telemetry.debates}</span> debate${telemetry.debates === 1 ? "" : "s"}</p>
+    <p class="meta tele-line">${sources ? `sources — ${sources}` : "no agent calls ledgered yet"}</p>`;
+}
+
 const AUDIT_VISIBLE_LIMIT = 8;
 
 function renderAudit() {
@@ -750,6 +871,7 @@ function renderAll(report) {
   renderInvestigation();
   renderDecisions();
   renderAudit();
+  renderIntelligence();
 }
 
 /* ---------- actions ---------- */
@@ -785,11 +907,12 @@ async function decideAction(actionId, verb) {
     });
   } finally {
     state.hitlBusy.delete(actionId);
-    await loadActions();
+    await Promise.all([loadActions(), loadIntelligence()]);
     renderSummary();
     renderInvestigation();
     renderDecisions();
     renderAudit();
+    renderIntelligence();
   }
 }
 
@@ -818,11 +941,12 @@ async function fileRecommendation() {
     });
   } finally {
     state.recommendBusy.delete(anomaly.id);
-    await loadActions();
+    await Promise.all([loadActions(), loadIntelligence()]);
     renderSummary();
     renderInvestigation();
     renderDecisions();
     renderAudit();
+    renderIntelligence();
   }
 }
 
@@ -857,6 +981,7 @@ async function scan() {
       fetchJson("/costs/daily"),
       serviceFilter.value ? fetchJson(`/anomalies?threshold=${threshold}`) : null,
       loadActions(),
+      loadIntelligence(),
     ]);
     if (sequence !== scanSequence) return;
     state.costs = costs;
@@ -1021,8 +1146,12 @@ async function runAnalyst() {
     });
   } finally {
     state.analystBusy.delete(anomaly.id);
+    // analyzing mutates exactly what section VI aggregates (analyzed count,
+    // triage mix, confidence, ledger) — refresh it like the other verbs do
+    await loadIntelligence();
     renderInvestigation();
     renderAudit();
+    renderIntelligence();
   }
 }
 
@@ -1031,4 +1160,5 @@ async function runAnalyst() {
 renderInvestigation();
 renderDecisions();
 renderAudit();
+renderIntelligence();
 scan();
