@@ -28,6 +28,8 @@ def test_dashboard_hidden_from_openapi_schema():
         "/actions/{action_id}/execute",
         "/actions/{action_id}/reject",
         "/anomalies",
+        "/analytics/costs/trend",
+        "/analytics/decisions",
         "/anomalies/{event_id}/analyze",
         "/anomalies/{event_id}/recommend",
         "/costs/daily",

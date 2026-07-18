@@ -199,3 +199,62 @@ class PulseReport(BaseModel):
     proposals_filed: int
     proposals_reused: int
     chain: list[PulseChainLink]
+
+
+class HitlFunnel(BaseModel):
+    signals: int
+    analyzed: int
+    proposals: int
+    pending: int
+    approved: int
+    rejected: int
+    executed: int
+    timeout_rejections: int
+
+
+class DecisionQuality(BaseModel):
+    human_decisions: int
+    approval_rate: float | None
+    avg_decision_hours: float | None
+    approved_estimated_monthly_savings: float
+    savings_method: str
+
+
+class AgentTelemetry(BaseModel):
+    triage_distribution: dict[str, int]
+    avg_confidence: float | None
+    requests_total: int
+    cache_hits: int
+    by_source: dict[str, int]
+    by_agent: dict[str, int]
+    debates: int
+
+
+class DecisionAnalyticsReport(BaseModel):
+    funnel: HitlFunnel
+    quality: DecisionQuality
+    telemetry: AgentTelemetry
+
+
+class ServiceTrendRow(BaseModel):
+    service: str
+    current_window_total: float
+    previous_window_total: float
+    change: float | None
+    change_pct: float | None
+    direction: Literal["up", "down", "flat", "insufficient_history"]
+
+
+class CostTrendReport(BaseModel):
+    currency: str
+    period: Period
+    window_days: int
+    current_window_days: int
+    previous_window_days: int
+    dates: list[str]
+    totals: list[float]
+    current_window_total: float
+    previous_window_total: float
+    change: float | None
+    change_pct: float | None
+    services: list[ServiceTrendRow]
