@@ -8,6 +8,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY main.py ./
 COPY app/ app/
 COPY static/ static/
+# Mission YAMLs live at the repo root, not under app/ — without them the
+# reflex/mission features degrade to environment defaults on this image.
+COPY configs/ configs/
 
 EXPOSE 8000
 
