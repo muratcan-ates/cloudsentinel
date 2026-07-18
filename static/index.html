@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Jacquard+24&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=UnifrakturMaguntia&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/static/style.css?v=s4.1" />
+  <link rel="stylesheet" href="/static/style.css?v=s4.2" />
   <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
   <meta name="description" content="CloudSentinel — cloud cost and security anomaly watch: detection, evidence-cited AI triage and human-approved remediation, execution simulated by design." />
   <meta property="og:title" content="CloudSentinel — Anomaly Watch" />
@@ -71,11 +71,20 @@
         <p class="microcap theme-row" role="group" aria-label="Palette">Palette —
           <button class="row-action" type="button" data-theme-choice="cobalt" aria-pressed="true">cobalt</button> /
           <button class="row-action" type="button" data-theme-choice="mission" aria-pressed="false">night</button> /
-          <button class="row-action" type="button" data-theme-choice="paper" aria-pressed="false">paper</button>
+          <button class="row-action" type="button" data-theme-choice="paper" aria-pressed="false">paper</button> /
+          <button class="row-action" type="button" data-theme-choice="dawn" aria-pressed="false">dawn</button>
         </p>
       </div>
       <p class="meta" id="pulse-note" aria-live="polite"></p>
     </section>
+
+    <nav class="view-nav" id="view-nav" aria-label="Dashboard views">
+      <button class="view-tab" type="button" data-view="all" aria-pressed="true">broadsheet</button>
+      <button class="view-tab" type="button" data-view="watch" aria-pressed="false">I·II — watch</button>
+      <button class="view-tab" type="button" data-view="investigate" aria-pressed="false">III — investigation</button>
+      <button class="view-tab" type="button" data-view="decide" aria-pressed="false">IV·V — decision desk</button>
+      <button class="view-tab" type="button" data-view="intel" aria-pressed="false">VI — intelligence</button>
+    </nav>
 
     <main>
       <section class="ledger-col" id="sec-anomalies">
@@ -208,6 +217,6 @@
     </div>
   </aside>
 
-  <script src="/static/app.js?v=s4.1"></script>
+  <script src="/static/app.js?v=s4.2"></script>
 </body>
 </html>

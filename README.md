@@ -208,7 +208,7 @@ cloudsentinel/
 ├── configs/              mission YAMLs — finops, security, fraud
 ├── static/               dashboard — tokenized design system, 3 palettes, vendored Swagger UI
 ├── scripts/              smoke test, failure drill, detection benchmark, Gemini spike
-├── tests/                379 pytest cases incl. performance budgets
+├── tests/                380 pytest cases incl. performance budgets
 ├── docs/                 architecture & agent design
 ├── Makefile              setup / run / test / demo / smoke / drill
 └── ProjectManagement/    sprint evidence packs (boards, screenshots)
@@ -285,7 +285,7 @@ docker run -p 8000:8000 cloudsentinel
 | **Python 3.12** | Core language (pinned in venv, CI and Docker) |
 | **FastAPI + Uvicorn** | REST API and ASGI server |
 | **Pydantic v2** | Typed request/response models and validation |
-| **pytest + httpx** | Automated test suite (379 tests, incl. performance budgets) |
+| **pytest + httpx** | Automated test suite (380 tests, incl. performance budgets) |
 | **SQLite** (stdlib `sqlite3`) | WAL-mode persistence core: action lifecycle, decision memory, LLM cache, idempotency |
 | **Docker** | Containerized, deployment-ready packaging |
 | **Gemini** (`google-genai`) | LLM provider layer with quota-aware retry and rule-based fallback |
@@ -470,7 +470,7 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Expected point completion within the sprint**: 13 points
 
-- **Point Completion Logic**: Sprint 2 carries 13 of the 36 total backlog points: Gemini agent spike (2), Analyst agent (3), Recommender with debate-lite (3), human-in-the-loop lifecycle (3), decision memory (2). All five stories are code-complete as of July 12 — the suite has since grown to 379 automated tests (~7s on the fake provider) — and formal completion is assessed at the July 19 review and demo.
+- **Point Completion Logic**: Sprint 2 carries 13 of the 36 total backlog points: Gemini agent spike (2), Analyst agent (3), Recommender with debate-lite (3), human-in-the-loop lifecycle (3), decision memory (2). All five stories are code-complete as of July 12 — the suite has since grown to 380 automated tests (~7s on the fake provider) — and formal completion is assessed at the July 19 review and demo.
 
 - **Daily Scrum**: daily communication continues over WhatsApp with team meetings on Slack; evidence screenshots are collected in `ProjectManagement/Sprint2Documents/` through the sprint.
 

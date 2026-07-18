@@ -68,8 +68,10 @@
   --chart-area-hi: rgba(245, 244, 238, 0.16);
   --chart-area-lo: rgba(245, 244, 238, 0.02);
   --chart-band: rgba(245, 244, 238, 0.08);
-  --dot-a: rgba(255, 255, 255, 0.05);
-  --dot-b: rgba(255, 255, 255, 0.04);
+  --dot-a: rgba(255, 255, 255, 0.035);
+  --dot-b: rgba(255, 255, 255, 0.028);
+  --glow-a: rgba(134, 238, 247, 0.10);
+  --glow-b: rgba(70, 232, 134, 0.06);
   --selection-bg: var(--ink);
   --selection-fg: var(--surface);
 }
@@ -89,8 +91,10 @@
   --chart-area-hi: rgba(232, 234, 237, 0.14);
   --chart-area-lo: rgba(232, 234, 237, 0.02);
   --chart-band: rgba(232, 234, 237, 0.07);
-  --dot-a: rgba(232, 234, 237, 0.045);
-  --dot-b: rgba(232, 234, 237, 0.035);
+  --dot-a: rgba(232, 234, 237, 0.032);
+  --dot-b: rgba(232, 234, 237, 0.025);
+  --glow-a: rgba(125, 211, 252, 0.08);
+  --glow-b: rgba(74, 222, 128, 0.05);
   --selection-bg: var(--ink);
   --selection-fg: var(--surface);
 }
@@ -110,8 +114,34 @@
   --chart-area-hi: rgba(36, 48, 224, 0.14);
   --chart-area-lo: rgba(36, 48, 224, 0.02);
   --chart-band: rgba(24, 28, 48, 0.07);
-  --dot-a: rgba(24, 28, 48, 0.05);
-  --dot-b: rgba(24, 28, 48, 0.04);
+  --dot-a: rgba(24, 28, 48, 0.04);
+  --dot-b: rgba(24, 28, 48, 0.03);
+  --glow-a: rgba(36, 48, 224, 0.07);
+  --glow-b: rgba(194, 64, 47, 0.04);
+  --selection-bg: var(--ink);
+  --selection-fg: var(--surface);
+}
+
+:root[data-theme="dawn"] {
+  /* dawn: ember-lit sunrise — warm light ink over a deep umber surface,
+     the Solace blue as the one luminous accent */
+  --surface: #221310;
+  --surface-raised: rgba(255, 214, 170, 0.06);
+  --ink: #ffe9d2;
+  --ink-dim: rgba(255, 233, 210, 0.7);
+  --ink-faint: rgba(255, 233, 210, 0.42);
+  --hair: rgba(255, 233, 210, 0.17);
+  --accent: #7c9aff;   /* solace blue */
+  --alert: #ff8a5c;    /* ember coral */
+  --info: #ffc178;     /* amber micro marks */
+  --chart-line: var(--ink);
+  --chart-area-hi: rgba(255, 190, 140, 0.16);
+  --chart-area-lo: rgba(255, 190, 140, 0.02);
+  --chart-band: rgba(255, 233, 210, 0.07);
+  --dot-a: rgba(255, 220, 180, 0.035);
+  --dot-b: rgba(255, 220, 180, 0.028);
+  --glow-a: rgba(255, 122, 60, 0.16);
+  --glow-b: rgba(124, 154, 255, 0.12);
   --selection-bg: var(--ink);
   --selection-fg: var(--surface);
 }
@@ -134,11 +164,16 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
+  /* layered light: two soft atmospheric washes over a fine, quiet grain —
+     depth instead of a flat dot screen */
   background-image:
+    radial-gradient(1100px 620px at 12% -8%, var(--glow-a), transparent 62%),
+    radial-gradient(900px 680px at 108% 16%, var(--glow-b), transparent 58%),
+    radial-gradient(720px 520px at 50% 118%, var(--glow-a), transparent 60%),
     radial-gradient(var(--dot-a) 1px, transparent 1px),
     radial-gradient(var(--dot-b) 1px, transparent 1px);
-  background-size: 3px 3px, 7px 7px;
-  background-position: 0 0, 2px 4px;
+  background-size: auto, auto, auto, 3px 3px, 7px 7px;
+  background-position: 0 0, 0 0, 0 0, 0 0, 2px 4px;
 }
 
 ::selection { background: var(--selection-bg); color: var(--selection-fg); }
@@ -240,6 +275,18 @@ h1 .period { color: var(--accent); }
   grid-template-columns: repeat(4, 1fr);
   margin-top: var(--sp-6);
   border-top: 1px solid var(--hair);
+  position: relative;
+}
+/* Scotch rule: the heavy line riding the hairline — press-room grammar */
+.summary-strip::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--ink);
+  opacity: 0.85;
 }
 .sum {
   display: block;
@@ -1300,4 +1347,44 @@ select:hover { border-bottom-color: var(--accent); }
 
 @media print {
   .agent-feed { display: none; }
+}
+
+/* ---------- view navigation (top panel — rooms of the broadsheet) ---------- */
+
+.view-nav {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 10px 0;
+  margin-top: var(--sp-5);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border-top: 1px solid var(--hair);
+  border-bottom: 1px solid var(--hair);
+}
+.view-tab {
+  font: 500 var(--fs-micro)/1.6 "Inter", sans-serif;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  background: none;
+  border: 1px solid transparent;
+  padding: 6px 12px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.view-tab:hover { color: var(--ink); border-color: var(--hair); }
+.view-tab[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.view-hidden { display: none; }
+@media print {
+  .view-nav { display: none; }
+  .view-hidden { display: block; }
 }

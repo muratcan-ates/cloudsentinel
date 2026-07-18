@@ -9,7 +9,7 @@
    working; otherwise the choice persisted from the colophon switch applies.
    The default identity stays cobalt — the switch promotes night (mission)
    and paper from hidden preview flags to first-class modes. */
-const THEMES = ["cobalt", "mission", "paper"];
+const THEMES = ["cobalt", "mission", "paper", "dawn"];
 
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
@@ -126,6 +126,29 @@ const detailsByService = {
 
 const fmtNumber = (value) =>
   value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+/* Living figures: numbers ROLL to their new value instead of snapping —
+   the page moves because the data moves. Falls back to a plain set under
+   reduced motion or on the very first paint. */
+function rollFigure(el, value, render) {
+  const previous = Number(el.dataset.v);
+  el.dataset.v = String(value);
+  if (REDUCED_MOTION.matches || Number.isNaN(previous) || previous === value) {
+    el.innerHTML = render(value);
+    return;
+  }
+  const started = performance.now();
+  const duration = 550;
+  const step = (now) => {
+    const t = Math.min(1, (now - started) / duration);
+    const eased = 1 - (1 - t) ** 3;
+    el.innerHTML = render(previous + (value - previous) * eased);
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
 
 const escapeHtml = (value) =>
   String(value ?? "").replace(/[&<>'"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[ch]));
@@ -302,19 +325,29 @@ function actionForEvent(eventId) {
 
 function renderSummary() {
   const pending = state.actions.filter((a) => a.state === "proposed").length;
-  document.getElementById("sum-signals").textContent = String(state.anomalies.length);
-  document.getElementById("sum-pending").textContent = String(pending);
+  rollFigure(document.getElementById("sum-signals"), state.anomalies.length, (v) =>
+    String(Math.round(v))
+  );
+  rollFigure(document.getElementById("sum-pending"), pending, (v) =>
+    String(Math.round(v))
+  );
   if (state.costs) {
-    document.getElementById("sum-total").innerHTML =
-      `${fmtNumber(state.costs.total_cost)} <small>${escapeHtml(state.costs.currency)}</small>`;
+    const currency = escapeHtml(state.costs.currency);
+    rollFigure(
+      document.getElementById("sum-total"),
+      state.costs.total_cost,
+      (v) => `${fmtNumber(v)} <small>${currency}</small>`
+    );
     document.getElementById("sum-total-sub").textContent =
       `${state.costs.period.start} → ${state.costs.period.end}`;
   }
   if (state.analytics) {
-    const currency = state.costs ? state.costs.currency : "USD";
-    document.getElementById("sum-value").innerHTML =
-      `${fmtNumber(state.analytics.quality.approved_estimated_monthly_savings)} ` +
-      `<small>${escapeHtml(currency)} / mo</small>`;
+    const currency = escapeHtml(state.costs ? state.costs.currency : "USD");
+    rollFigure(
+      document.getElementById("sum-value"),
+      state.analytics.quality.approved_estimated_monthly_savings,
+      (v) => `${fmtNumber(v)} <small>${currency} / mo</small>`
+    );
   }
 }
 
@@ -1590,6 +1623,54 @@ if (printStamp) {
   const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD
   printStamp.textContent = `CloudSentinel — decision ledger · produced ${today}`;
 }
+
+/* ---------- view navigation (rooms of the broadsheet) ----------
+   Hash-tab views over ONE page: no routes, no reload — sections toggle,
+   the print view always shows the whole broadsheet. */
+
+const VIEW_SECTIONS = {
+  watch: ["sec-anomalies", "sec-costs"],
+  investigate: ["sec-investigation"],
+  decide: ["sec-decisions", "sec-ledger"],
+  intel: ["sec-intelligence"],
+};
+const ALL_SECTIONS = [...new Set(Object.values(VIEW_SECTIONS).flat())];
+
+function applyView(view) {
+  const visible = view === "all" ? ALL_SECTIONS : VIEW_SECTIONS[view] || ALL_SECTIONS;
+  ALL_SECTIONS.forEach((id) =>
+    document.getElementById(id).classList.toggle("view-hidden", !visible.includes(id))
+  );
+  document.querySelectorAll(".view-tab").forEach((tab) =>
+    tab.setAttribute("aria-pressed", String(tab.dataset.view === view))
+  );
+  try {
+    localStorage.setItem("sentinel-view", view);
+  } catch {
+    /* best effort */
+  }
+}
+
+document.getElementById("view-nav").addEventListener("click", (event) => {
+  const tab = event.target.closest("[data-view]");
+  if (tab) applyView(tab.dataset.view);
+});
+
+try {
+  const storedView = localStorage.getItem("sentinel-view");
+  if (storedView && (storedView === "all" || VIEW_SECTIONS[storedView])) {
+    applyView(storedView);
+  }
+} catch {
+  /* the broadsheet view carries */
+}
+
+/* The watchroom never sleeps: a quiet background re-scan keeps every
+   figure current (and rolling) without a hand on the controls. */
+const AUTO_SCAN_MS = 60000;
+setInterval(() => {
+  if (!document.hidden && !pulseBusy) scan();
+}, AUTO_SCAN_MS);
 
 /* ---------- live agent feed (right rail) ----------
    The agent bus persists every inter-agent event as it happens; this panel

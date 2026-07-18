@@ -128,6 +128,20 @@ def test_dashboard_ships_the_value_and_demo_controls():
     assert "read-only" in app_js
 
 
+def test_dashboard_ships_views_and_the_dawn_palette():
+    """Top-panel view tabs (hash-free section rooms) and the fourth palette."""
+    page = client.get("/").text
+    assert 'id="view-nav"' in page
+    assert 'data-view="decide"' in page
+    assert 'data-theme-choice="dawn"' in page
+    app_js = client.get("/static/app.js").text
+    assert "VIEW_SECTIONS" in app_js
+    assert '"dawn"' in app_js
+    css = client.get("/static/style.css").text
+    assert 'data-theme="dawn"' in css
+    assert "--glow-a" in css  # layered luminous surface, not a flat dot screen
+
+
 def test_dashboard_ships_the_live_agent_feed():
     """The agent bus streams into a side rail; motion respects the visitor."""
     page = client.get("/").text
