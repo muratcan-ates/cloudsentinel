@@ -1883,6 +1883,10 @@ fetchJson("/health")
     state.env = health.env || "local";
     state.readonly = Boolean(health.readonly);
     state.provider = health.provider || "fake";
+    // The nav pill reads "live" only on the deployed link; on the local/mock
+    // demo it says "demo" so the green dot never implies live production data.
+    const liveLabel = document.getElementById("nav-live-label");
+    if (liveLabel) liveLabel.textContent = state.env === "render" ? "live" : "demo";
     if (state.readonly) {
       pulseButton.disabled = true;
       pulseButton.title = "read-only demo — the pulse chain is disabled";
