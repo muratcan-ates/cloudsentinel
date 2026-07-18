@@ -29,7 +29,7 @@ class MissionError(ValueError):
 
 
 class MissionDetection(BaseModel):
-    source: Literal["cost", "security"]
+    source: Literal["cost", "security", "fraud"]
     threshold: float = Field(gt=0)
     critical_z: float = Field(gt=0)
     detector: Literal["zscore", "mad"]

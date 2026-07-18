@@ -1,0 +1,30 @@
+# CloudSentinel mission definition — security event watch.
+# Same schema, same loader, same detection line as finops: the mission DSL
+# is the proof that one declarative format drives every watch.
+mission: security
+title: Security signal watch
+description: >
+  Watch daily security event counts per source (failed logins in the mock
+  feed), flag deviations from the rolling baseline with the same detection
+  line the cost lane uses, and surface them for operator review.
+
+organizational_intent: >
+  Surface abnormal security activity early and visibly: a brute-force
+  burst must read like a cost spike does — measured against a baseline,
+  explained by numbers, decided by a human.
+role_intent:
+  detector: score event counts against each source's rolling baseline
+  operator: review every security signal; nothing is blocked automatically
+
+detection:
+  source: security
+  threshold: 2.0
+  critical_z: 3.0
+  detector: zscore
+  baseline_window_days: 28
+  seasonal: false
+
+escalation:
+  # Security signals do not route into the LLM agents in this sprint;
+  # the threshold is kept for schema uniformity and future use.
+  confidence_debate_threshold: 0.6

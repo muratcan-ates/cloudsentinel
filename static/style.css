@@ -1031,3 +1031,22 @@ footer {
     padding-top: var(--sp-4);
   }
 }
+
+/* unified watch (▣) — security rides the detection line; fraud is the published rule score */
+
+.watch-block {
+  margin-top: var(--sp-6);
+  border-top: 1px solid var(--hair);
+  padding-top: var(--sp-4);
+}
+.watch-head { margin-top: var(--sp-3); }
+.watch-row {
+  font-size: var(--fs-meta);
+  color: var(--ink-dim);
+  margin-top: var(--sp-2);
+  font-variant-numeric: tabular-nums;
+}
+.watch-row .watch-glyph { color: var(--ink-faint); margin-right: 6px; }
+.watch-row .watch-strong { color: var(--ink); }
+.watch-row.critical { color: var(--ink); }
+.watch-row.critical .watch-glyph { color: var(--alert); }

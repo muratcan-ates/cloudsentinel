@@ -208,10 +208,51 @@ class PulseReport(BaseModel):
     mission: str | None = None
     reflex_ms: float | None = None
     signals: int
+    security_signals: int = 0
     analyzed: int
     proposals_filed: int
     proposals_reused: int
     chain: list[PulseChainLink]
+
+
+class SecuritySignal(BaseModel):
+    # Stable event id assigned at persistence; None before it.
+    id: int | None = None
+    service: str
+    date: str
+    count: float
+    baseline: float
+    z_score: float
+    severity: Literal["critical", "warning"]
+    detector: str
+
+
+class SecuritySignalReport(BaseModel):
+    metric: str
+    threshold: float
+    mission: str | None
+    reflex_ms: float | None
+    window_days: int
+    signal_count: int
+    insufficient_data_services: list[str]
+    signals: list[SecuritySignal]
+
+
+class FraudSignal(BaseModel):
+    id: str
+    date: str
+    service: str
+    amount: float
+    score: int
+    band: Literal["clear", "review", "hold_suggested"]
+    reasons: list[str]
+
+
+class FraudSignalReport(BaseModel):
+    mission: str | None
+    note: str
+    count: int  # non-clear signals
+    signals: list[FraudSignal]
 
 
 class HitlFunnel(BaseModel):

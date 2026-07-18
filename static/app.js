@@ -58,6 +58,9 @@ const state = {
   analytics: null, // GET /analytics/decisions — funnel, quality, telemetry (section VI)
   trend: null, // GET /analytics/costs/trend — window-over-window comparison (section VI)
   intelStale: false, // last intelligence fetch failed — section VI must say so
+  security: null, // GET /security/signals — unified watch strip (section I)
+  fraud: null, // GET /fraud/signals — unified watch strip (section I)
+  watchStale: false, // last watch fetch failed on at least one lane
   auditExpanded: false, // section V shows the newest entries until asked
   audit: [
     { time: "scan", title: "Cost Agent completed the scheduled scan", copy: "Every monitored service was compared against its historical baseline." },
@@ -174,6 +177,66 @@ async function loadIntelligence() {
     // keep the last successful figures; the render marks the feed stale
     state.intelStale = true;
   }
+}
+
+let watchSequence = 0; // last-writer-wins: stale watch responses never overwrite newer
+
+async function loadWatch() {
+  const sequence = ++watchSequence;
+  // Independent lanes: a fraud-only failure must not discard a security
+  // response that already succeeded (and vice versa).
+  const [security, fraud] = await Promise.all([
+    fetchJson("/security/signals").catch(() => null),
+    fetchJson("/fraud/signals").catch(() => null),
+  ]);
+  if (sequence !== watchSequence) return;
+  if (security) state.security = security;
+  if (fraud) state.fraud = fraud;
+  state.watchStale = !security || !fraud;
+}
+
+function renderWatch() {
+  const securityBox = document.getElementById("security-watch");
+  const fraudBox = document.getElementById("fraud-watch");
+  const staleLine = document.getElementById("watch-stale");
+  staleLine.textContent = state.watchStale
+    ? "watch feed unreachable — showing the last successful signals"
+    : "";
+
+  if (!state.security) {
+    securityBox.innerHTML = `<p class="meta watch-head">security — loads with the first scan</p>`;
+  } else {
+    const report = state.security;
+    securityBox.innerHTML =
+      `<p class="meta watch-head">security — ${report.signal_count} signal${report.signal_count === 1 ? "" : "s"} · ${escapeHtml(report.metric)} · mission ${escapeHtml(report.mission ?? "—")}</p>` +
+      report.signals
+        .map(
+          (signal) => `
+      <p class="watch-row ${signal.severity === "critical" ? "critical" : ""}">
+        <span class="watch-glyph" aria-hidden="true">▣</span><span class="watch-strong">${escapeHtml(signal.service)}</span> · ${escapeHtml(signal.date)} ·
+        ${fmtNumber(signal.count)} events vs ${fmtNumber(signal.baseline)} baseline · z ${signal.z_score.toFixed(2)} · ${escapeHtml(signal.severity)}
+      </p>`
+        )
+        .join("");
+  }
+
+  if (!state.fraud) {
+    fraudBox.innerHTML = `<p class="meta watch-head">fraud — loads with the first scan</p>`;
+    return;
+  }
+  const fraud = state.fraud;
+  const flagged = fraud.signals.filter((signal) => signal.band !== "clear");
+  fraudBox.innerHTML =
+    `<p class="meta watch-head">fraud — ${fraud.count} flagged of ${fraud.signals.length} events · mission ${escapeHtml(fraud.mission ?? "—")} · suggestions only, the operator decides</p>` +
+    flagged
+      .map(
+        (signal) => `
+    <p class="watch-row">
+      <span class="watch-glyph" aria-hidden="true">▣</span><span class="watch-strong">${escapeHtml(signal.id)}</span> · ${fmtNumber(signal.amount)} USD ·
+      score ${signal.score} — ${escapeHtml(signal.band === "hold_suggested" ? "hold suggested" : signal.band)} · ${escapeHtml(signal.reasons.join(" · "))}
+    </p>`
+      )
+      .join("");
 }
 
 function actionForEvent(eventId) {
@@ -874,6 +937,7 @@ function renderAll(report) {
   renderDecisions();
   renderAudit();
   renderIntelligence();
+  renderWatch();
 }
 
 /* ---------- actions ---------- */
@@ -984,6 +1048,7 @@ async function scan() {
       serviceFilter.value ? fetchJson(`/anomalies?threshold=${threshold}`) : null,
       loadActions(),
       loadIntelligence(),
+      loadWatch(),
     ]);
     if (sequence !== scanSequence) return;
     state.costs = costs;
@@ -1163,4 +1228,5 @@ renderInvestigation();
 renderDecisions();
 renderAudit();
 renderIntelligence();
+renderWatch();
 scan();

@@ -1,0 +1,16 @@
+{
+  "currency": "USD",
+  "period": { "start": "2026-07-01", "end": "2026-07-03" },
+  "events": [
+    { "id": "TX-1001", "date": "2026-07-01", "service": "payments", "amount": 310.0, "typical_amount": 295.0, "account_age_days": 740, "country": "TR", "home_country": "TR", "tx_last_10m": 1 },
+    { "id": "TX-1002", "date": "2026-07-01", "service": "payments", "amount": 289.5, "typical_amount": 301.0, "account_age_days": 1225, "country": "TR", "home_country": "TR", "tx_last_10m": 1 },
+    { "id": "TX-1003", "date": "2026-07-01", "service": "payments", "amount": 960.0, "typical_amount": 280.0, "account_age_days": 460, "country": "TR", "home_country": "TR", "tx_last_10m": 2 },
+    { "id": "TX-1004", "date": "2026-07-02", "service": "payments", "amount": 4820.0, "typical_amount": 310.0, "account_age_days": 12, "country": "RO", "home_country": "TR", "tx_last_10m": 6 },
+    { "id": "TX-1005", "date": "2026-07-02", "service": "payments", "amount": 305.0, "typical_amount": 290.0, "account_age_days": 980, "country": "TR", "home_country": "TR", "tx_last_10m": 1 },
+    { "id": "TX-1006", "date": "2026-07-02", "service": "payments", "amount": 1240.0, "typical_amount": 305.0, "account_age_days": 45, "country": "DE", "home_country": "TR", "tx_last_10m": 4 },
+    { "id": "TX-1007", "date": "2026-07-02", "service": "payments", "amount": 298.0, "typical_amount": 310.0, "account_age_days": 2100, "country": "TR", "home_country": "TR", "tx_last_10m": 2 },
+    { "id": "TX-1008", "date": "2026-07-03", "service": "payments", "amount": 640.0, "typical_amount": 300.0, "account_age_days": 22, "country": "TR", "home_country": "TR", "tx_last_10m": 1 },
+    { "id": "TX-1009", "date": "2026-07-03", "service": "payments", "amount": 312.0, "typical_amount": 305.0, "account_age_days": 610, "country": "FR", "home_country": "TR", "tx_last_10m": 1 },
+    { "id": "TX-1010", "date": "2026-07-03", "service": "payments", "amount": 5975.0, "typical_amount": 295.0, "account_age_days": 8, "country": "TR", "home_country": "TR", "tx_last_10m": 7 }
+  ]
+}

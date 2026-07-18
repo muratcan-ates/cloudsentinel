@@ -27,6 +27,7 @@ from app.recommender import recommend_for_event
 from app.detection import DEFAULT_THRESHOLD, load_daily_costs, run_detection
 from app.models import PulseChainLink, PulseReport
 from app.reflex import reflex_scan
+from app.security import persist_signals, scan_security
 
 logger = logging.getLogger("cloudsentinel.pulse")
 
@@ -136,11 +137,17 @@ def run_pulse(
             )
         )
 
+    # Unified detection: the security lane runs through the same line and
+    # persists its own signals; it feeds no LLM agent (operator-facing).
+    security_report = scan_security()
+    persist_signals(conn, security_report.signals)
+
     return PulseReport(
         threshold=threshold,
         mission=mission_name,
         reflex_ms=reflex_ms,
         signals=len(links),
+        security_signals=security_report.signal_count,
         analyzed=analyzed_count,
         proposals_filed=filed_count,
         proposals_reused=reused_count,

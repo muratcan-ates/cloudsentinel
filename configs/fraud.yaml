@@ -1,0 +1,32 @@
+# CloudSentinel mission definition — fraud mission (deliberately minimal).
+# Scope is locked by plan: a YAML mission, mock events and a simple
+# deterministic rule score. Every non-clear signal is a SUGGESTION for
+# operator review — nothing is ever blocked automatically.
+mission: fraud
+title: Fraud signal watch
+description: >
+  Score mock payment events with simple deterministic rules (amount vs
+  typical, velocity, geography, account age) and file the suspicious ones
+  for operator review.
+
+organizational_intent: >
+  Flag payment activity that deviates from an account's own norms and put
+  it in front of a human quickly; a false hold costs trust, so the system
+  only ever suggests.
+role_intent:
+  scorer: apply the published deterministic rules; no generated numbers
+  operator: own every hold decision; the system never blocks on its own
+
+# NOTE: the detection block below is schema-mandated and INERT for this
+# lane — the fraud watch applies ONLY the published rule score in
+# app/fraud.py; no statistical detection pass runs over fraud events.
+detection:
+  source: fraud
+  threshold: 2.0
+  critical_z: 3.0
+  detector: zscore
+  baseline_window_days: 28
+  seasonal: false
+
+escalation:
+  confidence_debate_threshold: 0.6

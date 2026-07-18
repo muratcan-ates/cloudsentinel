@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Jacquard+24&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=UnifrakturMaguntia&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/static/style.css?v=s3.3" />
+  <link rel="stylesheet" href="/static/style.css?v=s3.4" />
 </head>
 <body>
   <div class="page">
@@ -73,6 +73,12 @@
           <button class="row-action" type="button" data-anomaly-sort="service" aria-pressed="false">a–z</button>
         </p>
         <div id="anomaly-list" class="fadeable"></div>
+        <div class="watch-block" id="watch-block">
+          <p class="microcap">Unified watch <span class="hint">— security through the same detection line · fraud by published rules</span></p>
+          <p class="meta" id="watch-stale" aria-live="polite"></p>
+          <div id="security-watch"></div>
+          <div id="fraud-watch"></div>
+        </div>
       </section>
 
       <section class="ledger-col col-rule" id="sec-costs">
@@ -172,6 +178,6 @@
     </footer>
   </div>
 
-  <script src="/static/app.js?v=s3.3"></script>
+  <script src="/static/app.js?v=s3.4"></script>
 </body>
 </html>

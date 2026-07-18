@@ -36,10 +36,12 @@ def test_dashboard_hidden_from_openapi_schema():
         "/costs/summary",
         "/costs/summary/export",
         "/decisions/similar",
+        "/fraud/signals",
         "/health",
         "/metrics/detection",
         "/pulse",
-        "/reflex/suggestions"
+        "/reflex/suggestions",
+        "/security/signals"
     }
 
 
@@ -66,6 +68,16 @@ def test_dashboard_ships_interactive_controls():
     page = client.get("/").text
     assert 'data-theme-choice="mission"' in page  # night mode switch
     assert 'data-anomaly-sort="z"' in page  # sortable signal table
+
+
+def test_dashboard_ships_the_unified_watch_strip():
+    """Section I carries the security & fraud watch fed by the new lanes."""
+    page = client.get("/").text
+    assert 'id="watch-block"' in page
+    assert "Unified watch" in page
+    app_js = client.get("/static/app.js").text
+    assert "/security/signals" in app_js
+    assert "/fraud/signals" in app_js
 
 
 def test_dashboard_ships_the_intelligence_panel():

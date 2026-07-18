@@ -51,9 +51,15 @@ SAVINGS_METHOD = (
 
 
 def _funnel(conn: sqlite3.Connection) -> HitlFunnel:
-    signals = conn.execute("SELECT count(*) FROM events").fetchone()[0]
+    # The funnel narrates the COST pipeline (detect -> analyze -> recommend
+    # -> decide); security events persist in the same table but are barred
+    # from the agents, so counting them here would fake the conversion story.
+    signals = conn.execute(
+        "SELECT count(*) FROM events WHERE kind = 'cost_anomaly'"
+    ).fetchone()[0]
     analyzed = conn.execute(
-        "SELECT count(*) FROM events WHERE analysis_json IS NOT NULL"
+        "SELECT count(*) FROM events WHERE kind = 'cost_anomaly' "
+        "AND analysis_json IS NOT NULL"
     ).fetchone()[0]
     states = {
         row["state"]: row["n"]
@@ -126,7 +132,8 @@ def _telemetry(conn: sqlite3.Connection) -> AgentTelemetry:
     triage: dict[str, int] = {}
     scores: list[float] = []
     for row in conn.execute(
-        "SELECT analysis_json FROM events WHERE analysis_json IS NOT NULL"
+        "SELECT analysis_json FROM events WHERE kind = 'cost_anomaly' "
+        "AND analysis_json IS NOT NULL"
     ):
         # Parse everything before mutating state: a row with a valid triage
         # but corrupt confidence must be skipped whole, not half-counted.
