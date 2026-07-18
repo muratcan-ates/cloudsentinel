@@ -152,6 +152,22 @@ def test_dashboard_ships_views_and_the_dawn_palette():
     assert "--glow-a" in css  # layered luminous surface, not a flat dot screen
 
 
+def test_fonts_are_self_hosted_no_external_host():
+    """The last external dependency is gone: fonts ship from static/fonts/
+    and the CSP allows no remote host anywhere."""
+    page = client.get("/").text
+    assert "fonts.googleapis.com" not in page
+    assert "fonts.gstatic.com" not in page
+    css = client.get("/static/style.css").text
+    assert "@font-face" in css
+    assert "/static/fonts/" in css
+    assert "https://" not in css  # no remote url() anywhere in the stylesheet
+    assert client.get("/static/fonts/inter-400-latin.woff2").status_code == 200
+    csp = client.get("/").headers["content-security-policy"]
+    assert "font-src 'self';" in csp or csp.endswith("font-src 'self'")
+    assert "googleapis" not in csp and "gstatic" not in csp
+
+
 def test_dashboard_ships_the_live_agent_feed():
     """The agent bus streams into a side rail; motion respects the visitor."""
     page = client.get("/").text

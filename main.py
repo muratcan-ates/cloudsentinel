@@ -67,15 +67,17 @@ if not _agent_stream.handlers:
 
 # Content-Security-Policy for the public dashboard. script-src is locked to
 # 'self' (the dashboard has no inline scripts, eval, or event handlers), so a
-# reflected/stored string can never execute as script. style-src keeps
-# 'unsafe-inline' because the dashboard applies inline style attributes and
-# loads Google Fonts; injected data is still HTML-escaped in app.js.
+# reflected/stored string can never execute as script. Fonts are now
+# self-hosted (static/fonts/), so default-src 'self' covers them and no
+# external host is allowed anywhere. style-src keeps 'unsafe-inline' only
+# for the dashboard's inline style attributes; injected data is still
+# HTML-escaped in app.js.
 CONTENT_SECURITY_POLICY = "; ".join(
     [
         "default-src 'self'",
         "script-src 'self'",
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-        "font-src 'self' https://fonts.gstatic.com",
+        "style-src 'self' 'unsafe-inline'",
+        "font-src 'self'",
         "img-src 'self' data:",
         "connect-src 'self'",
         "frame-ancestors 'none'",
