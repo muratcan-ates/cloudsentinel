@@ -1261,16 +1261,39 @@ footer {
   padding-top: var(--sp-4);
 }
 .watch-head { margin-top: var(--sp-3); }
+/* Each signal is a two-line card: a scannable header (subject left, a
+   severity/score tag right) over a dim detail line — instead of one dense
+   ·-separated run-on that read as clutter. */
 .watch-row {
+  margin-top: var(--sp-3);
+  font-variant-numeric: tabular-nums;
+}
+.watch-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
   font-size: var(--fs-meta);
   color: var(--ink-dim);
-  margin-top: var(--sp-2);
-  font-variant-numeric: tabular-nums;
 }
 .watch-row .watch-glyph { color: var(--ink-faint); margin-right: 6px; }
 .watch-row .watch-strong { color: var(--ink); }
-.watch-row.critical { color: var(--ink); }
+.watch-tag {
+  color: var(--ink-dim);
+  font-size: 0.82em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.watch-detail {
+  color: var(--ink-faint);
+  font-size: 0.82em;
+  line-height: 1.45;
+  margin-top: 3px;
+}
 .watch-row.critical .watch-glyph { color: var(--alert); }
+.watch-row.critical .watch-tag { color: var(--alert); }
 
 /* pulse button — the one-click chain, sits beside re-scan */
 #pulse-run { margin-left: 8px; }

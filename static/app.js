@@ -311,10 +311,13 @@ function renderWatch() {
       report.signals
         .map(
           (signal) => `
-      <p class="watch-row ${signal.severity === "critical" ? "critical" : ""}">
-        <span class="watch-glyph" aria-hidden="true">▣</span><span class="watch-strong">${escapeHtml(signal.service)}</span> · ${escapeHtml(signal.date)} ·
-        ${fmtNumber(signal.count)} events vs ${fmtNumber(signal.baseline)} baseline · z ${signal.z_score.toFixed(2)} · ${escapeHtml(signal.severity)}${costSpikeDates.has(signal.date) ? ` · <span class="watch-strong">⇄ cost spike same day</span>` : ""}
-      </p>`
+      <div class="watch-row ${signal.severity === "critical" ? "critical" : ""}">
+        <div class="watch-top">
+          <span><span class="watch-glyph" aria-hidden="true">▣</span><span class="watch-strong">${escapeHtml(signal.service)}</span></span>
+          <span class="watch-tag">${escapeHtml(signal.severity)}</span>
+        </div>
+        <p class="watch-detail">${escapeHtml(signal.date)} · ${fmtNumber(signal.count)} events vs ${fmtNumber(signal.baseline)} baseline · z ${signal.z_score.toFixed(2)}${costSpikeDates.has(signal.date) ? ` · <span class="watch-strong">⇄ cost spike same day</span>` : ""}</p>
+      </div>`
         )
         .join("");
   }
@@ -335,14 +338,17 @@ function renderWatch() {
     flagged
       .map(
         (signal) => `
-    <p class="watch-row" title="${escapeHtml(signal.reasons.join(" · "))}">
-      <span class="watch-glyph" aria-hidden="true">▣</span><span class="watch-strong">${escapeHtml(signal.id)}</span> · ${fmtNumber(signal.amount)} USD ·
-      score ${signal.score} — ${escapeHtml(signal.band === "hold_suggested" ? "hold suggested" : signal.band)}${
+    <div class="watch-row ${signal.band === "hold_suggested" ? "critical" : ""}" title="${escapeHtml(signal.reasons.join(" · "))}">
+      <div class="watch-top">
+        <span><span class="watch-glyph" aria-hidden="true">▣</span><span class="watch-strong">${escapeHtml(signal.id)}</span> · ${fmtNumber(signal.amount)} USD</span>
+        <span class="watch-tag">score ${signal.score} · ${escapeHtml(signal.band === "hold_suggested" ? "hold suggested" : signal.band)}</span>
+      </div>
+      <p class="watch-detail">${
         signal.rule_hits && signal.rule_hits.length
-          ? ` · ${escapeHtml(signal.rule_hits.map((hit) => `${hit.rule.replace("_", " ")} +${hit.points}`).join(" · "))}`
-          : ` · ${escapeHtml(signal.reasons.join(" · "))}`
-      }
-    </p>`
+          ? escapeHtml(signal.rule_hits.map((hit) => `${hit.rule.replace("_", " ")} +${hit.points}`).join(" · "))
+          : escapeHtml(signal.reasons.join(" · "))
+      }</p>
+    </div>`
       )
       .join("");
 }
