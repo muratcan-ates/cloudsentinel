@@ -274,6 +274,9 @@ h1 .period { color: var(--accent); }
 }
 .sum:hover .sum-sub { color: var(--ink); }
 
+@media (max-width: 980px) {
+  .summary-strip { grid-template-columns: repeat(2, 1fr); }
+}
 @media (max-width: 560px) {
   .summary-strip { grid-template-columns: 1fr; }
   .sum { padding: 20px 0 var(--sp-1); }
@@ -884,7 +887,10 @@ button:disabled:hover {
   text-transform: uppercase;
   color: var(--ink-dim);
 }
-.dec-rail { text-align: right; min-width: 170px; }
+/* the rail stays a compact column — a wide input here would crush the
+   card's content column (the grid sizes this track by its content) */
+.dec-rail { text-align: right; min-width: 170px; max-width: 240px; }
+.dec-rail .rationale-input { width: 220px; margin-top: var(--sp-2); text-align: right; }
 
 /* state chips: text + shape carry the state, color stays reserved */
 
