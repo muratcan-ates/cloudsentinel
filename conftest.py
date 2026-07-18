@@ -35,5 +35,6 @@ def _isolated_db(tmp_path, monkeypatch):
         "SENTINEL_PULSE_RATE_LIMIT_PER_MINUTE",
         "SENTINEL_MONTHLY_BUDGET",
         "SENTINEL_LLM_TIMEOUT_SECONDS",
+        "SENTINEL_ENV",
     ):
         monkeypatch.delenv(env, raising=False)

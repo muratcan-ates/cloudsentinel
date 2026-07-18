@@ -245,7 +245,7 @@ def get_daily_costs() -> DailyCostReport:
 @app.get("/health")
 def health_check() -> HealthStatus:
     """Simple liveness check for monitoring/deployment."""
-    return HealthStatus(status="ok")
+    return HealthStatus(status="ok", env=os.environ.get("SENTINEL_ENV", "local"))
 
 
 @app.get(

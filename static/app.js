@@ -64,6 +64,7 @@ const state = {
   security: null, // GET /security/signals — unified watch strip (section I)
   fraud: null, // GET /fraud/signals — unified watch strip (section I)
   watchStale: false, // last watch fetch failed on at least one lane
+  env: "local", // deploy environment from /health — drives the LIVE banner
   auditExpanded: false, // section V shows the newest entries until asked
   audit: [
     { time: "scan", title: "Cost Agent completed the scheduled scan", copy: "Every monitored service was compared against its historical baseline." },
@@ -271,7 +272,10 @@ function renderSummary() {
 function renderAnomalies(report) {
   document.getElementById("anomaly-meta").textContent =
     `${report.records_analyzed} records scanned · threshold ${report.threshold.toFixed(2)} · ` +
-    `${report.anomaly_count} anomal${report.anomaly_count === 1 ? "y" : "ies"} detected` +
+    // type counter: cost signals here plus the unified security lane
+    `${report.anomaly_count} cost` +
+    (state.security ? ` · ${state.security.signal_count} security` : "") +
+    ` signal${report.anomaly_count === 1 && (!state.security || state.security.signal_count === 0) ? "" : "s"} detected` +
     // measured, not claimed: the API reports how long the reflex pass took
     (typeof report.reflex_ms === "number" ? ` · REFLEX ${report.reflex_ms.toFixed(1)} ms` : "") +
     (serviceFilter.value ? ` · service ${serviceFilter.value}` : "");
@@ -830,6 +834,7 @@ function renderDecisions() {
               : escapeHtml(action.state)
         }</span>
         <p class="dec-status">${escapeHtml(actionStatusLine(action))}</p>
+        ${action.event_id != null ? `<button class="row-action" type="button" data-view-signal="${action.event_id}" aria-label="jump to the ${escapeHtml(anomaly.service || "")} signal in investigation">view signal ↑</button>` : ""}
         ${action.state === "proposed" && !busy ? `
           <button class="row-action" type="button" data-hitl="reject" data-action-id="${action.id}" aria-label="reject the ${escapeHtml(anomaly.service || "")} proposal">reject ×</button>
           <button class="row-action" type="button" data-hitl="approve" data-action-id="${action.id}" aria-label="approve the ${escapeHtml(anomaly.service || "")} proposal for execution">approve →</button>` : ""}
@@ -1117,7 +1122,9 @@ async function scan() {
     sortAnomalies();
     populateServiceFilter();
     renderAll(anomalies);
-    editionLine.textContent = `SYSTEM ONLINE — LAST SCAN ${utcNow()} — MOCK DATA`;
+    editionLine.textContent =
+      `SYSTEM ONLINE — ${state.env === "render" ? "LIVE ON RENDER — " : ""}` +
+      `LAST SCAN ${utcNow()} — MOCK DATA`;
     editionLine.classList.remove("down");
   } catch (error) {
     if (sequence !== scanSequence) return;
@@ -1246,6 +1253,20 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const viewSignal = event.target.closest("[data-view-signal]");
+  if (viewSignal) {
+    // jump from an inbox card back to its signal in investigation; if the
+    // signal is filtered out of the current scan, just scroll to section III
+    const eventId = Number(viewSignal.dataset.viewSignal);
+    const index = state.anomalies.findIndex((a) => a.id === eventId);
+    if (index >= 0) {
+      state.selectedIndex = index;
+      renderInvestigation();
+    }
+    document.getElementById("sec-investigation").scrollIntoView();
+    return;
+  }
+
   const hitlAction = event.target.closest("[data-hitl]");
   if (hitlAction) {
     decideAction(Number(hitlAction.dataset.actionId), hitlAction.dataset.hitl);
@@ -1329,6 +1350,24 @@ async function runAnalyst() {
     renderAudit();
     renderIntelligence();
   }
+}
+
+/* Deploy environment drives the LIVE banner: read it once, then re-render the
+   edition line on the next scan. Best-effort — the default stays "local". */
+fetchJson("/health")
+  .then((health) => {
+    state.env = health.env || "local";
+  })
+  .catch(() => {
+    /* health unreachable — the banner stays in its local form */
+  });
+
+/* Print header/date stamp: a printed ledger is an audit artifact, so it
+   carries a title and the date it was produced (screen-hidden, print-shown). */
+const printStamp = document.getElementById("print-stamp");
+if (printStamp) {
+  const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD
+  printStamp.textContent = `CloudSentinel — decision ledger · produced ${today}`;
 }
 
 /* First paint: the ledger seeds and the empty-state panels do not depend on the

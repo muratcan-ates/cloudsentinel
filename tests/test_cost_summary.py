@@ -59,7 +59,12 @@ def test_health_check():
     response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json() == {"status": "ok", "env": "local"}
+
+
+def test_health_reports_the_deploy_env(monkeypatch):
+    monkeypatch.setenv("SENTINEL_ENV", "render")
+    assert client.get("/health").json()["env"] == "render"
 
 
 def test_export_returns_csv_content_type():

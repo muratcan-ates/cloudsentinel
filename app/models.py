@@ -29,6 +29,9 @@ class CostSummaryReport(BaseModel):
 
 class HealthStatus(BaseModel):
     status: Literal["ok"]
+    # Deploy environment (SENTINEL_ENV) — the dashboard shows a LIVE banner
+    # when this is "render"; defaults to "local".
+    env: str = "local"
 
 
 class DailyServiceSeries(BaseModel):

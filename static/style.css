@@ -1071,3 +1071,18 @@ footer {
   }
   .page { max-width: none; }
 }
+
+
+/* print-only header/date stamp — the printed ledger is an audit artifact */
+.print-only { display: none; }
+@media print {
+  .print-only {
+    display: block;
+    font-size: var(--fs-meta);
+    color: #000;
+    border-bottom: 1px solid #000;
+    padding-bottom: var(--sp-2);
+    margin-bottom: var(--sp-4);
+    font-variant-numeric: tabular-nums;
+  }
+}
