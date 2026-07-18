@@ -54,6 +54,7 @@ DEFAULT_THRESHOLD = 2.0
 DETECTOR_ENV = "SENTINEL_DETECTOR"  # zscore (default) | mad
 WINDOW_ENV = "SENTINEL_BASELINE_WINDOW_DAYS"
 SEASONAL_ENV = "SENTINEL_SEASONAL"  # "1" opts into day-of-week baselines
+REBASE_ENV = "SENTINEL_REBASE_DATES"  # "1" shifts demo data toward today
 
 DEFAULT_WINDOW_DAYS = 28
 MIN_HISTORY = 7
@@ -79,9 +80,44 @@ def seasonal_enabled() -> bool:
     return os.environ.get(SEASONAL_ENV, "").strip() == "1"
 
 
+def demo_rebase_delta() -> timedelta:
+    """Whole-week shift landing the cost dataset's newest day near yesterday.
+
+    Demo freshness (SENTINEL_REBASE_DATES=1): a jury should see a spike
+    from "this week", not from a frozen fixture three weeks back. The
+    shift is quantized to whole weeks so weekday alignment — and with it
+    the seasonal baseline — survives, and EVERY mock dataset (cost,
+    security, fraud) applies this same delta so cross-lane same-day
+    correlations stay intact. Zero when the knob is off or the data is
+    already current.
+    """
+    if os.environ.get(REBASE_ENV, "").strip() != "1":
+        return timedelta(0)
+    with DATA_FILE.open() as f:
+        raw = json.load(f)
+    newest = date.fromisoformat(max(r["date"] for r in raw["daily_costs"]))
+    yesterday = date.today() - timedelta(days=1)
+    if newest >= yesterday:
+        return timedelta(0)
+    return timedelta(days=((yesterday - newest).days // 7) * 7)
+
+
+def shift_iso(value: str, delta: timedelta) -> str:
+    return (date.fromisoformat(value) + delta).isoformat()
+
+
 def load_dataset() -> dict:
     with DATA_FILE.open() as f:
-        return json.load(f)
+        dataset = json.load(f)
+    delta = demo_rebase_delta()
+    if delta:
+        for record in dataset["daily_costs"]:
+            record["date"] = shift_iso(record["date"], delta)
+        period = dataset.get("period")
+        if period:
+            period["start"] = shift_iso(period["start"], delta)
+            period["end"] = shift_iso(period["end"], delta)
+    return dataset
 
 
 def load_daily_costs() -> list:

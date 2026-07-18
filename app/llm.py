@@ -391,6 +391,21 @@ def generate_with_fallback(
         return LLMResult(text=text, parsed=parsed, source="fallback", model="rule-based")
 
 
+def provider_mode() -> str:
+    """Cheap answer to "which backend would answer right now" (fake|gemini).
+
+    Mirrors get_provider's selection WITHOUT instantiating a client or
+    logging — health checks call this on every ping.
+    """
+    load_dotenv()
+    flag = os.environ.get("SENTINEL_FAKE_LLM", "").strip().lower()
+    if flag in {"1", "true", "yes", "on"}:
+        return "fake"
+    if not os.environ.get("GEMINI_API_KEY"):
+        return "fake"
+    return "gemini"
+
+
 def get_provider() -> LLMProvider:
     """Pick the provider from the environment.
 

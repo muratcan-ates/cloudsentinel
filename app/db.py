@@ -108,6 +108,13 @@ _SCHEMA_STATEMENTS = (
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS pulse_log (
+        id INTEGER PRIMARY KEY,
+        report_json TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
     "CREATE INDEX IF NOT EXISTS idx_actions_state ON actions(state)",
     "CREATE INDEX IF NOT EXISTS idx_decisions_service ON decisions(service)",
     # Natural key: rescans must yield the same event id for the same signal,

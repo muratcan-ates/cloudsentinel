@@ -20,7 +20,7 @@ from typing import Literal
 
 from fastapi import Depends, FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 import sqlite3
@@ -31,7 +31,9 @@ from app.analyst import router as analyst_router
 from app.analytics import metrics_router as metrics_router
 from app.analytics import router as analytics_router
 from app.decisions import router as decisions_router
+from app.llm import provider_mode
 from app.missions import MissionError, get_mission
+from app.ops import router as ops_router
 from app.pulse import router as pulse_router
 from app.recommender import router as recommender_router
 from app.fraud import router as fraud_router
@@ -120,6 +122,7 @@ app.include_router(analytics_router)
 app.include_router(decisions_router)
 app.include_router(fraud_router)
 app.include_router(metrics_router)
+app.include_router(ops_router)
 app.include_router(reflex_router)
 app.include_router(security_router)
 app.include_router(pulse_router)
@@ -151,6 +154,14 @@ DEFAULT_PULSE_RATE_LIMIT = 60
 RATE_WINDOW_SECONDS = 60.0
 _pulse_hits: defaultdict[str, deque] = defaultdict(deque)
 
+# Read-only showcase mode: a public demo link must survive strangers'
+# clicks. One env knob blocks every write while the panels keep reading.
+READONLY_ENV = "SENTINEL_READONLY"
+
+
+def readonly_enabled() -> bool:
+    return os.environ.get(READONLY_ENV, "").strip() == "1"
+
 
 def pulse_rate_limit() -> int:
     raw = os.environ.get(RATE_LIMIT_ENV, "").strip()
@@ -165,6 +176,13 @@ def pulse_rate_limit() -> int:
 async def guard_expensive_endpoints(request: Request, call_next):
     """Rate-limit POST /pulse and tag every response with a request id."""
     request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]
+    if request.method == "POST" and readonly_enabled():
+        return Response(
+            content='{"detail": "read-only demo mode — write operations are disabled"}',
+            status_code=403,
+            media_type="application/json",
+            headers={"X-Request-ID": request_id},
+        )
     if request.method == "POST" and request.url.path == "/pulse":
         limit = pulse_rate_limit()
         if limit > 0:
@@ -228,7 +246,38 @@ def get_daily_costs() -> DailyCostReport:
 @app.get("/health")
 def health_check() -> HealthStatus:
     """Simple liveness check for monitoring/deployment."""
-    return HealthStatus(status="ok", env=os.environ.get("SENTINEL_ENV", "local"))
+    return HealthStatus(
+        status="ok",
+        env=os.environ.get("SENTINEL_ENV", "local"),
+        version=app.version,
+        provider=provider_mode(),
+        readonly=readonly_enabled(),
+    )
+
+
+# Failure envelope: an operator (or a jury member) probing the API gets a
+# JSON answer, never a traceback. The X-Request-ID middleware cannot wrap
+# these (unhandled errors propagate past it), so they stay minimal.
+@app.exception_handler(sqlite3.OperationalError)
+async def database_busy(request: Request, exc: sqlite3.OperationalError) -> JSONResponse:
+    """A write contended beyond the busy timeout answers 503, not a 500."""
+    logging.getLogger("cloudsentinel.error").warning(
+        "database busy on %s: %s", request.url.path, exc
+    )
+    return JSONResponse(
+        {"detail": "database is busy — retry shortly"},
+        status_code=503,
+        headers={"Retry-After": "2"},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_error(request: Request, exc: Exception) -> JSONResponse:
+    """Last-resort envelope; the traceback goes to the log, not the wire."""
+    logging.getLogger("cloudsentinel.error").exception(
+        "unhandled error on %s", request.url.path
+    )
+    return JSONResponse({"detail": "internal server error"}, status_code=500)
 
 
 @app.get(

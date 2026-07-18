@@ -32,6 +32,13 @@ class HealthStatus(BaseModel):
     # Deploy environment (SENTINEL_ENV) — the dashboard shows a LIVE banner
     # when this is "render"; defaults to "local".
     env: str = "local"
+    version: str = "0.0.0"
+    # Which completion backend answers right now (fake | gemini) — cheap
+    # env inspection, no client is instantiated for a liveness ping.
+    provider: str = "fake"
+    # SENTINEL_READONLY=1 turns the public link into a safe showcase:
+    # every POST answers 403 and the dashboard says so.
+    readonly: bool = False
 
 
 class DailyServiceSeries(BaseModel):
@@ -244,6 +251,21 @@ class PulseReport(BaseModel):
     budget_exhausted: bool = False
     briefing: PulseBriefing | None = None
     chain: list[PulseChainLink]
+
+
+class LastPulseReport(BaseModel):
+    """The most recent pulse run, persisted so a reload keeps the story."""
+
+    ran_at: str
+    report: PulseReport
+
+
+class DemoResetReport(BaseModel):
+    """Outcome of an env-gated demo reset (rehearsal hygiene, not product)."""
+
+    cleared: list[str]
+    seeded_decisions: int
+    note: str
 
 
 class SecuritySignal(BaseModel):

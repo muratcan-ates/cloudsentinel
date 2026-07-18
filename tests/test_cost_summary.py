@@ -59,7 +59,10 @@ def test_health_check():
     response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "env": "local"}
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["env"] == "local"
+    assert set(body) == {"status", "env", "version", "provider", "readonly"}
 
 
 def test_health_reports_the_deploy_env(monkeypatch):

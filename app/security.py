@@ -20,7 +20,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, Query
 
 from app import db
-from app.detection import DEFAULT_THRESHOLD, run_detection
+from app.detection import DEFAULT_THRESHOLD, shift_iso, demo_rebase_delta, run_detection
 from app.missions import MissionError, get_mission
 from app.models import SecuritySignal, SecuritySignalReport
 from app.reflex import reflex_scan
@@ -36,7 +36,14 @@ EVENT_KIND = "security_anomaly"
 
 def load_security_dataset() -> dict:
     with SECURITY_DATA_FILE.open() as f:
-        return json.load(f)
+        dataset = json.load(f)
+    # Same whole-week demo shift as the cost lane, so cross-lane same-day
+    # correlations (a login storm on a spend-spike day) survive the rebase.
+    delta = demo_rebase_delta()
+    if delta:
+        for row in dataset["daily_counts"]:
+            row["date"] = shift_iso(row["date"], delta)
+    return dataset
 
 
 def security_records(dataset: dict) -> list[dict]:

@@ -37,6 +37,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Query
 
 from app import db
+from app.detection import shift_iso, demo_rebase_delta
 from app.missions import MissionError, get_mission
 from app.models import FraudRuleHit, FraudSignal, FraudSignalReport
 
@@ -65,7 +66,13 @@ _warned_mission_fallback = False
 
 def load_fraud_dataset() -> dict:
     with FRAUD_DATA_FILE.open() as f:
-        return json.load(f)
+        dataset = json.load(f)
+    # Same whole-week demo shift as the cost lane (see demo_rebase_delta).
+    delta = demo_rebase_delta()
+    if delta:
+        for event in dataset["events"]:
+            event["date"] = shift_iso(event["date"], delta)
+    return dataset
 
 
 def resolve_rules() -> tuple[int, int, int]:

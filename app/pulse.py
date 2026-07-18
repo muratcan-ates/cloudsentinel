@@ -19,7 +19,7 @@ import logging
 import os
 import sqlite3
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app import db, fraud
 from app.analyst import analyze_event
@@ -27,7 +27,7 @@ from app.chronicler import write_briefing
 from app.missions import MissionError, get_mission
 from app.recommender import recommend_for_event
 from app.detection import DEFAULT_THRESHOLD, load_daily_costs, run_detection
-from app.models import PulseBriefing, PulseChainLink, PulseReport
+from app.models import LastPulseReport, PulseBriefing, PulseChainLink, PulseReport
 from app.llm import llm_call_budget
 from app.reflex import reflex_scan
 from app.security import persist_signals, scan_security
@@ -62,6 +62,15 @@ def run_pulse(
         description=(
             "Z-score threshold for the detection pass; omitted, the "
             "mission's detection threshold governs."
+        ),
+    ),
+    llm_budget: int | None = Query(
+        None,
+        ge=0,
+        le=100,
+        description=(
+            "Override the pulse LLM call cap for THIS run only — 0 "
+            "demonstrates the rule-based fallback lane live."
         ),
     ),
     conn: sqlite3.Connection = Depends(db.get_db),
@@ -100,7 +109,7 @@ def run_pulse(
     filed_count = 0
     reused_count = 0
 
-    budget_limit = pulse_llm_budget()
+    budget_limit = llm_budget if llm_budget is not None else pulse_llm_budget()
     with llm_call_budget(budget_limit) as budget:
         for anomaly in anomalies:
                 with db.writing(conn):
@@ -192,7 +201,7 @@ def run_pulse(
             budget.used,
         )
 
-    return PulseReport(
+    report = PulseReport(
         threshold=threshold,
         mission=mission_name,
         reflex_ms=reflex_ms,
@@ -207,4 +216,26 @@ def run_pulse(
         budget_exhausted=budget.exhausted,
         briefing=briefing,
         chain=links,
+    )
+    # Persist the run so a page reload (or a colleague's later look) can
+    # replay the last chain and its briefing instead of losing the story.
+    with db.writing(conn):
+        conn.execute(
+            "INSERT INTO pulse_log (report_json) VALUES (?)",
+            (report.model_dump_json(),),
+        )
+    return report
+
+
+@router.get("/pulse/last", responses={404: {"description": "No pulse has run yet."}})
+def last_pulse(conn: sqlite3.Connection = Depends(db.get_db)) -> LastPulseReport:
+    """Return the most recent pulse run (report + briefing), if any."""
+    row = conn.execute(
+        "SELECT report_json, created_at FROM pulse_log ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="no pulse has run yet")
+    return LastPulseReport(
+        ran_at=row["created_at"],
+        report=PulseReport.model_validate_json(row["report_json"]),
     )
