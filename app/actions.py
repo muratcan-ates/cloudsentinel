@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query
 
-from app import db
+from app import bus, db
 from app.models import ActionDecisionRequest, ActionListReport, ActionRecord, ActionState
 
 logger = logging.getLogger("cloudsentinel.actions")
@@ -231,6 +231,14 @@ def _decide(
             (verdict, actor, action_id),
         )
         _record_decision(conn, row, verdict, rationale)
+        bus.emit(
+            conn,
+            "operator",
+            "decision",
+            f"action #{action_id} {verdict.upper()} by {actor}"
+            + (f" — “{rationale}”" if rationale else "")
+            + " · fed to decision memory",
+        )
         record = _to_record(
             conn.execute("SELECT * FROM actions WHERE id = ?", (action_id,)).fetchone()
         )
@@ -326,6 +334,12 @@ def execute_action(
             "UPDATE actions SET state = 'executed', "
             "executed_at = datetime('now'), detail_json = ? WHERE id = ?",
             (json.dumps(detail), action_id),
+        )
+        bus.emit(
+            conn,
+            "operator",
+            "execute",
+            f"action #{action_id} executed — SIMULATION, no real infrastructure touched",
         )
         record = _to_record(
             conn.execute("SELECT * FROM actions WHERE id = ?", (action_id,)).fetchone()

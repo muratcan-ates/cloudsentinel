@@ -27,6 +27,8 @@ def test_dashboard_hidden_from_openapi_schema():
         "/actions/{action_id}/approve",
         "/actions/{action_id}/execute",
         "/actions/{action_id}/reject",
+        "/agents",
+        "/agents/feed",
         "/anomalies",
         "/analytics/ai",
         "/analytics/calibration",

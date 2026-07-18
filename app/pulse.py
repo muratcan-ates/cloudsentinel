@@ -21,7 +21,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app import db, fraud
+from app import bus, db, fraud
 from app.analyst import analyze_event
 from app.analytics import file_budget_risk_action
 from app.chronicler import write_briefing
@@ -105,6 +105,17 @@ def run_pulse(
         ),
     )
 
+    bus.prune(conn)
+    bus.emit(
+        conn,
+        "reflex",
+        "scan",
+        f"pulse opened — mission {mission_name or 'defaults'} scanned in "
+        f"{reflex_ms if reflex_ms is not None else '—'} ms: "
+        f"{len(anomalies)} cost signal{'' if len(anomalies) == 1 else 's'} "
+        f"({run.detector} detector)",
+    )
+
     links: list[PulseChainLink] = []
     analyzed_count = 0
     filed_count = 0
@@ -177,6 +188,15 @@ def run_pulse(
             signal for signal in fraud.score_events() if signal.band != "clear"
         ]
         fraud.persist_flagged(conn, fraud_flagged)
+        bus.emit(
+            conn,
+            "reflex",
+            "watch",
+            f"unified watch swept — {security_report.signal_count} security "
+            f"signal{'' if security_report.signal_count == 1 else 's'}, "
+            f"{len(fraud_flagged)} fraud flag{'' if len(fraud_flagged) == 1 else 's'} "
+            "(operator-facing lanes, no LLM)",
+        )
         # Three missions, one decision box: hold-suggested payments and a
         # projected budget overrun file deterministic HITL cards (no LLM).
         fraud_holds_filed = fraud.file_hold_actions(conn, fraud_flagged)

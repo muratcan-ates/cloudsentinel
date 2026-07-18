@@ -27,7 +27,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from app import db
+from app import bus, db
 from app.actions import TIMEOUT_ACTOR, expire_stale_proposals
 from app.detection import build_daily_series, load_dataset
 from app.models import (
@@ -624,6 +624,13 @@ def file_budget_risk_action(conn: sqlite3.Connection) -> int:
             },
             sort_keys=True,
         ),
+    )
+    bus.emit(
+        conn,
+        "budget-guard",
+        "card",
+        f"{forecast.month} projected {forecast.projected_month_total:.2f} vs "
+        f"budget {forecast.monthly_budget:.2f} — guard card filed for the operator",
     )
     return 1
 

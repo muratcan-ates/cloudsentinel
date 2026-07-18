@@ -31,7 +31,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import BaseModel
 
-from app import db
+from app import bus, db
 from app.llm import (
     Confidence,
     LLMProvider,
@@ -213,6 +213,13 @@ def valid_evidence_ids(report_ids: list[str], evidence: list[dict]) -> list[str]
 def analyze_event(conn: sqlite3.Connection, event: sqlite3.Row) -> AnalysisResponse:
     """Run (or replay) the Analyst on a persisted cost-anomaly event."""
     anomaly = json.loads(event["payload_json"])
+    bus.emit(
+        conn,
+        "analyst",
+        "pickup",
+        f"picking up signal #{event['id']} ({anomaly.get('service', '?')}, "
+        f"z {float(anomaly.get('z_score', 0.0)):+.2f}) — reading the 14-day evidence",
+    )
     provider: LLMProvider = get_provider()
     # Pre-call model id keys the cache; attribution uses the result's own
     # model so a fallback stays honestly labeled "rule-based".
@@ -249,6 +256,13 @@ def analyze_event(conn: sqlite3.Connection, event: sqlite3.Row) -> AnalysisRespo
         model_used = result.model
 
         if source != "fallback" and payload_is_critical(anomaly):
+            bus.emit(
+                conn,
+                "reflection",
+                "challenge",
+                f"signal #{event['id']} is critical — challenging the draft "
+                f"{report.triage} before it leaves the desk",
+            )
             reflection_prompt = build_reflection_prompt(report, prompt)
             # Best-effort by locked decision: ANY reflection failure keeps
             # the draft — it already cost quota and must reach the ledger.
@@ -323,6 +337,17 @@ def analyze_event(conn: sqlite3.Connection, event: sqlite3.Row) -> AnalysisRespo
             },
             sort_keys=True,
         ),
+    )
+    bus.emit(
+        conn,
+        "analyst",
+        "triage",
+        f"signal #{event['id']}: triage {report.triage} "
+        f"(confidence {report.confidence.score:.2f})"
+        + (" · reflection applied" if reflected else "")
+        + (" · from cache" if from_cache else "")
+        + (" · rule-based fallback" if source == "fallback" else "")
+        + " — handing to the recommender",
     )
     # Map each cited evidence id to the calendar date it names, so the
     # dashboard rings the day the analyst actually pointed at (not an index

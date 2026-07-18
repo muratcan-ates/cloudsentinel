@@ -36,7 +36,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
 
-from app import db
+from app import bus, db
 from app.detection import shift_iso, demo_rebase_delta
 from app.missions import MissionError, get_mission
 from app.models import FraudRuleHit, FraudSignal, FraudSignalReport
@@ -285,6 +285,13 @@ def file_hold_actions(conn: sqlite3.Connection, signals: list[FraudSignal]) -> i
                 {"id": signal.id, "score": signal.score, "band": signal.band},
                 sort_keys=True,
             ),
+        )
+        bus.emit(
+            conn,
+            "fraud-watch",
+            "hold",
+            f"{signal.id}: hold card filed (rule score {signal.score}) — "
+            "suggestion only, the operator decides",
         )
     return len(filed_signals)
 

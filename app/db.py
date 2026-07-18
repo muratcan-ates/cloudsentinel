@@ -119,6 +119,16 @@ _SCHEMA_STATEMENTS = (
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS agent_feed (
+        id INTEGER PRIMARY KEY,
+        agent TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        message TEXT NOT NULL,
+        payload_json TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
     "CREATE INDEX IF NOT EXISTS idx_actions_state ON actions(state)",
     "CREATE INDEX IF NOT EXISTS idx_decisions_service ON decisions(service)",
     # Natural key: rescans must yield the same event id for the same signal,

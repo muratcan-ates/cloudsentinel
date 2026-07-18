@@ -19,7 +19,7 @@ import sqlite3
 
 from pydantic import BaseModel
 
-from app import db
+from app import bus, db
 from app.llm import (
     generate_with_fallback,
     get_provider,
@@ -151,6 +151,7 @@ def write_briefing(conn: sqlite3.Connection, facts: dict) -> dict:
             sort_keys=True,
         ),
     )
+    bus.emit(conn, "chronicler", "briefing", f"briefing filed — {report.headline}")
     return {
         "headline": report.headline,
         "summary": report.summary,

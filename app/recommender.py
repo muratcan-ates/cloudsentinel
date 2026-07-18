@@ -34,7 +34,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import BaseModel
 
-from app import db
+from app import bus, db
 from app.llm import (
     Confidence,
     generate_with_fallback,
@@ -452,6 +452,19 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
     model = getattr(provider, "model", "unknown")
     savings = estimated_savings(anomaly)
     decision_memory = fetch_decision_memory(conn, anomaly.get("service", ""))
+    memory_count = len(decision_memory.splitlines()) if decision_memory else 0
+    bus.emit(
+        conn,
+        "recommender",
+        "draft",
+        f"signal #{event['id']}: drafting cautious/bold options — "
+        + (
+            f"recalling {memory_count} prior operator verdict"
+            f"{'' if memory_count == 1 else 's'} on this service"
+            if memory_count
+            else "no prior verdicts on this service"
+        ),
+    )
     prompt = build_prompt(anomaly, analyst_report, savings, decision_memory)
     skeptic_prompt: str | None = None
 
@@ -498,6 +511,12 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
         transcript = None
         skeptic_duration_ms = None
         if escalation_reason is not None and source != "fallback":
+            bus.emit(
+                conn,
+                "recommender",
+                "escalate",
+                f"signal #{event['id']}: requesting skeptic review — {escalation_reason}",
+            )
             # The prompt is captured before any verdict can mutate the
             # report: the ledger must hash what was actually sent.
             skeptic_prompt = build_skeptic_prompt(report, analyst_report)
@@ -529,6 +548,18 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
                     "original_preferred": report.preferred,
                     "final_preferred": verdict.preferred if not verdict.agree else report.preferred,
                 }
+                bus.emit(
+                    conn,
+                    "skeptic",
+                    "verdict",
+                    f"signal #{event['id']}: "
+                    + (
+                        f"consensus — the {report.preferred} stance stands"
+                        if verdict.agree
+                        else f"OVERRULED — stance revised "
+                        f"{report.preferred} → {verdict.preferred}"
+                    ),
+                )
                 if not verdict.agree:
                     report.preferred = verdict.preferred
             else:
@@ -678,6 +709,13 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
             },
             sort_keys=True,
         ),
+    )
+    bus.emit(
+        conn,
+        "recommender",
+        "filed",
+        f"signal #{event['id']}: filed \"{preferred_option.title}\" to the inbox "
+        f"(stance {report.preferred}, action #{action_row['id']}) — the hand decides",
     )
     return _response_from_detail(event["id"], action_row, detail, reused=False, from_cache=from_cache)
 
