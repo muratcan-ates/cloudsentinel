@@ -103,6 +103,7 @@ flowchart LR
 | `llm_cache` | provider answers keyed by model + system + prompt |
 | `idempotency` | scoped decision keys with canonical responses |
 | `pulse_log` | every pulse report — `GET /pulse/last` replays the latest run |
+| `agent_feed` | every inter-agent hop, cursor-streamed by `GET /agents/feed` |
 
 ## API Surface (implemented — 32 endpoints)
 

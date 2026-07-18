@@ -105,8 +105,6 @@ async def lifespan(_: FastAPI):
 def _log_boot_manifest() -> None:
     """One [BOOT] line naming what this instance is running — the first
     frame of the demo and a deploy sanity check in one glance."""
-    from app.llm import provider_mode
-
     try:
         dataset = load_dataset()
         services = sorted({r["service"] for r in dataset["daily_costs"]})

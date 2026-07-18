@@ -184,10 +184,7 @@ def run_pulse(
         # (operator-facing lanes by locked decision).
         security_report = scan_security()
         persist_signals(conn, security_report.signals)
-        fraud_flagged = [
-            signal for signal in fraud.score_events() if signal.band != "clear"
-        ]
-        fraud.persist_flagged(conn, fraud_flagged)
+        _, fraud_flagged = fraud.scan_and_persist(conn)
         bus.emit(
             conn,
             "reflex",
@@ -205,6 +202,10 @@ def run_pulse(
         # Chronicler: one budgeted call narrates the run for the operator.
         # The facts are computed HERE, in Python — the agent only restates
         # them; a dry budget lands on its deterministic fallback narrative.
+        # LLM spend is deliberately NOT among the facts: the chronicler's own
+        # call is charged AFTER this dict is built, so any count here would be
+        # off by that call. The authoritative figure rides the PulseReport
+        # (llm_calls_used / llm_budget), which the dashboard renders.
         top = max(anomalies, key=lambda a: abs(a.z_score), default=None)
         facts = {
             "cost_signals": len(links),
@@ -214,8 +215,6 @@ def run_pulse(
             "analyzed": analyzed_count,
             "proposals_filed": filed_count,
             "proposals_reused": reused_count,
-            "llm_budget": budget_limit,
-            "llm_calls_used": budget.used,
             "top_service": top.service if top else None,
         }
         briefing = PulseBriefing(**write_briefing(conn, facts))

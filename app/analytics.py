@@ -560,7 +560,10 @@ def shift_handover(
     conn: sqlite3.Connection = Depends(db.get_db),
 ) -> HandoverReport:
     """Shift-handover brief: what is open, what waits, what was decided."""
-    from app.actions import _expires_in_hours  # local import: avoid a cycle
+    from app.actions import (  # local import: avoid a cycle
+        _expires_in_hours,
+        action_ttl_hours,
+    )
     from app.detection import DEFAULT_THRESHOLD, load_daily_costs, run_detection
 
     expire_stale_proposals(conn)
@@ -586,8 +589,6 @@ def shift_handover(
         remaining = _expires_in_hours(row)
         age = None
         if remaining is not None:
-            from app.actions import action_ttl_hours
-
             age = round(action_ttl_hours() - remaining, 1)
         pending.append(
             HandoverAction(

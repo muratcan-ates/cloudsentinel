@@ -227,6 +227,21 @@ def persist_flagged(conn: sqlite3.Connection, signals: list[FraudSignal]) -> Non
         )
 
 
+def scan_and_persist(
+    conn: sqlite3.Connection,
+) -> tuple[list[FraudSignal], list[FraudSignal]]:
+    """Score the feed once and persist every non-clear signal.
+
+    Returns ``(all_signals, flagged)`` so callers that need the full band
+    histogram (the /fraud/signals endpoint) and callers that only need the
+    flagged set (the pulse sweep) share the same score→filter→persist step.
+    """
+    signals = score_events()
+    flagged = [signal for signal in signals if signal.band != "clear"]
+    persist_flagged(conn, flagged)
+    return signals, flagged
+
+
 HOLD_ACTION_NOTE = (
     "suggestion only — approving records the operator's hold decision in the "
     "audit trail; no payment is ever blocked automatically"
@@ -318,9 +333,7 @@ def get_fraud_signals(
     except MissionError:
         logger.warning("fraud mission unavailable; scoring without mission tags")
         mission_name = None
-    signals = score_events()
-    flagged = [signal for signal in signals if signal.band != "clear"]
-    persist_flagged(conn, flagged)
+    signals, flagged = scan_and_persist(conn)
 
     bands: dict[str, int] = {"clear": 0, "review": 0, "hold_suggested": 0}
     for signal in signals:

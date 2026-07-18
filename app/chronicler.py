@@ -65,15 +65,13 @@ def rule_based_briefing(facts: dict) -> BriefingReport:
     summary = (
         f"The chain analyzed {facts.get('analyzed', 0)} signal"
         f"{'' if facts.get('analyzed', 0) == 1 else 's'}, filed {filed} and "
-        f"reused {reused} open proposal{'' if reused == 1 else 's'}. "
+        f"reused {reused} open proposal{'' if reused == 1 else 's'}."
         + (
-            f"{cross} cross-lane card{'' if cross == 1 else 's'} "
-            "(fraud hold / budget guard) also await review. "
+            f" {cross} cross-lane card{'' if cross == 1 else 's'} "
+            "(fraud hold / budget guard) also await review."
             if cross
             else ""
         )
-        + f"LLM spend was {facts.get('llm_calls_used', 0)} of "
-        f"{facts.get('llm_budget', 0)} budgeted calls."
     )
     watch_next = (
         f"{top} carries the strongest deviation — decide its inbox card first."
