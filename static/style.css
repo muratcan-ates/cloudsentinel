@@ -295,7 +295,11 @@ body::before {
   top: 0;
   left: 0;
   z-index: 1000;
-  transform: translateY(-120%);
+  /* Hidden until keyboard focus. Translate fully off-screen AND fade out: the
+     0.4rem margin left the old translateY(-120%) about 1px short, so a teal
+     sliver peeked below the top edge in Safari. */
+  transform: translateY(-200%);
+  opacity: 0;
   margin: 0.4rem;
   padding: 0.5rem 0.9rem;
   background: var(--accent);
@@ -303,10 +307,11 @@ body::before {
   border-radius: 4px;
   font: 600 0.85rem/1 "Inter", sans-serif;
   text-decoration: none;
-  transition: transform 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.15s ease;
 }
 .skip-link:focus {
   transform: translateY(0);
+  opacity: 1;
 }
 #main-content:focus { outline: none; }
 @media (prefers-reduced-motion: reduce) {
@@ -1595,6 +1600,16 @@ main .ledger-wide {
 .radar-blip.warning { fill: var(--accent); }
 .radar-blip.security { fill: var(--info); }
 .radar .radar-core { fill: var(--accent); }
+/* Reserve the radar's top-right corner so the header, the stat chips and the
+   sort row never slide under the sweeping SVG on wide screens. Below 981px the
+   radar drops into the normal flow, so the reservation lifts. */
+@media (min-width: 981px) {
+  #sec-anomalies .section-head,
+  #sec-anomalies #anomaly-meta,
+  #sec-anomalies .sort-row {
+    padding-right: 152px;
+  }
+}
 @media (max-width: 980px) {
   .radar { position: static; display: block; margin: 6px 0 0; }
 }
