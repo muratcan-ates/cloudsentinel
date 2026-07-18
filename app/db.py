@@ -35,7 +35,11 @@ from contextlib import contextmanager
 from pathlib import Path
 
 DB_PATH_ENV = "SENTINEL_DB_PATH"
-DEFAULT_DB_PATH = "cloudsentinel.db"
+# Anchored to the project root, not the caller's cwd: a server launched
+# from any directory must find the same database file. Deploy targets
+# (Docker WORKDIR /app, Render) already run from the root, so nothing
+# moves there; SENTINEL_DB_PATH still overrides.
+DEFAULT_DB_PATH = str(Path(__file__).parent.parent / "cloudsentinel.db")
 
 BUSY_TIMEOUT_MS = 5000
 
