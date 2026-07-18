@@ -237,7 +237,7 @@ h1 .period { color: var(--accent); }
 
 .summary-strip {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   margin-top: var(--sp-6);
   border-top: 1px solid var(--hair);
 }
