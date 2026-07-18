@@ -297,7 +297,7 @@ function renderWatch() {
       ? ` · ${bands.hold_suggested} hold / ${bands.review} review / ${bands.clear} clear`
       : ` · ${fraud.count} flagged of ${fraud.signals.length} events`;
   fraudBox.innerHTML =
-    `<p class="meta watch-head">fraud — published rules${bandLine} · mission ${escapeHtml(fraud.mission ?? "—")} · suggestions only, the operator decides</p>` +
+    `<p class="meta watch-head">fraud <span class="hint">(experimental lane)</span> — published rules${bandLine} · mission ${escapeHtml(fraud.mission ?? "—")} · suggestions only, the operator decides</p>` +
     flagged
       .map(
         (signal) => `

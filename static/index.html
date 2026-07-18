@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CloudSentinel — Anomaly Watch</title>
-  <link rel="stylesheet" href="/static/style.css?v=s5.0" />
+  <link rel="stylesheet" href="/static/style.css?v=s5.1" />
   <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
   <meta name="description" content="CloudSentinel — cloud cost and security anomaly watch: detection, evidence-cited AI triage and human-approved remediation, execution simulated by design." />
   <meta property="og:title" content="CloudSentinel — Anomaly Watch" />
@@ -13,6 +13,7 @@
   <meta property="og:image" content="https://cloudsentinel.onrender.com/static/img/hands-dither.png" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <nav class="top-nav" id="view-nav" aria-label="Site">
     <a class="nav-brand pixel-black" href="/" data-view="watch">cloudsentinel<span class="period">.</span></a>
     <div class="nav-links">
@@ -84,7 +85,7 @@
       <p class="meta" id="pulse-note" aria-live="polite"></p>
     </section>
 
-    <main>
+    <main id="main-content" tabindex="-1">
       <section class="ledger-col" id="sec-anomalies">
         <header class="section-head">
           <span class="numeral">I</span>
@@ -99,7 +100,7 @@
         </p>
         <div id="anomaly-list" class="fadeable"></div>
         <div class="watch-block" id="watch-block">
-          <p class="microcap">Unified watch <span class="hint">— security through the same detection line · fraud by published rules</span></p>
+          <p class="microcap">Unified watch <span class="hint">— security through the same detection line · fraud by published rules (experimental lane)</span></p>
           <p class="meta" id="watch-stale" aria-live="polite"></p>
           <div id="security-watch"></div>
           <div id="fraud-watch"></div>
@@ -242,6 +243,6 @@
     </div>
   </aside>
 
-  <script src="/static/app.js?v=s5.0"></script>
+  <script src="/static/app.js?v=s5.1"></script>
 </body>
 </html>

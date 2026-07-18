@@ -288,6 +288,31 @@ body::before {
 ::selection { background: var(--selection-bg); color: var(--selection-fg); }
 :focus-visible { outline: 2px solid var(--info); outline-offset: 3px; }
 
+/* Keyboard bypass block (WCAG 2.4.1): off-screen until focused, then it
+   drops in over the sticky navbar so Tab-from-top reaches the content. */
+.skip-link {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  transform: translateY(-120%);
+  margin: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  background: var(--accent);
+  color: var(--surface);
+  border-radius: 4px;
+  font: 600 0.85rem/1 "Inter", sans-serif;
+  text-decoration: none;
+  transition: transform 0.15s ease;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+#main-content:focus { outline: none; }
+@media (prefers-reduced-motion: reduce) {
+  .skip-link { transition: none; }
+}
+
 .page {
   position: relative;
   max-width: 960px;
