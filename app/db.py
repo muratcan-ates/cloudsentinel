@@ -138,6 +138,24 @@ _SCHEMA_STATEMENTS = (
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        salt TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'viewer'
+            CHECK (role IN ('viewer', 'analyst', 'approver', 'admin')),
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS sessions (
+        token TEXT PRIMARY KEY NOT NULL,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
     "CREATE INDEX IF NOT EXISTS idx_actions_state ON actions(state)",
     "CREATE INDEX IF NOT EXISTS idx_decisions_service ON decisions(service)",
     # Natural key: rescans must yield the same event id for the same signal,

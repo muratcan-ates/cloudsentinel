@@ -35,6 +35,7 @@ import sqlite3
 from app import db
 from app.actions import router as actions_router
 from app.analyst import router as analyst_router
+from app.auth import router as auth_router
 from app.analytics import metrics_router as metrics_router
 from app.analytics import router as analytics_router
 from app.bus import router as bus_router
@@ -166,6 +167,7 @@ app = FastAPI(
 
 app.include_router(actions_router)
 app.include_router(analyst_router)
+app.include_router(auth_router)
 app.include_router(bus_router)
 app.include_router(analytics_router)
 app.include_router(decisions_router)
