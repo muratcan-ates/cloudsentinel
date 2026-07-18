@@ -7,14 +7,55 @@ its frozen ``decision_memory`` prompt slot so repeated anomaly patterns
 meet an agent that remembers how the humans decided last time.
 """
 
+import csv
+import io
 import sqlite3
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 
 from app import db
 from app.models import DecisionListReport, DecisionRecord
 
 router = APIRouter(tags=["memory"])
+
+
+@router.get(
+    "/decisions/export",
+    response_class=Response,
+    responses={
+        200: {
+            "content": {"text/csv": {}},
+            "description": "CSV download of the decision ledger.",
+        }
+    },
+)
+def export_decisions_csv(
+    conn: sqlite3.Connection = Depends(db.get_db),
+) -> Response:
+    """Download the decision ledger as CSV — the audit trail, portable."""
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(["id", "action_id", "service", "verdict", "rationale", "decided_at"])
+    for row in conn.execute(
+        "SELECT id, action_id, service, verdict, rationale, created_at "
+        "FROM decisions ORDER BY id"
+    ):
+        writer.writerow(
+            [
+                row["id"],
+                row["action_id"],
+                row["service"],
+                row["verdict"],
+                row["rationale"] or "",
+                row["created_at"],
+            ]
+        )
+    return Response(
+        content=buffer.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=decision_ledger.csv"},
+    )
 
 
 @router.get("/decisions/similar")

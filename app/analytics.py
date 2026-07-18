@@ -17,10 +17,14 @@ Answers the operator's standing questions:
   moved the most?
 """
 
+import calendar
 import json
+import os
 import sqlite3
+from datetime import date
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
 from app import db
 from app.actions import TIMEOUT_ACTOR, expire_stale_proposals
@@ -236,6 +240,327 @@ def detection_precision(
         precision_proxy=proxy(approved, rejected),
         method=PRECISION_METHOD,
         services=services,
+    )
+
+
+# --- self-FinOps: the watcher watches its own AI spend (S3 stretch) ---------
+#
+# Free-tier working assumption from the locked plan; the live spike verifies
+# the real numbers. Zero-cost by construction (billing-disabled project), so
+# the meaningful counter is calls against the daily quota, not money.
+
+RPD_ASSUMPTION = 250
+RPM_ASSUMPTION = 10
+
+AI_USAGE_NOTE = (
+    "assumed free-tier limits (10 RPM / 250 RPD) pending the live spike; "
+    "zero-cost by construction — billing-disabled project, cached and "
+    "fallback answers consume no quota"
+)
+
+
+class AiUsageDay(BaseModel):
+    date: str
+    calls: int
+
+
+class AiUsageReport(BaseModel):
+    requests_total: int
+    live_calls: int
+    cache_hits: int
+    fallback_answers: int
+    live_calls_today: int
+    rpd_assumption: int
+    rpd_used_pct: float
+    by_agent: dict[str, int]
+    last_seven_days: list[AiUsageDay]
+    note: str
+
+
+@router.get("/ai")
+def ai_usage(conn: sqlite3.Connection = Depends(db.get_db)) -> AiUsageReport:
+    """Self-FinOps: the cost watcher accounts for its own AI usage."""
+    by_source = {
+        row["source"]: row["n"]
+        for row in conn.execute(
+            "SELECT source, count(*) AS n FROM ai_usage GROUP BY source"
+        )
+    }
+    by_agent = {
+        row["agent"]: row["n"]
+        for row in conn.execute(
+            "SELECT agent, count(*) AS n FROM ai_usage GROUP BY agent"
+        )
+    }
+    cache_hits = conn.execute(
+        "SELECT count(*) FROM ai_usage WHERE from_cache = 1"
+    ).fetchone()[0]
+    live_today = conn.execute(
+        "SELECT count(*) FROM ai_usage WHERE source = 'gemini' "
+        "AND from_cache = 0 AND date(created_at) = date('now')"
+    ).fetchone()[0]
+    days = [
+        AiUsageDay(date=row["d"], calls=row["n"])
+        for row in conn.execute(
+            "SELECT date(created_at) AS d, count(*) AS n FROM ai_usage "
+            "WHERE created_at >= datetime('now', '-7 days') "
+            "GROUP BY d ORDER BY d"
+        )
+    ]
+    return AiUsageReport(
+        requests_total=sum(by_agent.values()),
+        live_calls=by_source.get("gemini", 0),
+        cache_hits=cache_hits,
+        fallback_answers=by_source.get("fallback", 0),
+        live_calls_today=live_today,
+        rpd_assumption=RPD_ASSUMPTION,
+        rpd_used_pct=round(live_today / RPD_ASSUMPTION * 100, 1),
+        by_agent=by_agent,
+        last_seven_days=days,
+        note=AI_USAGE_NOTE,
+    )
+
+
+# --- forecast: month-end projection from the daily series (S3 value pack) ----
+
+MONTHLY_BUDGET_ENV = "SENTINEL_MONTHLY_BUDGET"
+
+FORECAST_METHOD = (
+    "ordinary least squares over the daily totals, extrapolated to the end "
+    "of the last observed month — deterministic arithmetic, no generation"
+)
+
+
+def monthly_budget() -> float | None:
+    raw = os.environ.get(MONTHLY_BUDGET_ENV, "").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        return None
+    return value if value > 0 else None
+
+
+class CostForecastReport(BaseModel):
+    method: str
+    history_days: int
+    slope_per_day: float
+    month: str
+    days_in_month: int
+    observed_days_in_month: int
+    month_to_date: float
+    projected_month_total: float
+    monthly_budget: float | None
+    projected_over_budget: bool | None
+    note: str
+
+
+@router.get("/costs/forecast")
+def cost_forecast() -> CostForecastReport:
+    """Project the current month's total spend from the observed daily trend."""
+    dataset = load_dataset()
+    series = build_daily_series(dataset["daily_costs"])
+    dates, totals = series["dates"], series["totals"]
+    if len(dates) < 2:
+        raise HTTPException(
+            status_code=409, detail="forecast needs at least two observed days"
+        )
+    count = len(totals)
+    mean_x = (count - 1) / 2
+    mean_y = sum(totals) / count
+    var_x = sum((i - mean_x) ** 2 for i in range(count))
+    slope = (
+        sum((i - mean_x) * (totals[i] - mean_y) for i in range(count)) / var_x
+    )
+    intercept = mean_y - slope * mean_x
+
+    last_day = date.fromisoformat(dates[-1])
+    days_in_month = calendar.monthrange(last_day.year, last_day.month)[1]
+    month_prefix = dates[-1][:7]
+    month_to_date = round(
+        sum(total for d, total in zip(dates, totals) if d.startswith(month_prefix)), 2
+    )
+    observed_in_month = sum(1 for d in dates if d.startswith(month_prefix))
+    remaining = days_in_month - last_day.day
+    projected_rest = sum(
+        max(0.0, intercept + slope * (count - 1 + step))
+        for step in range(1, remaining + 1)
+    )
+    projected = round(month_to_date + projected_rest, 2)
+    budget = monthly_budget()
+    return CostForecastReport(
+        method=FORECAST_METHOD,
+        history_days=count,
+        slope_per_day=round(slope, 2),
+        month=month_prefix,
+        days_in_month=days_in_month,
+        observed_days_in_month=observed_in_month,
+        month_to_date=month_to_date,
+        projected_month_total=projected,
+        monthly_budget=budget,
+        projected_over_budget=(projected > budget) if budget is not None else None,
+        note=(
+            "negative daily predictions clamp to zero; the projection covers "
+            f"the {remaining} unobserved day(s) of {month_prefix}"
+        ),
+    )
+
+
+# --- what-if: the Time Machine embryo, deterministic (S3 value pack) --------
+
+
+class WhatIfReport(BaseModel):
+    action_id: int
+    action_state: str
+    service: str
+    stance: str
+    current_monthly_projection: float
+    monthly_saving_if_executed: float
+    with_action_monthly_projection: float
+    method: str
+    note: str
+
+
+@router.get("/whatif")
+def what_if(
+    action_id: int = Query(ge=1, description="Action id from GET /actions."),
+    conn: sqlite3.Connection = Depends(db.get_db),
+) -> WhatIfReport:
+    """Project a service's monthly spend with and without a recommendation.
+
+    Pure arithmetic over the recommendation's computed savings block —
+    the simulation-only counterpart of "what happens if the operator
+    approves this".
+    """
+    row = conn.execute(
+        "SELECT * FROM actions WHERE id = ?", (action_id,)
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"action {action_id} does not exist")
+    try:
+        detail = json.loads(row["detail_json"])
+        savings = detail["savings"]
+        anomaly = detail.get("anomaly", {})
+        service = anomaly.get("service") or "unknown"
+        stance = detail.get("preferred", "CAUTIOUS")
+        saving = float(
+            savings["bold_monthly" if stance == "BOLD" else "cautious_monthly"]
+        )
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
+        raise HTTPException(
+            status_code=409,
+            detail=f"action {action_id} has no computed savings recorded",
+        ) from error
+
+    dataset = load_dataset()
+    series = build_daily_series(dataset["daily_costs"])
+    values = next(
+        (svc.values for svc in series["services"] if svc.service == service), None
+    )
+    daily_mean = (sum(values) / len(values)) if values else 0.0
+    current_monthly = round(daily_mean * 30, 2)
+    return WhatIfReport(
+        action_id=action_id,
+        action_state=row["state"],
+        service=service,
+        stance=stance,
+        current_monthly_projection=current_monthly,
+        monthly_saving_if_executed=round(saving, 2),
+        with_action_monthly_projection=round(max(0.0, current_monthly - saving), 2),
+        method=(
+            "service daily mean x 30 days, minus the recommendation's "
+            "deterministic monthly saving"
+        ),
+        note="projection only — execution stays simulated and operator-gated",
+    )
+
+
+# --- ROI: before/after observation around each approved action --------------
+
+
+ROI_METHOD = (
+    "daily-mean comparison of the service's observed spend before and after "
+    "the decision timestamp; estimates come from the recommendation's "
+    "deterministic savings block"
+)
+
+
+class RoiRow(BaseModel):
+    action_id: int
+    service: str
+    state: str
+    decided_at: str
+    estimated_monthly_saving: float
+    before_daily_mean: float | None
+    after_daily_mean: float | None
+    after_days: int
+    observed_monthly_delta: float | None
+    status: str  # observed | estimated_only
+
+
+class RoiReport(BaseModel):
+    method: str
+    note: str
+    rows: list[RoiRow]
+
+
+@router.get("/roi")
+def roi(conn: sqlite3.Connection = Depends(db.get_db)) -> RoiReport:
+    """Track whether approved actions were followed by lower observed spend.
+
+    Honest by construction: with no post-decision days in the dataset the
+    row says ``estimated_only`` instead of inventing an observation.
+    """
+    dataset = load_dataset()
+    series = build_daily_series(dataset["daily_costs"])
+    by_service = {svc.service: svc.values for svc in series["services"]}
+    dates = series["dates"]
+
+    rows: list[RoiRow] = []
+    for action in conn.execute(
+        "SELECT * FROM actions WHERE state IN ('approved', 'executed') ORDER BY id"
+    ):
+        try:
+            detail = json.loads(action["detail_json"])
+            savings = detail["savings"]
+            stance = detail.get("preferred", "CAUTIOUS")
+            saving = float(
+                savings["bold_monthly" if stance == "BOLD" else "cautious_monthly"]
+            )
+            service = detail.get("anomaly", {}).get("service") or "unknown"
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            continue  # corrupt detail: same skip tolerance as the funnel
+        decided_day = str(action["decided_at"] or "")[:10]
+        values = by_service.get(service, [])
+        before = [v for d, v in zip(dates, values) if d <= decided_day]
+        after = [v for d, v in zip(dates, values) if d > decided_day]
+        before_mean = round(sum(before) / len(before), 2) if before else None
+        after_mean = round(sum(after) / len(after), 2) if after else None
+        observed = (
+            round((before_mean - after_mean) * 30, 2)
+            if before_mean is not None and after_mean is not None
+            else None
+        )
+        rows.append(
+            RoiRow(
+                action_id=action["id"],
+                service=service,
+                state=action["state"],
+                decided_at=str(action["decided_at"]),
+                estimated_monthly_saving=round(saving, 2),
+                before_daily_mean=before_mean,
+                after_daily_mean=after_mean,
+                after_days=len(after),
+                observed_monthly_delta=observed,
+                status="observed" if after else "estimated_only",
+            )
+        )
+    return RoiReport(
+        method=ROI_METHOD,
+        note=(
+            "rows with no post-decision days report estimated_only — the "
+            "mock window ends before decisions happen; live data closes this"
+        ),
+        rows=rows,
     )
 
 

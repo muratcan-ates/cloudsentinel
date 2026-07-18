@@ -10,8 +10,13 @@ persistence); this module is the thin ASGI entry point.
 import csv
 import io
 import logging
+import os
+import time
+import uuid
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
 from fastapi import Depends, FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -150,6 +155,49 @@ app.add_middleware(
 )
 
 
+# Hand-rolled sliding-window limiter for the expensive pulse chain (stdlib
+# by locked decision — no rate-limit dependency in the competition window).
+# Per-client-IP, minute window; 0 disables.
+RATE_LIMIT_ENV = "SENTINEL_PULSE_RATE_LIMIT_PER_MINUTE"
+DEFAULT_PULSE_RATE_LIMIT = 60
+RATE_WINDOW_SECONDS = 60.0
+_pulse_hits: defaultdict[str, deque] = defaultdict(deque)
+
+
+def pulse_rate_limit() -> int:
+    raw = os.environ.get(RATE_LIMIT_ENV, "").strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return DEFAULT_PULSE_RATE_LIMIT
+    return value if value >= 0 else DEFAULT_PULSE_RATE_LIMIT
+
+
+@app.middleware("http")
+async def guard_expensive_endpoints(request: Request, call_next):
+    """Rate-limit POST /pulse and tag every response with a request id."""
+    request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]
+    if request.method == "POST" and request.url.path == "/pulse":
+        limit = pulse_rate_limit()
+        if limit > 0:
+            client = request.client.host if request.client else "unknown"
+            now = time.monotonic()
+            hits = _pulse_hits[client]
+            while hits and now - hits[0] > RATE_WINDOW_SECONDS:
+                hits.popleft()
+            if len(hits) >= limit:
+                return Response(
+                    content='{"detail": "pulse rate limit exceeded"}',
+                    status_code=429,
+                    media_type="application/json",
+                    headers={"Retry-After": "60", "X-Request-ID": request_id},
+                )
+            hits.append(now)
+    response = await call_next(request)
+    response.headers.setdefault("X-Request-ID", request_id)
+    return response
+
+
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     """Attach hardening headers to every response (dashboard, static, API)."""
@@ -210,43 +258,74 @@ def health_check() -> HealthStatus:
         }
     },
 )
-def export_cost_summary_csv() -> Response:
+def export_cost_summary_csv(
+    schema: Literal["default", "focus"] = Query(
+        "default",
+        description=(
+            "CSV column schema: 'focus' maps the summary onto FinOps FOCUS "
+            "1.4 column names for multi-cloud interoperability."
+        ),
+    ),
+) -> Response:
     """Return the per-service cost summary as a downloadable CSV file."""
-    records = load_daily_costs()
+    dataset = load_dataset()
+    records = dataset["daily_costs"]
     services = summarize_costs(records)
 
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
 
-    writer.writerow(
-        [
-            "service",
-            "total_cost",
-            "mean_daily_cost",
-            "min_daily_cost",
-            "max_daily_cost",
-            "share_of_total",
-        ]
-    )
-
-    for service in services:
+    if schema == "focus":
+        # FinOps FOCUS 1.4 field names: the industry-standard shape for
+        # normalized multi-cloud cost data (interoperability by naming).
         writer.writerow(
             [
-                service.service,
-                service.total_cost,
-                service.mean_daily_cost,
-                service.min_daily_cost,
-                service.max_daily_cost,
-                service.share_of_total,
+                "ServiceName",
+                "BilledCost",
+                "BillingCurrency",
+                "ChargePeriodStart",
+                "ChargePeriodEnd",
             ]
         )
+        for service in services:
+            writer.writerow(
+                [
+                    service.service,
+                    service.total_cost,
+                    dataset["currency"],
+                    dataset["period"]["start"],
+                    dataset["period"]["end"],
+                ]
+            )
+        filename = "cost_summary_focus.csv"
+    else:
+        writer.writerow(
+            [
+                "service",
+                "total_cost",
+                "mean_daily_cost",
+                "min_daily_cost",
+                "max_daily_cost",
+                "share_of_total",
+            ]
+        )
+        for service in services:
+            writer.writerow(
+                [
+                    service.service,
+                    service.total_cost,
+                    service.mean_daily_cost,
+                    service.min_daily_cost,
+                    service.max_daily_cost,
+                    service.share_of_total,
+                ]
+            )
+        filename = "cost_summary.csv"
 
     return Response(
         content=buffer.getvalue(),
         media_type="text/csv",
-        headers={
-            "Content-Disposition": "attachment; filename=cost_summary.csv"
-        },
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 

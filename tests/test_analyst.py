@@ -297,6 +297,52 @@ def test_evidence_rows_enumerate_the_service_history():
     ]
 
 
+def test_cited_dates_map_evidence_ids_to_their_calendar_days(client, monkeypatch):
+    """The response carries the date each cited E-id names, so the dashboard
+    can ring the cited day by date instead of by fragile index math."""
+    evidence = analyst.build_evidence("compute")
+    eid_to_date = {row["eid"]: row["date"] for row in evidence}
+    provider = RecordingProvider(
+        [
+            {
+                "triage": "REAL",
+                "summary": "s",
+                "probable_cause": "c",
+                "evidence_ids": ["E1", "E14"],
+                "confidence": {"score": 0.9, "rationale": "r"},
+            }
+        ]
+    )
+    monkeypatch.setattr(analyst, "get_provider", lambda: provider)
+    event_id = seed_anomaly_event(z_score=2.0)  # below critical → single call
+    body = client.post(f"/anomalies/{event_id}/analyze").json()
+    assert body["evidence_ids"] == ["E1", "E14"]
+    assert body["cited_dates"] == [eid_to_date["E1"], eid_to_date["E14"]]
+    # every cited date is a real day in the service's window
+    assert set(body["cited_dates"]) <= {row["date"] for row in evidence}
+
+
+def test_cited_dates_drop_hallucinated_evidence_ids(client, monkeypatch):
+    """An E-id outside the window is filtered from evidence_ids, so it can
+    never produce a cited date."""
+    provider = RecordingProvider(
+        [
+            {
+                "triage": "REAL",
+                "summary": "s",
+                "probable_cause": "c",
+                "evidence_ids": ["E1", "E999"],
+                "confidence": {"score": 0.9, "rationale": "r"},
+            }
+        ]
+    )
+    monkeypatch.setattr(analyst, "get_provider", lambda: provider)
+    event_id = seed_anomaly_event(z_score=2.0)
+    body = client.post(f"/anomalies/{event_id}/analyze").json()
+    assert body["evidence_ids"] == ["E1"]  # E999 dropped
+    assert len(body["cited_dates"]) == 1
+
+
 def test_analyze_zero_id_is_422(client):
     assert client.post("/anomalies/0/analyze").status_code == 422
 

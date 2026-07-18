@@ -264,12 +264,20 @@ def analyze_event(conn: sqlite3.Connection, event: sqlite3.Row) -> AnalysisRespo
             sort_keys=True,
         ),
     )
+    # Map each cited evidence id to the calendar date it names, so the
+    # dashboard rings the day the analyst actually pointed at (not an index
+    # into a differently-shaped series).
+    eid_to_date = {row["eid"]: row["date"] for row in evidence}
+    cited_dates = [
+        eid_to_date[eid] for eid in report.evidence_ids if eid in eid_to_date
+    ]
     return AnalysisResponse(
         event_id=event["id"],
         triage=report.triage,
         summary=report.summary,
         probable_cause=report.probable_cause,
         evidence_ids=report.evidence_ids,
+        cited_dates=cited_dates,
         confidence=ConfidenceReport(
             score=report.confidence.score, rationale=report.confidence.rationale
         ),
