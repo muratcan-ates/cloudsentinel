@@ -130,6 +130,12 @@ class RecommendationResponse(BaseModel):
     confidence: ConfidenceReport
     escalation_reason: str | None
     transcript: dict | None
+    # Orchestration trace: one entry per chain hop (analyst → memory →
+    # recommender → skeptic) with source/model/timing — the pipeline's
+    # actual execution, observable instead of claimed.
+    trace: list[dict] = Field(default_factory=list)
+    # How many prior operator verdicts fed the decision_memory prompt slot.
+    memory_considered: int = 0
     source: Literal["gemini", "fake", "fallback"]
     model: str
     reused: bool
@@ -209,6 +215,17 @@ class PulseChainLink(BaseModel):
     reused: bool
 
 
+class PulseBriefing(BaseModel):
+    """Chronicler agent output: the pulse run narrated for the operator."""
+
+    headline: str
+    summary: str
+    watch_next: str
+    source: Literal["gemini", "fake", "fallback"]
+    model: str
+    from_cache: bool = False
+
+
 class PulseReport(BaseModel):
     threshold: float
     mission: str | None = None
@@ -224,6 +241,7 @@ class PulseReport(BaseModel):
     llm_budget: int = 0
     llm_calls_used: int = 0
     budget_exhausted: bool = False
+    briefing: PulseBriefing | None = None
     chain: list[PulseChainLink]
 
 

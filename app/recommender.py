@@ -28,6 +28,7 @@ import json
 import logging
 import re
 import sqlite3
+import time
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path
@@ -427,6 +428,7 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
             report = rule_based_report(anomaly)
             return report.options[0].title, report
 
+        rec_started = time.perf_counter()
         result = generate_with_fallback(
             provider,
             prompt,
@@ -434,6 +436,7 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
             system_instruction=RECOMMENDER_SYSTEM_INSTRUCTION,
             response_schema=RecommenderReport,
         )
+        rec_duration_ms = round((time.perf_counter() - rec_started) * 1000, 1)
         report = ensure_two_options(result.parsed, anomaly)
         source = result.source
         from_cache = False
@@ -447,6 +450,7 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
             preferred=report.preferred,
         )
         transcript = None
+        skeptic_duration_ms = None
         if escalation_reason is not None and source != "fallback":
             # The prompt is captured before any verdict can mutate the
             # report: the ledger must hash what was actually sent.
@@ -454,6 +458,7 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
             # Debate-lite: exactly one extra call. Best-effort by locked
             # decision: ANY skeptic failure keeps the draft — the
             # recommender call already cost quota and must reach the ledger.
+            skeptic_started = time.perf_counter()
             try:
                 skeptic = provider.generate(
                     skeptic_prompt,
@@ -466,6 +471,9 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
                     exc_info=True,
                 )
                 skeptic = None
+            skeptic_duration_ms = round(
+                (time.perf_counter() - skeptic_started) * 1000, 1
+            )
             if skeptic is not None and skeptic.parsed is not None:
                 verdict: SkepticVerdict = skeptic.parsed
                 transcript = {
@@ -491,6 +499,12 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
             # Post-check runs on the FINAL narrative (after any skeptic
             # revision) so what the operator reads is what was verified.
             "numeric_check": verify_narrative_figures(report, savings, anomaly),
+            # Measured hop costs — replayed envelopes keep the figures the
+            # original work actually took.
+            "durations": {
+                "recommender": rec_duration_ms,
+                "skeptic": skeptic_duration_ms,
+            },
         }
 
     report = RecommenderReport.model_validate(envelope["report"])
@@ -498,6 +512,40 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
     escalation_reason = envelope["escalation_reason"]
     transcript = envelope["transcript"]
     model_used = envelope["model"]
+
+    # Orchestration trace — the chain as it actually ran, hop by hop.
+    # Analyst figures come from its persisted envelope, recommender/skeptic
+    # figures from this envelope; envelopes persisted before the trace
+    # existed simply carry None durations.
+    memory_lines = decision_memory.splitlines() if decision_memory else []
+    durations = envelope.get("durations") or {}
+    trace = [
+        {
+            "step": "analyst",
+            "source": analysis_envelope.get("source"),
+            "model": analysis_envelope.get("model"),
+            "reflected": analysis_envelope.get("reflected", False),
+            "duration_ms": analysis_envelope.get("duration_ms"),
+        },
+        {"step": "memory", "entries": len(memory_lines)},
+        {
+            "step": "recommender",
+            "source": source,
+            "model": model_used,
+            "from_cache": from_cache,
+            "duration_ms": durations.get("recommender"),
+        },
+    ]
+    if transcript is not None:
+        trace.append(
+            {
+                "step": "skeptic",
+                "source": source,
+                "model": model_used,
+                "revised": not transcript.get("agreed", True),
+                "duration_ms": durations.get("skeptic"),
+            }
+        )
 
     preferred_option = next(
         option for option in report.options if option.stance == report.preferred
@@ -511,6 +559,8 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
         "escalation_reason": escalation_reason,
         "transcript": transcript,
         "numeric_check": envelope.get("numeric_check"),
+        "trace": trace,
+        "memory": {"count": len(memory_lines), "entries": memory_lines},
         "source": source,
         "model": envelope["model"],
         "analysis": analyst_report,
@@ -615,6 +665,9 @@ def _response_from_detail(
         confidence=ConfidenceReport(**detail["confidence"]),
         escalation_reason=detail["escalation_reason"],
         transcript=detail["transcript"],
+        # Actions filed before the trace existed replay with an empty one.
+        trace=detail.get("trace", []),
+        memory_considered=(detail.get("memory") or {}).get("count", 0),
         source=detail["source"],
         model=detail["model"],
         reused=reused,

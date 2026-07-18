@@ -23,10 +23,11 @@ from fastapi import APIRouter, Depends, Query
 
 from app import db
 from app.analyst import analyze_event
+from app.chronicler import write_briefing
 from app.missions import MissionError, get_mission
 from app.recommender import recommend_for_event
 from app.detection import DEFAULT_THRESHOLD, load_daily_costs, run_detection
-from app.models import PulseChainLink, PulseReport
+from app.models import PulseBriefing, PulseChainLink, PulseReport
 from app.llm import llm_call_budget
 from app.reflex import reflex_scan
 from app.security import persist_signals, scan_security
@@ -36,11 +37,11 @@ logger = logging.getLogger("cloudsentinel.pulse")
 router = APIRouter(tags=["agents"])
 
 # One pulse may spend at most this many provider calls (S3-⑤). The mock
-# demo needs ~6 (2 signals x analyst+reflection+recommender); 8 leaves
-# headroom for a debate without letting a runaway chain burn the day's
-# free-tier quota.
+# demo needs ~6 (2 signals x analyst+reflection+recommender); debates can
+# add two more and the chronicler's briefing is one — 10 covers the full
+# chain without letting a runaway loop burn the day's free-tier quota.
 PULSE_BUDGET_ENV = "SENTINEL_PULSE_LLM_BUDGET"
-DEFAULT_PULSE_LLM_BUDGET = 8
+DEFAULT_PULSE_LLM_BUDGET = 10
 
 
 def pulse_llm_budget() -> int:
@@ -157,17 +158,33 @@ def run_pulse(
                     )
                 )
 
+        # Unified detection: the security lane runs through the same line and
+        # persists its own signals; it feeds no LLM agent (operator-facing).
+        security_report = scan_security()
+        persist_signals(conn, security_report.signals)
+
+        # Chronicler: one budgeted call narrates the run for the operator.
+        # The facts are computed HERE, in Python — the agent only restates
+        # them; a dry budget lands on its deterministic fallback narrative.
+        top = max(anomalies, key=lambda a: abs(a.z_score), default=None)
+        facts = {
+            "cost_signals": len(links),
+            "security_signals": security_report.signal_count,
+            "analyzed": analyzed_count,
+            "proposals_filed": filed_count,
+            "proposals_reused": reused_count,
+            "llm_budget": budget_limit,
+            "llm_calls_used": budget.used,
+            "top_service": top.service if top else None,
+        }
+        briefing = PulseBriefing(**write_briefing(conn, facts))
+
     if budget.exhausted:
         logger.warning(
             "pulse llm budget exhausted after %d call(s); remaining agents "
             "answered with rule-based fallbacks",
             budget.used,
         )
-
-    # Unified detection: the security lane runs through the same line and
-    # persists its own signals; it feeds no LLM agent (operator-facing).
-    security_report = scan_security()
-    persist_signals(conn, security_report.signals)
 
     return PulseReport(
         threshold=threshold,
@@ -181,5 +198,6 @@ def run_pulse(
         llm_budget=budget_limit,
         llm_calls_used=budget.used,
         budget_exhausted=budget.exhausted,
+        briefing=briefing,
         chain=links,
     )

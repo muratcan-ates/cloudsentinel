@@ -749,6 +749,36 @@ function numericCheckLine(detail) {
     : `<p class="meta">figure check — ${check.figures.length} narrative figure(s) unverified; the computed numbers are authoritative</p>`;
 }
 
+/* Orchestration trace: the chain as it actually ran — hop, source, timing.
+   Persisted with the action, so the fold replays honestly after reloads. */
+function traceFold(detail) {
+  const trace = detail.trace;
+  if (!trace || !trace.length) return "";
+  const label = (entry) => {
+    if (entry.step === "memory")
+      return `memory — ${entry.entries} prior verdict${entry.entries === 1 ? "" : "s"} recalled`;
+    const bits = [entry.step, entry.source === "fallback" ? "rule-based fallback" : entry.source];
+    if (entry.from_cache) bits.push("cached");
+    if (entry.reflected) bits.push("reflection pass");
+    if (entry.step === "skeptic") bits.push(entry.revised ? "stance revised" : "consensus");
+    if (typeof entry.duration_ms === "number") bits.push(`${entry.duration_ms.toFixed(0)} ms`);
+    return bits.join(" · ");
+  };
+  return `<details class="transcript"><summary>agent chain — ${trace.length} hop${trace.length === 1 ? "" : "s"}, traced</summary>${trace
+    .map((entry) => `<p class="meta">${escapeHtml(label(entry))}</p>`)
+    .join("")}</details>`;
+}
+
+function memoryFold(detail) {
+  const memory = detail.memory;
+  if (!memory || !memory.count) return "";
+  return `<details class="transcript"><summary>decision memory — ${memory.count} prior verdict${
+    memory.count === 1 ? "" : "s"
+  } shaped this proposal</summary>${memory.entries
+    .map((line) => `<p class="meta">${escapeHtml(line)}</p>`)
+    .join("")}</details>`;
+}
+
 function renderRecommendationBlock(anomaly, action, analysis) {
   if (action) {
     const detail = action.detail || {};
@@ -761,6 +791,8 @@ function renderRecommendationBlock(anomaly, action, analysis) {
         <p class="rec-facts">${preferred ? `stance ${escapeHtml(detail.preferred)} · est. saving ${fmtNumber(saving ?? 0)} / month · risk ${escapeHtml(preferred.risk)} · rollback ${escapeHtml(preferred.rollback)}` : `stance ${escapeHtml(detail.preferred || "—")}`}</p>
         ${detail.escalation_reason ? `<p class="meta">debate-lite: ${escapeHtml(detail.escalation_reason)}</p>` : ""}
         ${transcriptFold(detail)}
+        ${memoryFold(detail)}
+        ${traceFold(detail)}
         ${numericCheckLine(detail)}
         <p class="meta">filed to the decision inbox — state ${escapeHtml(action.state)}</p>
       </div>`;
@@ -823,6 +855,8 @@ function renderDecisions() {
         ${preferred ? `<p class="meta">rollback ${escapeHtml(preferred.rollback)}</p>` : ""}
         ${detail.escalation_reason ? `<p class="meta">debate-lite: ${escapeHtml(detail.escalation_reason)}</p>` : ""}
         ${transcriptFold(detail)}
+        ${memoryFold(detail)}
+        ${traceFold(detail)}
         ${numericCheckLine(detail)}
       </div>
       <div class="dec-rail">
@@ -1176,6 +1210,16 @@ async function runPulse() {
           report.budget_exhausted ? " — budget exhausted, fallbacks answered" : ""
         }.`,
     });
+    // the chronicler narrates the run — its briefing tops the ledger
+    if (report.briefing) {
+      state.audit.unshift({
+        time: utcNow(),
+        title: `Chronicler briefing — ${report.briefing.headline}`,
+        copy:
+          `${report.briefing.summary} Watch next: ${report.briefing.watch_next}` +
+          `${report.briefing.source === "fallback" ? " · rule-based fallback (LLM unavailable)" : ""}`,
+      });
+    }
   } catch (error) {
     state.audit.unshift({
       time: utcNow(),

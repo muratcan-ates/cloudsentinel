@@ -97,6 +97,15 @@ def test_dashboard_ships_the_unified_watch_strip():
     assert "/fraud/signals" in app_js
 
 
+def test_dashboard_ships_the_orchestration_transparency():
+    """The trace fold, the memory fold and the chronicler briefing are
+    product: the chain's actual execution is visible, not claimed."""
+    app_js = client.get("/static/app.js").text
+    assert "agent chain" in app_js
+    assert "decision memory" in app_js
+    assert "Chronicler briefing" in app_js
+
+
 def test_dashboard_ships_the_intelligence_panel():
     """Section VI typesets the /analytics aggregates — no generated numbers."""
     page = client.get("/").text

@@ -61,7 +61,9 @@ def test_pulse_is_idempotent_and_quota_cheap(client):
         actions = conn.execute("SELECT count(*) FROM actions").fetchone()[0]
     finally:
         conn.close()
-    assert usage_after_second == usage_after_first  # zero extra provider work
+    # the agents themselves spend nothing on a re-run; the chronicler's
+    # briefing is the one deliberate per-pulse call (and the only new row)
+    assert usage_after_second == usage_after_first + 1
     assert actions == first["signals"]  # no duplicate cards
 
 
@@ -79,7 +81,14 @@ def test_pulse_emits_the_tagged_log_stream(client, caplog):
     with caplog.at_level(logging.INFO, logger="cloudsentinel"):
         report = client.post("/pulse").json()
     tags = [record.message.split(" ", 1)[0] for record in caplog.records]
-    for tag in ("[REFLEX]", "[SIGNAL]", "[ANALYST]", "[DEBATE]", "[RECOMMENDER]"):
+    for tag in (
+        "[REFLEX]",
+        "[SIGNAL]",
+        "[ANALYST]",
+        "[DEBATE]",
+        "[RECOMMENDER]",
+        "[BRIEFING]",
+    ):
         assert tag in tags, f"{tag} missing from the log stream"
     # one [SIGNAL] and one [ANALYST] line per hop — not just "at least one"
     assert tags.count("[REFLEX]") == 1  # the reflex pass opens the chain once

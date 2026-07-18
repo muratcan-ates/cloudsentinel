@@ -25,6 +25,7 @@ delimiters (arXiv:2403.14720): data, never instructions.
 import json
 import logging
 import sqlite3
+import time
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path
@@ -178,7 +179,11 @@ def analyze_event(conn: sqlite3.Connection, event: sqlite3.Row) -> AnalysisRespo
         report = AnalystReport.model_validate(envelope["report"])
         source, reflected, from_cache = envelope["source"], envelope["reflected"], True
         model_used = envelope["model"]
+        # replay: the stored figure is what the original work actually cost
+        # (envelopes cached before the trace existed simply carry None)
+        duration_ms = envelope.get("duration_ms")
     else:
+        started = time.perf_counter()
         def deterministic_answer():
             report = rule_based_report(anomaly, evidence)
             return report.summary, report
@@ -215,9 +220,16 @@ def analyze_event(conn: sqlite3.Connection, event: sqlite3.Row) -> AnalysisRespo
                 reflected = True
 
         report.evidence_ids = valid_evidence_ids(report.evidence_ids, evidence)
+        duration_ms = round((time.perf_counter() - started) * 1000, 1)
 
     envelope_json = json.dumps(
-        {"report": report.model_dump(), "source": source, "model": model_used, "reflected": reflected}
+        {
+            "report": report.model_dump(),
+            "source": source,
+            "model": model_used,
+            "reflected": reflected,
+            "duration_ms": duration_ms,
+        }
     )
     with db.writing(conn):
         db.record_ai_usage(
