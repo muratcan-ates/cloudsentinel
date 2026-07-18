@@ -50,7 +50,14 @@ from app.detection import (
     run_detection,
     summarize_costs,
 )
-from app.models import AnomalyReport, CostSummaryReport, DailyCostReport, HealthStatus
+from app.models import (
+    AnomalyReport,
+    CostSummaryReport,
+    DailyCostReport,
+    HealthStatus,
+    ReadinessCheck,
+    ReadinessStatus,
+)
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -283,6 +290,52 @@ def health_check() -> HealthStatus:
         version=app.version,
         provider=provider_mode(),
         readonly=readonly_enabled(),
+    )
+
+
+@app.get("/ready")
+def readiness_check(response: Response) -> ReadinessStatus:
+    """Readiness probe: verify the dependencies a real request needs.
+
+    /health answers as long as the process is up; /ready goes one step
+    further and confirms the database is reachable, the mission config
+    parses and the dataset loads — so a deploy or uptime monitor can gate
+    traffic on genuine readiness. Answers 503 if any check fails.
+    """
+    checks: list[ReadinessCheck] = []
+
+    try:
+        conn = db.connect()
+        try:
+            conn.execute("SELECT count(*) FROM events").fetchone()
+        finally:
+            conn.close()
+        checks.append(ReadinessCheck(name="database", ok=True, detail="reachable"))
+    except Exception as exc:  # connectivity or missing schema
+        checks.append(ReadinessCheck(name="database", ok=False, detail=str(exc)[:120]))
+
+    try:
+        mission_name = get_mission().mission
+        checks.append(
+            ReadinessCheck(name="missions", ok=True, detail=f"loaded ({mission_name})")
+        )
+    except MissionError as exc:
+        checks.append(ReadinessCheck(name="missions", ok=False, detail=str(exc)[:120]))
+
+    try:
+        rows = len(load_dataset()["daily_costs"])
+        checks.append(ReadinessCheck(name="dataset", ok=True, detail=f"{rows} cost rows"))
+    except Exception as exc:
+        checks.append(ReadinessCheck(name="dataset", ok=False, detail=str(exc)[:120]))
+
+    ready = all(check.ok for check in checks)
+    if not ready:
+        response.status_code = 503
+    return ReadinessStatus(
+        ready=ready,
+        version=app.version,
+        provider=provider_mode(),
+        checks=checks,
     )
 
 

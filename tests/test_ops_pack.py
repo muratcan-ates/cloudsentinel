@@ -83,6 +83,34 @@ def test_rate_limit_does_not_touch_cheap_endpoints(client, monkeypatch):
     main_module._pulse_hits.clear()
 
 
+# --- readiness -------------------------------------------------------------------
+
+
+def test_ready_confirms_the_dependencies_are_present(client):
+    response = client.get("/ready")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ready"] is True
+    assert body["version"]
+    checks = {check["name"]: check["ok"] for check in body["checks"]}
+    assert checks == {"database": True, "missions": True, "dataset": True}
+
+
+def test_ready_answers_503_when_a_dependency_is_down(client, monkeypatch):
+    def _broken_dataset():
+        raise RuntimeError("mock data missing")
+
+    monkeypatch.setattr(main_module, "load_dataset", _broken_dataset)
+    response = client.get("/ready")
+    assert response.status_code == 503
+    body = response.json()
+    assert body["ready"] is False
+    dataset = next(check for check in body["checks"] if check["name"] == "dataset")
+    assert dataset["ok"] is False
+    # the other probes still pass — readiness pinpoints what is down
+    assert next(c for c in body["checks"] if c["name"] == "database")["ok"] is True
+
+
 # --- request ids -----------------------------------------------------------------
 
 

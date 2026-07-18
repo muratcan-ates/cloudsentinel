@@ -41,6 +41,30 @@ class HealthStatus(BaseModel):
     readonly: bool = False
 
 
+class ReadinessCheck(BaseModel):
+    """One dependency probe in the readiness report."""
+
+    name: str
+    ok: bool
+    detail: str
+
+
+class ReadinessStatus(BaseModel):
+    """Readiness (vs. liveness): are the things a request needs present?
+
+    /health says the process is up; /ready verifies the database is
+    reachable, the mission config parses and the dataset is loadable — the
+    dependencies a real request touches — so a deploy or uptime monitor can
+    gate on genuine readiness. ``ready`` is false (and the endpoint answers
+    503) if any check fails.
+    """
+
+    ready: bool
+    version: str = "0.0.0"
+    provider: str = "fake"
+    checks: list[ReadinessCheck]
+
+
 class DailyServiceSeries(BaseModel):
     service: str
     values: list[float]
