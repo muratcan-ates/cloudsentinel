@@ -1218,6 +1218,12 @@ footer {
   border-bottom: 1px solid var(--hair);
   margin: var(--sp-3) 0;
 }
+/* the decision-outcomes row carries four cells (pending / approved / rejected
+   / executed) — keep them on one line on wide screens, two-up on phones */
+.funnel-row-4 { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 560px) {
+  .funnel-row-4 { grid-template-columns: repeat(2, 1fr); }
+}
 .funnel-cell { padding: 0 16px 14px 0; }
 .funnel-cell + .funnel-cell { border-left: 1px solid var(--hair); padding-left: 16px; }
 .funnel-fig {

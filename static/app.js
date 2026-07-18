@@ -69,6 +69,9 @@ const state = {
   whatif: new Map(), // action id → /analytics/whatif — decision-moment numbers
   calibration: null, // GET /analytics/calibration — confidence vs verdicts (VI)
   headline: null, // GET /analytics/headline — one-line jury brief (copy button)
+  roi: null, // GET /analytics/roi — realized vs estimated savings (section VI)
+  detection: null, // GET /metrics/detection — detector precision from verdicts (VI)
+  reflexSuggestions: null, // GET /reflex/suggestions — learned reflex candidates (VI)
   env: "local", // deploy environment from /health — drives the LIVE banner
   readonly: false, // SENTINEL_READONLY showcase mode — writes are disabled
   auditExpanded: false, // section V shows the newest entries until asked
@@ -218,13 +221,16 @@ let intelSequence = 0; // last-writer-wins: stale analytics must never overwrite
 async function loadIntelligence() {
   const sequence = ++intelSequence;
   try {
-    const [analytics, trend, aiUsage, forecast, calibration, headline] = await Promise.all([
+    const [analytics, trend, aiUsage, forecast, calibration, headline, roi, detection, reflexSuggestions] = await Promise.all([
       fetchJson("/analytics/decisions"),
       fetchJson("/analytics/costs/trend"),
       fetchJson("/analytics/ai"),
       fetchJson("/analytics/costs/forecast"),
       fetchJson("/analytics/calibration").catch(() => null),
       fetchJson("/analytics/headline").catch(() => null),
+      fetchJson("/analytics/roi").catch(() => null),
+      fetchJson("/metrics/detection").catch(() => null),
+      fetchJson("/reflex/suggestions").catch(() => null),
     ]);
     if (sequence !== intelSequence) return;
     state.analytics = analytics;
@@ -233,6 +239,9 @@ async function loadIntelligence() {
     state.forecast = forecast;
     state.calibration = calibration;
     state.headline = headline;
+    state.roi = roi;
+    state.detection = detection;
+    state.reflexSuggestions = reflexSuggestions;
     state.intelStale = false;
   } catch {
     if (sequence !== intelSequence) return;
@@ -1030,6 +1039,7 @@ function renderIntelligence() {
     ["proposals", funnel.proposals],
     ["pending", funnel.pending],
     ["approved", funnel.approved + funnel.executed],
+    ["rejected", funnel.rejected],
     ["executed", funnel.executed],
   ];
   funnelBox.innerHTML =
@@ -1038,7 +1048,7 @@ function renderIntelligence() {
       .slice(0, 3)
       .map(([label, value]) => `<div class="funnel-cell"><p class="microcap">${label}</p><p class="funnel-fig">${value}</p></div>`)
       .join("") +
-    `</div><div class="funnel-row">` +
+    `</div><div class="funnel-row funnel-row-4">` +
     cells
       .slice(3)
       .map(([label, value]) => `<div class="funnel-cell ${value === 0 ? "quiet" : ""}"><p class="microcap">${label}</p><p class="funnel-fig">${value}</p></div>`)
@@ -1087,6 +1097,19 @@ function renderIntelligence() {
     .map(([source, count]) => `${escapeHtml(source)} ${count}`)
     .join(" · ");
   const quota = state.aiUsage;
+  const roiLine = (() => {
+    if (!state.roi || !state.roi.rows || !state.roi.rows.length) return "";
+    const observed = state.roi.rows.filter((row) => row.status === "observed");
+    const estimatedOnly = state.roi.rows.length - observed.length;
+    const net = observed.reduce((sum, row) => sum + (row.observed_monthly_delta || 0), 0);
+    const observedNote = observed.length
+      ? `<span class="tele-fig">${observed.length}</span> observed (net ${fmtNumber(net)}/mo)`
+      : "none observed yet";
+    const estimatedNote = estimatedOnly
+      ? ` · <span class="tele-fig">${estimatedOnly}</span> estimated-only (no post-decision days)`
+      : "";
+    return `<p class="meta tele-line">realized savings — ${observedNote}${estimatedNote}</p>`;
+  })();
   teleBox.innerHTML = `
     <p class="meta tele-line">triage — ${
       triageEntries.length
@@ -1109,6 +1132,21 @@ function renderIntelligence() {
     ${
       quota
         ? `<p class="meta tele-line">ai quota — <span class="tele-fig">${quota.live_calls_today}</span> live call${quota.live_calls_today === 1 ? "" : "s"} today · assumed ${quota.rpd_assumption} RPD (${quota.rpd_used_pct}%)</p>`
+        : ""
+    }
+    ${
+      state.detection && state.detection.decided
+        ? `<p class="meta tele-line">detector precision — <span class="tele-fig">${state.detection.precision_proxy == null ? "—" : `${Math.round(state.detection.precision_proxy * 100)}%`}</span> proxy · ${state.detection.approved} approved / ${state.detection.rejected} rejected of ${state.detection.decided} decided (rejections as a coarse false-positive proxy)</p>`
+        : ""
+    }
+    ${roiLine}
+    ${
+      state.reflexSuggestions
+        ? `<p class="meta tele-line">reflex suggestions — ${
+            state.reflexSuggestions.count
+              ? `<span class="tele-fig">${state.reflexSuggestions.count}</span> candidate rule${state.reflexSuggestions.count === 1 ? "" : "s"} for operator review`
+              : "none yet — no unanimously-approved pattern"
+          }</p>`
         : ""
     }`;
 

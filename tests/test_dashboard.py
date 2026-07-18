@@ -204,6 +204,11 @@ def test_dashboard_ships_the_intelligence_panel():
     app_js = client.get("/static/app.js").text
     assert "/analytics/decisions" in app_js
     assert "/analytics/costs/trend" in app_js
+    # the feedback-loop endpoints must actually be surfaced, not just built:
+    # realized-vs-estimated ROI, detector precision, and learned reflex rules
+    assert "/analytics/roi" in app_js
+    assert "/metrics/detection" in app_js
+    assert "/reflex/suggestions" in app_js
 
 
 def test_docs_are_self_hosted_under_the_strict_csp():
