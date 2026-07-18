@@ -234,14 +234,23 @@ function renderWatch() {
   }
   const fraud = state.fraud;
   const flagged = fraud.signals.filter((signal) => signal.band !== "clear");
+  const bands = fraud.bands || {};
+  const bandLine =
+    bands.hold_suggested != null
+      ? ` · ${bands.hold_suggested} hold / ${bands.review} review / ${bands.clear} clear`
+      : ` · ${fraud.count} flagged of ${fraud.signals.length} events`;
   fraudBox.innerHTML =
-    `<p class="meta watch-head">fraud — ${fraud.count} flagged of ${fraud.signals.length} events · mission ${escapeHtml(fraud.mission ?? "—")} · suggestions only, the operator decides</p>` +
+    `<p class="meta watch-head">fraud — published rules${bandLine} · mission ${escapeHtml(fraud.mission ?? "—")} · suggestions only, the operator decides</p>` +
     flagged
       .map(
         (signal) => `
-    <p class="watch-row">
+    <p class="watch-row" title="${escapeHtml(signal.reasons.join(" · "))}">
       <span class="watch-glyph" aria-hidden="true">▣</span><span class="watch-strong">${escapeHtml(signal.id)}</span> · ${fmtNumber(signal.amount)} USD ·
-      score ${signal.score} — ${escapeHtml(signal.band === "hold_suggested" ? "hold suggested" : signal.band)} · ${escapeHtml(signal.reasons.join(" · "))}
+      score ${signal.score} — ${escapeHtml(signal.band === "hold_suggested" ? "hold suggested" : signal.band)}${
+        signal.rule_hits && signal.rule_hits.length
+          ? ` · ${escapeHtml(signal.rule_hits.map((hit) => `${hit.rule.replace("_", " ")} +${hit.points}`).join(" · "))}`
+          : ` · ${escapeHtml(signal.reasons.join(" · "))}`
+      }
     </p>`
       )
       .join("");

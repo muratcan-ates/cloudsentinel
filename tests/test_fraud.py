@@ -7,8 +7,11 @@ so — nothing suggests automatic blocking.
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
-from app.fraud import band_for, simple_score
+from app import db
+from app.fraud import band_for, score_breakdown, simple_score
+from app.missions import FraudRules
 from main import app
 
 
@@ -85,3 +88,96 @@ def test_flagged_reasons_are_concrete():
     score, reasons = simple_score(event)
     assert score == 25
     assert reasons == ["amount 3.4x the account's typical"]
+
+
+def test_rule_hits_attribute_every_point(client):
+    """The structured breakdown accounts for the score line by line."""
+    body = client.get("/fraud/signals").json()
+    by_id = {s["id"]: s for s in body["signals"]}
+    hits = by_id["TX-1004"]["rule_hits"]
+    assert {h["rule"] for h in hits} == {"amount", "velocity", "geography", "account_age"}
+    assert sum(h["points"] for h in hits) == 100
+    for hit in hits:
+        assert hit["detail"]  # every point names its arithmetic
+    # the plain-text reasons stay derived from the same hits
+    assert by_id["TX-1004"]["reasons"] == [h["detail"] for h in hits]
+
+
+def test_score_breakdown_clamps_but_keeps_all_hits():
+    event = {
+        "amount": 100000.0,
+        "typical_amount": 10.0,
+        "account_age_days": 1,
+        "country": "XX",
+        "home_country": "TR",
+        "tx_last_10m": 99,
+    }
+    score, hits = score_breakdown(event)
+    assert score == 100
+    assert sum(h.points for h in hits) == 100
+
+
+def test_band_and_min_score_filters(client):
+    full = client.get("/fraud/signals").json()
+    review_only = client.get("/fraud/signals", params={"band": "review"}).json()
+    assert {s["band"] for s in review_only["signals"]} == {"review"}
+    high = client.get("/fraud/signals", params={"min_score": 70}).json()
+    assert all(s["score"] >= 70 for s in high["signals"])
+    # count and bands describe ALL scored events — filter-stable
+    assert review_only["count"] == full["count"] == 3
+    assert review_only["bands"] == full["bands"]
+    assert full["bands"]["hold_suggested"] == 2
+    assert full["bands"]["review"] == 1
+    assert full["bands"]["clear"] == len(full["signals"]) - 3
+
+
+def test_band_thresholds_come_from_the_mission(client):
+    """configs/fraud.yaml rules are LIVE (unlike its inert detection block)."""
+    from app.fraud import resolve_rules
+    from app.missions import get_mission
+
+    assert resolve_rules() == (70, 40, 30)
+    assert get_mission("fraud").rules.hold_band == 70
+
+    with pytest.raises(ValidationError, match="must sit below"):
+        FraudRules(hold_band=40, review_band=70, new_account_days=30)
+
+
+def test_flagged_signals_persist_without_polluting_the_funnel(client):
+    before = client.get("/analytics/decisions").json()["funnel"]["signals"]
+    body = client.get("/fraud/signals").json()
+    conn = db.connect()
+    try:
+        rows = conn.execute(
+            "SELECT service, occurred_on FROM events WHERE kind = 'fraud_signal'"
+        ).fetchall()
+    finally:
+        conn.close()
+    assert len(rows) == body["count"]  # every non-clear signal, exactly once
+    assert {row["service"] for row in rows} == {"TX-1004", "TX-1010", "TX-1006"}
+    # re-scan upserts by natural key: no duplicates
+    client.get("/fraud/signals")
+    conn = db.connect()
+    try:
+        again = conn.execute(
+            "SELECT count(*) FROM events WHERE kind = 'fraud_signal'"
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    assert again == body["count"]
+    # the HITL funnel counts cost anomalies only — fraud must not inflate it
+    after = client.get("/analytics/decisions").json()["funnel"]["signals"]
+    assert after == before
+
+
+def test_pulse_sweeps_the_fraud_lane(client):
+    report = client.post("/pulse").json()
+    assert report["fraud_signals"] == 3
+    conn = db.connect()
+    try:
+        rows = conn.execute(
+            "SELECT count(*) FROM events WHERE kind = 'fraud_signal'"
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    assert rows == 3

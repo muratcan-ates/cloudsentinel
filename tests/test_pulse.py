@@ -92,8 +92,11 @@ def test_pulse_emits_the_tagged_log_stream(client, caplog):
         assert tag in tags, f"{tag} missing from the log stream"
     # one [SIGNAL] and one [ANALYST] line per hop — not just "at least one"
     assert tags.count("[REFLEX]") == 1  # the reflex pass opens the chain once
-    # cost signals plus the unified security sweep share the [SIGNAL] tag
-    assert tags.count("[SIGNAL]") == report["signals"] + report["security_signals"]
+    # cost signals plus the unified security and fraud sweeps share the tag
+    assert (
+        tags.count("[SIGNAL]")
+        == report["signals"] + report["security_signals"] + report["fraud_signals"]
+    )
     assert tags.count("[ANALYST]") == report["analyzed"]
     # the payload after each tag is machine-readable JSON
     for record in caplog.records:

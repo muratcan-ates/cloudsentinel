@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 CONFIG_DIR = Path(__file__).parent.parent / "configs"
 DEFAULT_MISSION = "finops"
@@ -41,6 +41,28 @@ class MissionEscalation(BaseModel):
     confidence_debate_threshold: float = Field(ge=0.0, le=1.0)
 
 
+class FraudRules(BaseModel):
+    """Tunable knobs of the published deterministic rule score.
+
+    Only thresholds live here — the point values stay code constants in
+    app/fraud.py so the score arithmetic remains a published, auditable
+    contract. Still zero statistics, zero generation.
+    """
+
+    hold_band: int = Field(ge=1, le=100)
+    review_band: int = Field(ge=1, le=100)
+    new_account_days: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def bands_must_be_ordered(self) -> "FraudRules":
+        if self.review_band >= self.hold_band:
+            raise ValueError(
+                f"review_band ({self.review_band}) must sit below "
+                f"hold_band ({self.hold_band})"
+            )
+        return self
+
+
 class MissionConfig(BaseModel):
     mission: str
     title: str
@@ -49,6 +71,9 @@ class MissionConfig(BaseModel):
     role_intent: dict[str, str]
     detection: MissionDetection
     escalation: MissionEscalation
+    # Fraud-lane only: rule-score thresholds. Optional so the cost and
+    # security missions stay untouched.
+    rules: FraudRules | None = None
 
 
 _cache: dict[str, MissionConfig] = {}

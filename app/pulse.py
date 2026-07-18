@@ -21,7 +21,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, Query
 
-from app import db
+from app import db, fraud
 from app.analyst import analyze_event
 from app.chronicler import write_briefing
 from app.missions import MissionError, get_mission
@@ -158,10 +158,15 @@ def run_pulse(
                     )
                 )
 
-        # Unified detection: the security lane runs through the same line and
-        # persists its own signals; it feeds no LLM agent (operator-facing).
+        # Unified detection: the security and fraud lanes run in the same
+        # sweep and persist their own signals; neither feeds an LLM agent
+        # (operator-facing lanes by locked decision).
         security_report = scan_security()
         persist_signals(conn, security_report.signals)
+        fraud_flagged = [
+            signal for signal in fraud.score_events() if signal.band != "clear"
+        ]
+        fraud.persist_flagged(conn, fraud_flagged)
 
         # Chronicler: one budgeted call narrates the run for the operator.
         # The facts are computed HERE, in Python — the agent only restates
@@ -170,6 +175,7 @@ def run_pulse(
         facts = {
             "cost_signals": len(links),
             "security_signals": security_report.signal_count,
+            "fraud_flagged": len(fraud_flagged),
             "analyzed": analyzed_count,
             "proposals_filed": filed_count,
             "proposals_reused": reused_count,
@@ -192,6 +198,7 @@ def run_pulse(
         reflex_ms=reflex_ms,
         signals=len(links),
         security_signals=security_report.signal_count,
+        fraud_signals=len(fraud_flagged),
         analyzed=analyzed_count,
         proposals_filed=filed_count,
         proposals_reused=reused_count,

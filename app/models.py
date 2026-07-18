@@ -232,6 +232,7 @@ class PulseReport(BaseModel):
     reflex_ms: float | None = None
     signals: int
     security_signals: int = 0
+    fraud_signals: int = 0
     analyzed: int
     proposals_filed: int
     proposals_reused: int
@@ -268,6 +269,14 @@ class SecuritySignalReport(BaseModel):
     signals: list[SecuritySignal]
 
 
+class FraudRuleHit(BaseModel):
+    """One published rule that fired, with its exact point contribution."""
+
+    rule: Literal["amount", "velocity", "geography", "account_age"]
+    points: int
+    detail: str
+
+
 class FraudSignal(BaseModel):
     id: str
     date: str
@@ -276,12 +285,17 @@ class FraudSignal(BaseModel):
     score: int
     band: Literal["clear", "review", "hold_suggested"]
     reasons: list[str]
+    # Structured audit of the score: every point is attributable to a
+    # published rule — the sum of hits IS the score (clamped at 100).
+    rule_hits: list[FraudRuleHit] = Field(default_factory=list)
 
 
 class FraudSignalReport(BaseModel):
     mission: str | None
     note: str
-    count: int  # non-clear signals
+    count: int  # non-clear signals across ALL scored events (filter-stable)
+    # Band breakdown over all scored events, regardless of any filter.
+    bands: dict[str, int] = Field(default_factory=dict)
     signals: list[FraudSignal]
 
 

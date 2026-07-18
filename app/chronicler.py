@@ -45,16 +45,16 @@ def rule_based_briefing(facts: dict) -> BriefingReport:
     """Deterministic narrative used when no LLM answer can be obtained."""
     signals = facts.get("cost_signals", 0)
     security = facts.get("security_signals", 0)
+    fraud = facts.get("fraud_flagged", 0)
     filed = facts.get("proposals_filed", 0)
     reused = facts.get("proposals_reused", 0)
     top = facts.get("top_service")
+    lanes = f"{signals} cost + {security} security + {fraud} fraud signal"
+    lanes += "" if signals + security + fraud == 1 else "s"
     headline = (
-        f"{signals} cost + {security} security signal"
-        f"{'' if signals + security == 1 else 's'} — "
-        f"{filed} new proposal{'' if filed == 1 else 's'} await the operator"
+        f"{lanes} — {filed} new proposal{'' if filed == 1 else 's'} await the operator"
         if filed
-        else f"{signals} cost + {security} security signal"
-        f"{'' if signals + security == 1 else 's'} — inbox unchanged"
+        else f"{lanes} — inbox unchanged"
     )
     summary = (
         f"The chain analyzed {facts.get('analyzed', 0)} signal"

@@ -30,3 +30,10 @@ detection:
 
 escalation:
   confidence_debate_threshold: 0.6
+
+# LIVE, unlike the detection block: the rule-score thresholds are mission
+# configuration. Point values stay code constants (published arithmetic).
+rules:
+  hold_band: 70
+  review_band: 40
+  new_account_days: 30
