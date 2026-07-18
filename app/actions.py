@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Response
 
 from app import bus, db
+from app.auth import UserOut, optional_user
 from app.models import ActionDecisionRequest, ActionListReport, ActionRecord, ActionState
 
 logger = logging.getLogger("cloudsentinel.actions")
@@ -256,6 +257,13 @@ def _decide(
     return record
 
 
+def _actor(user: UserOut | None, decision: ActionDecisionRequest | None) -> str:
+    """Server-derived identity wins over the request body (authoritative)."""
+    if user is not None:
+        return user.username
+    return decision.actor if decision is not None else "operator"
+
+
 @router.post("/{action_id}/approve", responses=DECISION_RESPONSES)
 def approve_action(
     action_id: int = ACTION_ID_PATH,
@@ -263,12 +271,18 @@ def approve_action(
     idempotency_key: str | None = Header(
         None, alias="Idempotency-Key", min_length=1, max_length=200
     ),
+    user: UserOut | None = Depends(optional_user),
     conn: sqlite3.Connection = Depends(db.get_db),
 ) -> ActionRecord:
-    """Approve a proposed action; safe to retry with an Idempotency-Key."""
-    actor = decision.actor if decision is not None else "operator"
+    """Approve a proposed action; safe to retry with an Idempotency-Key.
+
+    A valid session token makes the operator identity server-derived
+    (authoritative) rather than trusting the request body.
+    """
     rationale = decision.rationale if decision is not None else None
-    return _decide(conn, action_id, "approved", actor, idempotency_key, rationale)
+    return _decide(
+        conn, action_id, "approved", _actor(user, decision), idempotency_key, rationale
+    )
 
 
 @router.post("/{action_id}/reject", responses=DECISION_RESPONSES)
@@ -278,12 +292,17 @@ def reject_action(
     idempotency_key: str | None = Header(
         None, alias="Idempotency-Key", min_length=1, max_length=200
     ),
+    user: UserOut | None = Depends(optional_user),
     conn: sqlite3.Connection = Depends(db.get_db),
 ) -> ActionRecord:
-    """Reject a proposed action; safe to retry with an Idempotency-Key."""
-    actor = decision.actor if decision is not None else "operator"
+    """Reject a proposed action; safe to retry with an Idempotency-Key.
+
+    A valid session token makes the operator identity server-derived.
+    """
     rationale = decision.rationale if decision is not None else None
-    return _decide(conn, action_id, "rejected", actor, idempotency_key, rationale)
+    return _decide(
+        conn, action_id, "rejected", _actor(user, decision), idempotency_key, rationale
+    )
 
 
 @router.post("/{action_id}/execute", responses=EXECUTE_RESPONSES)

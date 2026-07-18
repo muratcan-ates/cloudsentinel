@@ -135,6 +135,29 @@ def current_user(
     return _to_user(row)
 
 
+def optional_user(
+    authorization: str | None = Header(None),
+    conn: sqlite3.Connection = Depends(db.get_db),
+) -> UserOut | None:
+    """Like current_user but returns None instead of 401 when unauthenticated.
+
+    Lets an endpoint derive a server-authenticated actor when a token is
+    present and fall back to prior behaviour when it is not — additive, so
+    existing unauthenticated flows are unchanged.
+    """
+    if not authorization or not authorization.lower().startswith("bearer "):
+        return None
+    token = authorization[7:].strip()
+    if not token:
+        return None
+    row = conn.execute(
+        "SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id "
+        "WHERE s.token = ?",
+        (token,),
+    ).fetchone()
+    return _to_user(row) if row is not None else None
+
+
 def require_role(minimum: str):
     """Dependency factory: 403 unless the user is at least `minimum` role.
 

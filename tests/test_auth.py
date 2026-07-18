@@ -4,12 +4,46 @@ import pytest
 from fastapi.testclient import TestClient
 
 from main import app
+from tests.test_analytics import run_chain
 
 
 @pytest.fixture
 def client():
     with TestClient(app) as test_client:
         yield test_client
+
+
+def _token(client, username, role="approver"):
+    client.post(
+        "/auth/register",
+        json={"username": username, "password": "password-99", "role": role},
+    )
+    login = client.post(
+        "/auth/login", json={"username": username, "password": "password-99"}
+    )
+    return login.json()["token"]
+
+
+def test_approve_derives_operator_identity_from_session(client):
+    token = _token(client, "erin")
+    body = run_chain(client, service="ec2", occurred_on="2026-07-12", verdict=None)
+    action_id = body["action_id"]
+    # Body claims a different actor; the server-derived identity must win.
+    response = client.post(
+        f"/actions/{action_id}/approve",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"actor": "not-erin", "rationale": "looks right"},
+    )
+    assert response.status_code == 200
+    assert response.json()["decided_by"] == "erin"
+
+
+def test_decision_without_token_keeps_body_actor(client):
+    body = run_chain(client, service="rds", occurred_on="2026-07-12", verdict=None)
+    action_id = body["action_id"]
+    response = client.post(f"/actions/{action_id}/reject", json={"actor": "cli-bot"})
+    assert response.status_code == 200
+    assert response.json()["decided_by"] == "cli-bot"
 
 
 def test_register_login_me_flow(client):
