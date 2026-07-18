@@ -105,7 +105,7 @@ flowchart LR
 | `pulse_log` | every pulse report — `GET /pulse/last` replays the latest run |
 | `agent_feed` | every inter-agent hop, cursor-streamed by `GET /agents/feed` |
 
-## API Surface (implemented — 32 endpoints)
+## API Surface (implemented — 33 endpoints)
 
 | Area | Endpoints |
 |---|---|
@@ -116,7 +116,7 @@ flowchart LR
 | Lanes | `GET /security/signals` · `GET /fraud/signals` (band / min_score filters) |
 | Missions | `GET /reflex/suggestions` |
 | Analytics | `GET /analytics/decisions` · `/costs/trend` · `/costs/forecast` · `/whatif` · `/roi` · `/ai` · `/calibration` · `/headline` · `/handover` · `GET /metrics/detection` |
-| Ops | `GET /health` (version, provider, readonly) · `POST /ops/demo-reset` (env-gated) |
+| Ops | `GET /health` (liveness: version, provider, readonly) · `GET /ready` (readiness: database, mission config, dataset) · `POST /ops/demo-reset` (env-gated) |
 | Agent bus | `GET /agents` (roster) · `GET /agents/feed` (live cursor stream) |
 
 ## Mission DSL

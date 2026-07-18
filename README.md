@@ -96,13 +96,13 @@ CloudSentinel is an agentic decision-support system that monitors cloud cost and
 - **Agent trace** — every proposal persists a hop-by-hop record of how the chain actually ran (source, model, measured duration, reflection/skeptic outcome, memory recalled) and shows it on the card
 - **Agent bus + live feed** — every inter-agent hop (pickup, handoff, skeptic challenge and verdict, briefing, operator decision) publishes to a persisted feed; the dashboard's side panel streams the conversation live, and `GET /agents` names the six-agent team with roles, triggers and guardrails
 - **Mission DSL** — declarative YAML missions (`configs/`) drive detection thresholds, detectors, escalation bars and the fraud rule bands; validated hard, with a reflex engine whose latency is measured, not claimed
-- **Unified watch** — mock security events ride the identical detection line as cost (own mission, own event kind, never routed into the cost agents); payment events get a published deterministic rule score with per-rule point attribution — suggestions only
+- **Unified watch** — mock security events ride the identical detection line as cost (own mission, own event kind, scored deterministically with no LLM agent, never routed into the cost agents); an **experimental fraud lane** runs the same governance rails on a third source — payment events get a published deterministic rule score with per-rule point attribution — suggestions only, a demonstration that the human-in-the-loop infrastructure generalizes, not a production fraud engine
 - **Guardrail pack** — per-pulse LLM call budget (overridable per run), hard transport timeout, ±5% numeric post-check of narrative figures, stakes-raised debate bar for bold answers to critical signals, prompt spotlighting for untrusted data
 - **Operations intelligence** — HITL funnel, approved savings, window-over-window trend, month-end forecast with budget signal, what-if and before/after ROI, detection precision proxy, and a self-FinOps ledger of the system's own LLM spend
 - Live dashboard: anomaly feed with a live sentinel radar, cost ledger, investigation evidence, decision inbox (with operator identity + rationale capture), audit ledger and operations intelligence — real page rooms (`/watch`, `/investigate`, `/decide`, `/intel`), four palettes, WCAG AA, strict CSP
 - **Shift-handover brief** (`GET /analytics/handover`) — the standing operator questions answered from persisted state, printable to one page; a **guided jury tour** (`?tour=1`) walks the rooms in reading order
 - **Fully self-contained** — every font is self-hosted (`static/fonts/`) and Swagger is vendored, so the CSP allows no remote host on any path; shareable deep links (`?threshold=&service=`) open on the exact scene, and a `[BOOT]` manifest names each instance on startup
-- REST API (FastAPI, 32 endpoints) with self-hosted Swagger documentation (no CDN)
+- REST API (FastAPI, 33 endpoints) with self-hosted Swagger documentation (no CDN); a `/health` liveness ping and a `/ready` readiness probe (database, mission config and dataset) for deploy/uptime gating
 - Demo operations, all env-gated: whole-week date rebase, demo reset with seeded verdict history, read-only public showcase mode; a borderline signal makes the sensitivity slider meaningful (lower it, a third warning surfaces)
 
 ## What It Does / What It Deliberately Does Not
@@ -114,7 +114,7 @@ The whole contract on one table — the right column is design, not backlog:
 | Detects cost & security anomalies over a rolling baseline (z-score / MAD, weekly seasonality, min-history discipline) | Connect to real cloud providers — synthetic data by design; the detection pipeline is source-agnostic |
 | Reasons about every cost signal with AI agents: evidence-cited triage, two remediation options with risk + rollback, adversarial review of contested calls | Let a model invent numbers — every figure the operator acts on is deterministic Python arithmetic, post-checked ±5% against the narrative |
 | Files proposals into a human decision inbox with rationale + actor capture and a full audit trail | Execute anything on real infrastructure — execution is simulated by design, and nothing runs unapproved |
-| Scores payment events with published, hand-reproducible rules (per-rule point attribution) | Run ML fraud models, auto-block payments, or hide the scoring arithmetic |
+| Scores payment events with published, hand-reproducible rules (per-rule point attribution) — an experimental lane showing the governance rails generalize past cost & security | Run ML fraud models, auto-block payments, hide the scoring arithmetic, or present fraud as the core product |
 | Remembers operator verdicts and feeds them back into future recommendations, disclosing how many were considered | Learn silently — memory use is visible on the card, and the chain's execution is traced hop by hop |
 | Accounts for its own AI spend (call ledger, cache hits, fallbacks, quota view) under a per-run call budget | Burn quota unbounded, retry forever, or fail when the LLM is unavailable — every agent degrades to a labeled rule-based fallback |
 | Ships hardened: strict CSP with self-hosted docs, security headers, rate-limited pulse, idempotent decisions, JSON failure envelope | Ship auth/RBAC, Postgres, schedulers or Slack — deliberate boundaries of this build, not oversights |
@@ -210,7 +210,7 @@ cloudsentinel/
 ├── configs/              mission YAMLs — finops, security, fraud
 ├── static/               dashboard — tokenized design system, 4 palettes, vendored Swagger UI
 ├── scripts/              smoke test, failure drill, detection benchmark, Gemini spike
-├── tests/                387 pytest cases incl. performance budgets
+├── tests/                394 pytest cases incl. performance budgets
 ├── docs/                 architecture & agent design
 ├── Makefile              setup / run / test / demo / smoke / drill
 └── ProjectManagement/    sprint evidence packs (boards, screenshots)
@@ -287,7 +287,7 @@ docker run -p 8000:8000 cloudsentinel
 | **Python 3.12** | Core language (pinned in venv, CI and Docker) |
 | **FastAPI + Uvicorn** | REST API and ASGI server |
 | **Pydantic v2** | Typed request/response models and validation |
-| **pytest + httpx** | Automated test suite (387 tests, incl. performance budgets) |
+| **pytest + httpx** | Automated test suite (394 tests, incl. performance budgets) |
 | **SQLite** (stdlib `sqlite3`) | WAL-mode persistence core: action lifecycle, decision memory, LLM cache, idempotency |
 | **Docker** | Containerized, deployment-ready packaging |
 | **Gemini** (`google-genai`) | LLM provider layer with quota-aware retry and rule-based fallback |
@@ -386,11 +386,16 @@ These constraints are intentional Sprint 1 decisions, not oversights:
   approval, and execution stays simulated
   (see [docs/architecture.md](docs/architecture.md)).
 - **Security and fraud lanes landed with the Sprint 3 core** — mock security
-  events ride the identical detection line (own mission and event kind), and
-  payment events carry a published deterministic rule score; both are
-  operator-facing suggestions, never agent conversations or automatic blocks.
+  events ride the identical detection line (own mission and event kind),
+  scored deterministically with no LLM agent; the **fraud lane is
+  experimental**, a third source proving the same governance rails
+  generalize rather than a core product line. Both are operator-facing
+  suggestions, never agent conversations or automatic blocks.
 - **Deployment lands in Sprint 3** — the app is containerized (non-root,
-  healthchecked) with `render.yaml` ready; the live link follows the deploy.
+  healthchecked) with `render.yaml` ready and a `/ready` probe for uptime
+  gating; the live link follows the deploy. The public demo runs read-only
+  (`SENTINEL_READONLY=1`) on the fake provider, and its data is synthetic
+  and may reset on redeploy.
 
 ## Product Backlog URL
 
@@ -525,7 +530,7 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Remaining scope** (headline items — the backlog holds the detail):
   - **Live Gemini spike** — provision the billing-disabled key and measure real RPM/RPD with `scripts/spike_gemini.py`; the whole chain already runs on the deterministic provider, so this lights up narratives, not correctness.
-  - **Continuous integration** — ✅ landed at Sprint 2 close: [`ci.yml`](.github/workflows/ci.yml) runs ruff + 387 tests on every push and PR; Sprint 3 grows it with browser E2E and a post-deploy smoke.
+  - **Continuous integration** — ✅ landed at Sprint 2 close: [`ci.yml`](.github/workflows/ci.yml) runs ruff + the full suite (394 tests) on every push and PR; Sprint 3 grows it with browser E2E and a post-deploy smoke.
   - **Deployment** — Render (`render.yaml` ready, non-root healthchecked image) with UptimeRobot on `/health` and `SENTINEL_READONLY=1` on the public link; the dashboard's LIVE banner switches on via `SENTINEL_ENV=render`.
   - **Live-data trial & market watch** — a credential-free real billing export through the source-agnostic loader, and the trend/news-driven "possible suggestions" table.
   - **User's-eye UX pass & final palette** — friction measured from the operator's seat; the palette decision at the design session (four-way switcher shipped); EN/TR overview kept in sync ([Türkçe özet](docs/README.tr.md)).
