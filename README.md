@@ -495,6 +495,8 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
   ![WhatsApp — daily coordination](ProjectManagement/Sprint2Documents/whatsapp_daily_scrum.png)
 
+  ![WhatsApp — Mert shares the product captures with the team](ProjectManagement/Sprint2Documents/whatsapp_product_share.png)
+
   ![Slack — the team in a 1h 36m huddle](ProjectManagement/Sprint2Documents/slack_huddle.png)
 
   ![Slack — dashboard shared for team review](ProjectManagement/Sprint2Documents/slack_dashboard_share.png)
