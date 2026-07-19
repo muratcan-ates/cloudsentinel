@@ -42,3 +42,9 @@ def test_self_review_on_empty_system(client):
     data = client.post("/insights/self-review").json()
     assert data["applied"] == []
     assert data["proposals"] == []
+
+
+def test_self_review_publishes_to_the_agent_feed(client):
+    client.post("/insights/self-review")
+    events = client.get("/agents/feed").json()["events"]
+    assert any(event["agent"] == "self-review" for event in events)

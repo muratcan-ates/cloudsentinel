@@ -15,7 +15,7 @@ import statistics
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from app import db
+from app import bus, db
 from app.detection import load_daily_costs
 from app.reflex import suggest_reflex_rules
 
@@ -186,9 +186,19 @@ def self_review(conn: sqlite3.Connection = Depends(db.get_db)) -> SelfReviewRepo
     The system reviews its behaviour and proposes changes to itself — reflex
     candidates, threshold reviews, calibration, backlog hygiene. Nothing is
     applied automatically: the learning loop stays HITL-sacred, so `applied`
-    is always empty and every proposal is a human decision.
+    is always empty and every proposal is a human decision. The cycle is
+    published to the agent feed so the self-improving loop stays visible.
     """
-    return compute_self_review(conn)
+    report = compute_self_review(conn)
+    with db.writing(conn):
+        bus.emit(
+            conn,
+            "self-review",
+            "review",
+            f"self-review cycle — {report.proposals_considered} improvement "
+            "proposal(s) for human review, nothing applied",
+        )
+    return report
 
 
 def compute_self_review(conn: sqlite3.Connection) -> SelfReviewReport:
