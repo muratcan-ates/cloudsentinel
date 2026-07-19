@@ -493,15 +493,11 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Daily Scrum**: daily communication runs over WhatsApp with team meetings and huddles on Slack — evidence captured through the sprint:
 
-  ![WhatsApp — daily coordination](ProjectManagement/Sprint2Documents/whatsapp_daily_scrum.png)
-
-  ![WhatsApp — Mert shares the product captures with the team](ProjectManagement/Sprint2Documents/whatsapp_product_share.png)
+  ![WhatsApp — daily coordination and meeting scheduling](ProjectManagement/Sprint2Documents/whatsapp_daily_scrum.png)
 
   ![Slack — the team in a 1h 36m huddle](ProjectManagement/Sprint2Documents/slack_huddle.png)
 
-  ![Slack — dashboard shared for team review](ProjectManagement/Sprint2Documents/slack_dashboard_share.png)
-
-  ![Slack — frontend build shared](ProjectManagement/Sprint2Documents/slack_frontend_share.png)
+  More Slack / WhatsApp evidence: [scrum 1](ProjectManagement/Sprint2Documents/slack_dashboard_share.png) · [scrum 2](ProjectManagement/Sprint2Documents/slack_frontend_share.png) · [scrum 3](ProjectManagement/Sprint2Documents/whatsapp_product_share.png)
 
 - **Sprint board update**:
 
