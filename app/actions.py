@@ -28,6 +28,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Resp
 
 from app import bus, db
 from app.auth import UserOut, optional_user
+from app.enrichment import blast_radius_tier, framework_reference
 from app.models import ActionDecisionRequest, ActionListReport, ActionRecord, ActionState
 
 logger = logging.getLogger("cloudsentinel.actions")
@@ -375,7 +376,9 @@ def execute_action(
     return record
 
 
-def _render_report(record: ActionRecord, decision: sqlite3.Row | None) -> str:
+def _render_report(
+    record: ActionRecord, decision: sqlite3.Row | None, event_kind: str | None = None
+) -> str:
     """Compose a shareable Markdown incident report from one action.
 
     Read-only and defensive: every field is optional, so a partially
@@ -414,6 +417,15 @@ def _render_report(record: ActionRecord, decision: sqlite3.Row | None) -> str:
             f"- **Date:** {anomaly.get('date', '—')}",
             f"- **Cost:** {cost} (baseline {base})",
             f"- **z-score:** {z} · **severity:** {sev} · **detector:** {det}",
+            "",
+        ]
+        tier = blast_radius_tier(anomaly.get("z_score", 0.0))
+        framework = framework_reference(event_kind or "cost_anomaly")
+        lines += [
+            "## Triage",
+            "",
+            f"- Blast radius: **{tier}**",
+            f"- Framework: {framework['framework']} — {framework['reference']}",
             "",
         ]
 
@@ -503,7 +515,13 @@ def action_report(
         "WHERE action_id = ? ORDER BY id DESC LIMIT 1",
         (action_id,),
     ).fetchone()
-    markdown = _render_report(_to_record(row), decision)
+    event_kind = None
+    if row["event_id"] is not None:
+        event = conn.execute(
+            "SELECT kind FROM events WHERE id = ?", (row["event_id"],)
+        ).fetchone()
+        event_kind = event["kind"] if event else None
+    markdown = _render_report(_to_record(row), decision, event_kind)
     filename = f"cloudsentinel-incident-{action_id}.md"
     return Response(
         content=markdown,

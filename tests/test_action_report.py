@@ -32,6 +32,10 @@ def test_incident_report_renders_the_full_timeline(client):
     assert "## Recommended options" in markdown
     assert "## Human decision" in markdown
     assert "approved" in markdown
+    # Blast-radius tier + framework reference from the enrichment module.
+    assert "## Triage" in markdown
+    assert "Blast radius" in markdown
+    assert "FinOps Framework" in markdown
     # Honesty carried into the artifact, not just the UI.
     assert "simulated by design" in markdown
 
