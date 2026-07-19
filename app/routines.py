@@ -10,6 +10,7 @@ background worker after the competition.
 
 import json
 import sqlite3
+import statistics
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Response
 from pydantic import BaseModel, Field
@@ -130,6 +131,74 @@ def list_routines(conn: sqlite3.Connection = Depends(db.get_db)) -> RoutineListR
     rows = conn.execute("SELECT * FROM routines ORDER BY id").fetchall()
     routines = [_to_routine(row) for row in rows]
     return RoutineListReport(count=len(routines), routines=routines)
+
+
+def _daily_totals(records: list) -> list[float]:
+    by_date: dict[str, float] = {}
+    for record in records:
+        key = str(record["date"])
+        by_date[key] = by_date.get(key, 0.0) + float(record["cost"])
+    return [by_date[key] for key in sorted(by_date)]
+
+
+class RoutineSuggestion(BaseModel):
+    name: str
+    steps: list[str]
+    rationale: str
+
+
+class RoutineSuggestionsReport(BaseModel):
+    count: int
+    suggestions: list[RoutineSuggestion]
+    note: str
+
+
+@router.get("/suggestions")
+def routine_suggestions(
+    conn: sqlite3.Connection = Depends(db.get_db),
+) -> RoutineSuggestionsReport:
+    """Suggest routines grounded in the current state — the routines agent.
+
+    Suggestions only; create one with POST /routines. Every suggested step
+    stays within the read-only allow-list. Defined before /{routine_id} so
+    the static path is not shadowed by the dynamic one.
+    """
+    suggestions = [
+        RoutineSuggestion(
+            name="Daily brief",
+            steps=["insights", "pending_actions", "cost_summary"],
+            rationale="A one-click daily read of the whole system.",
+        )
+    ]
+    pending = conn.execute(
+        "SELECT COUNT(*) AS c FROM actions WHERE state = 'proposed'"
+    ).fetchone()["c"]
+    if pending:
+        suggestions.append(
+            RoutineSuggestion(
+                name="Inbox triage",
+                steps=["pending_actions", "insights"],
+                rationale=f"{pending} proposal(s) await a human decision.",
+            )
+        )
+    totals = _daily_totals(load_daily_costs())
+    if len(totals) >= 14:
+        last = statistics.mean(totals[-7:])
+        prior = statistics.mean(totals[-14:-7])
+        if prior > 0 and last > prior:
+            pct = round(100 * (last - prior) / prior, 1)
+            suggestions.append(
+                RoutineSuggestion(
+                    name="Cost watch",
+                    steps=["cost_summary", "insights"],
+                    rationale=f"daily spend up {pct}% week over week.",
+                )
+            )
+    return RoutineSuggestionsReport(
+        count=len(suggestions),
+        suggestions=suggestions,
+        note="Suggestions only — create one with POST /routines.",
+    )
 
 
 @router.get("/{routine_id}", responses={404: {"description": "No such routine."}})

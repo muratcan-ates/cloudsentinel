@@ -4,12 +4,31 @@ import pytest
 from fastapi.testclient import TestClient
 
 from main import app
+from tests.test_analytics import run_chain
 
 
 @pytest.fixture
 def client():
     with TestClient(app) as test_client:
         yield test_client
+
+
+def test_routine_suggestions_include_a_daily_brief(client):
+    data = client.get("/routines/suggestions").json()
+    names = {suggestion["name"] for suggestion in data["suggestions"]}
+    assert "Daily brief" in names
+    allowed = {"insights", "pending_actions", "cost_summary"}
+    for suggestion in data["suggestions"]:
+        assert set(suggestion["steps"]) <= allowed
+
+
+def test_routine_suggestions_react_to_a_pending_backlog(client):
+    run_chain(client, service="ec2", occurred_on="2026-07-12", verdict=None)
+    names = {
+        suggestion["name"]
+        for suggestion in client.get("/routines/suggestions").json()["suggestions"]
+    }
+    assert "Inbox triage" in names
 
 
 def test_routine_crud_and_run(client):
