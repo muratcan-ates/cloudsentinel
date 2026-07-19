@@ -29,6 +29,7 @@ from pydantic import BaseModel
 
 from app import bus, db
 from app.actions import TIMEOUT_ACTOR, expire_stale_proposals
+from app.benchmark import evaluate, standard_scenarios
 from app.detection import build_daily_series, load_dataset
 from app.models import (
     AgentTelemetry,
@@ -267,6 +268,64 @@ def detection_precision(
         precision_proxy=proxy(approved, rejected),
         method=PRECISION_METHOD,
         services=services,
+    )
+
+
+class BacktestRow(BaseModel):
+    scenario: str
+    mode: str
+    precision: float | None
+    recall: float | None
+    false_negatives: int
+
+
+class BacktestReport(BaseModel):
+    threshold: float
+    rows: list[BacktestRow]
+    note: str
+
+
+@metrics_router.get("/backtest")
+def detection_backtest(
+    threshold: float = Query(2.0, gt=0, le=20, description="Flagging |z| threshold."),
+) -> BacktestReport:
+    """Precision/recall against planted synthetic ground truth (backtesting).
+
+    Runs the standard scenarios under three configurations — the default
+    z-score, the MAD detector, and z-score with leave-one-out — so detection
+    quality is measured, not narrated. Pure synthetic harness, no DB: the
+    contaminated-baseline scenario is where MAD's contamination resistance
+    shows as higher recall than the classic z-score.
+    """
+    modes = (
+        ("zscore", "zscore", False),
+        ("mad", "mad", False),
+        ("zscore+loo", "zscore", True),
+    )
+    rows: list[BacktestRow] = []
+    for scenario in standard_scenarios():
+        for label, detector, loo in modes:
+            result = evaluate(
+                scenario, threshold=threshold, detector=detector, leave_one_out=loo
+            )
+            rows.append(
+                BacktestRow(
+                    scenario=scenario.name,
+                    mode=label,
+                    precision=result.precision,
+                    recall=result.recall,
+                    false_negatives=result.false_negatives,
+                )
+            )
+    return BacktestReport(
+        threshold=threshold,
+        rows=rows,
+        note=(
+            "Synthetic ground truth. On the contaminated-baseline scenario MAD "
+            "keeps full recall where the classic z-score misses the smaller "
+            "spike; leave-one-out sharpens a point that inflates its own "
+            "baseline (a different failure mode)."
+        ),
     )
 
 

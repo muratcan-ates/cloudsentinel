@@ -78,6 +78,7 @@ def evaluate(
     detector: str = "zscore",
     seasonal: bool = False,
     window: int | None = None,
+    leave_one_out: bool = False,
 ) -> BenchmarkResult:
     """Score one detector configuration against a scenario's ground truth."""
     run = run_detection(
@@ -86,6 +87,7 @@ def evaluate(
         detector=detector,
         seasonal=seasonal,
         window=window or len(scenario.records),
+        leave_one_out=leave_one_out,
     )
     flagged = {(anomaly.service, anomaly.date) for anomaly in run.anomalies}
     tp = len(flagged & scenario.planted)
