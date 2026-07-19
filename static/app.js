@@ -2205,6 +2205,49 @@ async function runRoutine(suggestion) {
   }
 }
 
+/* Runbook retrieval: curated, keyword-matched remediation playbooks. */
+async function searchRunbooks(query) {
+  const list = document.getElementById("runbook-results");
+  if (!list) return;
+  list.textContent = "";
+  const trimmed = (query || "").trim();
+  if (!trimmed) return;
+  try {
+    const data = await fetchJson(`/runbooks/match?query=${encodeURIComponent(trimmed)}`);
+    const matches = data.matches || [];
+    if (!matches.length) {
+      const li = document.createElement("li");
+      li.className = "meta";
+      li.textContent = "no matching runbook";
+      list.appendChild(li);
+      return;
+    }
+    matches.forEach((match) => {
+      const li = document.createElement("li");
+      const title = document.createElement("strong");
+      title.textContent = match.runbook.title;
+      const steps = document.createElement("span");
+      steps.className = "meta";
+      steps.textContent = ` — ${match.runbook.steps.join(" · ")}`;
+      li.appendChild(title);
+      li.appendChild(steps);
+      list.appendChild(li);
+    });
+  } catch {
+    /* quiet — the panel stays empty */
+  }
+}
+
+const runbookInput = document.getElementById("runbook-query");
+if (runbookInput) {
+  let runbookTimer;
+  runbookInput.addEventListener("input", (event) => {
+    clearTimeout(runbookTimer);
+    const value = event.target.value;
+    runbookTimer = setTimeout(() => searchRunbooks(value), 250);
+  });
+}
+
 /* First paint: the ledger seeds and the empty-state panels do not depend on the
    API, so they render even if the very first scan fails. */
 renderInvestigation();

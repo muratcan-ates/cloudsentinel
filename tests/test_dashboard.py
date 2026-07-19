@@ -93,6 +93,15 @@ def test_dashboard_ships_the_routines_panel():
     assert "/routines/suggestions" in app_js
 
 
+def test_dashboard_ships_the_runbook_search():
+    """The brain room retrieves curated remediation runbooks (RAG-lite)."""
+    page = client.get("/").text
+    assert 'id="runbook-query"' in page
+    app_js = client.get("/static/app.js").text
+    assert "searchRunbooks" in app_js
+    assert "/runbooks/match" in app_js
+
+
 def test_security_headers_present_on_dashboard():
     response = client.get("/")
     assert response.status_code == 200

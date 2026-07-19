@@ -1743,3 +1743,18 @@ main .ledger-wide {
   font-size: 0.82rem;
   line-height: 1.5;
 }
+
+/* Runbook search (brain room) */
+.brain-runbooks { margin-top: 1.6rem; }
+.runbook-search {
+  width: 100%;
+  max-width: 30rem;
+  margin-top: 0.5rem;
+  padding: 0.55rem 0.8rem;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  color: inherit;
+  font: inherit;
+}
+.runbook-search:focus { outline: 2px solid currentColor; outline-offset: 1px; }
