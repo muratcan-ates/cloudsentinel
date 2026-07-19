@@ -39,6 +39,8 @@ def test_incident_report_renders_the_full_timeline(client):
     # Post-action verification plan (detect-to-resolution).
     assert "## Verification" in markdown
     assert "Re-measure" in markdown
+    # A curated runbook is cited (RAG-lite wired into the report).
+    assert "## Suggested runbook" in markdown
     # Honesty carried into the artifact, not just the UI.
     assert "simulated by design" in markdown
 

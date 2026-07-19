@@ -33,6 +33,7 @@ from app.enrichment import (
     framework_reference,
     verification_plan,
 )
+from app.runbooks import match_runbooks
 from app.models import ActionDecisionRequest, ActionListReport, ActionRecord, ActionState
 
 logger = logging.getLogger("cloudsentinel.actions")
@@ -432,6 +433,14 @@ def _render_report(
             f"- Framework: {framework['framework']} — {framework['reference']}",
             "",
         ]
+        matches = match_runbooks(
+            f"{anomaly.get('service', '')} {event_kind or 'cost'}", limit=1
+        )
+        if matches:
+            runbook = matches[0][0]
+            lines += ["## Suggested runbook", "", f"**{runbook.title}**", ""]
+            lines += [f"- {step}" for step in runbook.steps]
+            lines.append("")
 
     if savings:
         lines += [
