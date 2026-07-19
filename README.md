@@ -143,7 +143,7 @@ problem back to a human with nothing but a raw alert:
 |---|---|---|---|
 | **FinOps analyst** | AWS Cost Explorer, GCP billing alerts, spreadsheets | *"Why did spend jump, and what is it worth fixing?"* | Cost ledger with share-of-spend, trend curve with anomaly marks, deterministic Python-computed savings on every proposal, CSV export for the finance review |
 | **DevOps / platform engineer** | Datadog / Grafana, PagerDuty, Terraform | *"What exactly do I change, and how do I roll it back?"* | Analyst triage with cited evidence rows, cautious / bold options each carrying risk **and a rollback plan**, execution that stays simulated until a human approves |
-| **SecOps operator** | SIEM dashboards, IAM audit logs, ticket queues | *"Who decided what, and can I prove it?"* | Human-in-the-loop state machine with idempotent decisions, the append-only decision ledger, and security signals flowing through the same pipeline in Sprint 3 |
+| **SecOps operator** | SIEM dashboards, IAM audit logs, ticket queues | *"Who decided what, and can I prove it?"* | Human-in-the-loop state machine with idempotent decisions, the append-only decision ledger, and security signals flowing through the same detection pipeline (shipped with the Sprint 3 core pulled forward) |
 
 ## What Makes CloudSentinel Different
 
@@ -221,7 +221,7 @@ cloudsentinel/
 ├── configs/              mission YAMLs — finops, security, fraud
 ├── static/               dashboard — tokenized design system, 4 palettes, vendored Swagger UI
 ├── scripts/              smoke test, failure drill, detection benchmark, Gemini spike
-├── tests/                444 pytest cases incl. performance budgets
+├── tests/                446 pytest cases incl. performance budgets
 ├── docs/                 architecture & agent design
 ├── Makefile              setup / run / test / demo / smoke / drill
 └── ProjectManagement/    sprint evidence packs (boards, screenshots)
@@ -298,7 +298,7 @@ docker run -p 8000:8000 cloudsentinel
 | **Python 3.12** | Core language (pinned in venv, CI and Docker) |
 | **FastAPI + Uvicorn** | REST API and ASGI server |
 | **Pydantic v2** | Typed request/response models and validation |
-| **pytest + httpx** | Automated test suite (444 tests, incl. performance budgets) |
+| **pytest + httpx** | Automated test suite (446 tests, incl. performance budgets) |
 | **SQLite** (stdlib `sqlite3`) | WAL-mode persistence core: action lifecycle, decision memory, LLM cache, idempotency |
 | **Docker** | Containerized, deployment-ready packaging |
 | **Gemini** (`google-genai`) | LLM provider layer with quota-aware retry and rule-based fallback |
@@ -379,9 +379,9 @@ Mapping of the official bootcamp scrum-notebook requirements to their evidence i
 | Product Backlog board (Miro) | ✅ | [Product Backlog URL](#product-backlog-url) |
 | Sprint Notes (never left empty) | ✅ | [Sprint 1](#sprint-1) · [Sprint 2](#sprint-2) |
 | Point estimates & completion logic | ✅ | [Sprint 1](#sprint-1) · [Sprint 2](#sprint-2) |
-| Daily Scrum documentation | ✅ | [Slack & WhatsApp evidence](ProjectManagement/Sprint1Documents/) |
-| Sprint board screenshots | ✅ | [Miro board](ProjectManagement/Sprint1Documents/miro_board.jpeg) · [burndown](ProjectManagement/Sprint1Documents/burndown_sprint1.png) |
-| Product status screenshots | ✅ | Sprint 2: [dashboard](ProjectManagement/Sprint2Documents/dashboard_cobalt.png) · [Swagger](ProjectManagement/Sprint2Documents/swagger_13_endpoints.png) — Sprint 1: [dashboard](ProjectManagement/Sprint1Documents/dashboard.png) · [Swagger](ProjectManagement/Sprint1Documents/swagger_docs.png) |
+| Daily Scrum documentation | ✅ | Sprint 1: [Slack & WhatsApp](ProjectManagement/Sprint1Documents/) — Sprint 2: [WhatsApp](ProjectManagement/Sprint2Documents/whatsapp_daily_scrum.png) · [Slack huddle](ProjectManagement/Sprint2Documents/slack_huddle.png) |
+| Sprint board screenshots | ✅ | Sprint 1: [Miro board](ProjectManagement/Sprint1Documents/miro_board.jpeg) · [burndown](ProjectManagement/Sprint1Documents/burndown_sprint1.png) — Sprint 2: [Miro board](ProjectManagement/Sprint2Documents/miro_board_sprint2.png) · [burndown](ProjectManagement/Sprint2Documents/burndown_sprint2.png) |
+| Product status screenshots | ✅ | Sprint 2: [broadsheet](ProjectManagement/Sprint2Documents/broadsheet_sprint2.png) · [Swagger (46)](ProjectManagement/Sprint2Documents/swagger_sprint2.png) — Sprint 1: [dashboard](ProjectManagement/Sprint1Documents/dashboard.png) · [Swagger](ProjectManagement/Sprint1Documents/swagger_docs.png) |
 | Sprint Review & Retrospective | ✅ | [Sprint 1](#sprint-1) · [Sprint 2](#sprint-2) |
 | Working product increment | ✅ | [`GET /anomalies`](main.py) · agent chain ([analyze](app/analyst.py) · [recommend](app/recommender.py) · [pulse](app/pulse.py)) · [HITL lifecycle](app/actions.py) · [tests](tests/) |
 
@@ -404,9 +404,9 @@ These constraints are intentional Sprint 1 decisions, not oversights:
   suggestions, never agent conversations or automatic blocks.
 - **Deployment lands in Sprint 3** — the app is containerized (non-root,
   healthchecked) with `render.yaml` ready and a `/ready` probe for uptime
-  gating; the live link follows the deploy. The public demo runs read-only
-  (`SENTINEL_READONLY=1`) on the fake provider, and its data is synthetic
-  and may reset on redeploy.
+  gating; the live link follows the deploy. Once deployed, the public demo
+  will run read-only (`SENTINEL_READONLY=1`) on the fake provider, with
+  synthetic data that may reset on redeploy.
 
 ## Product Backlog URL
 
@@ -474,12 +474,12 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Sprint Notes**:
   - Sprint 2's goal is the agent layer on top of the Sprint 1 detection core: Analyst and Recommender agents, the human-in-the-loop action lifecycle, and decision memory — as designed in [docs/architecture.md](docs/architecture.md).
-  - The LLM layer was built provider-agnostic: a deterministic fake provider (`SENTINEL_FAKE_LLM=1`) drives all tests and offline demos, and the rule-based fallback path keeps every endpoint answering even with the LLM unavailable. The live Gemini key is provisioned from a billing-disabled project, so the quota-safety posture stays zero-cost by construction.
+  - The LLM layer was built provider-agnostic: a deterministic fake provider (`SENTINEL_FAKE_LLM=1`) drives all tests and offline demos, and the rule-based fallback path keeps every endpoint answering even with the LLM unavailable. Through Sprint 2 the whole chain ran on the fake provider; the live Gemini key will be provisioned from a billing-disabled project in Sprint 3, so the quota-safety posture stays zero-cost by construction.
   - Quota discipline was locked early: responses are cached, reflection runs only on critical signals, and the debate-lite skeptic costs at most one extra call per decision.
   - The Recommender's prompt interface was frozen mid-sprint so decision memory could be injected later as a single isolated change — which is exactly how it landed.
   - Money figures shown to the operator are computed deterministically in Python; the model narrates, it never invents numbers.
   - Execution stays simulated by design: the state machine records an executed action with a SIMULATION marker and no real infrastructure is ever touched.
-  - The dashboard was rebuilt on a tokenized design system with three palette directions (cobalt / mission / paper); a persisted in-dashboard switch — night mode included — now lets the team and reviewers flip palettes live. The final palette decision (retro action item, owner: Tuana) lands at the Friday design session.
+  - The dashboard was rebuilt on a tokenized design system with a persisted four-palette switch — **horizon** (the night-blue default shown in the Sprint 2 captures, renamed from cobalt at sprint close), joined by night, paper and dawn — now letting the team and reviewers flip palettes live (night mode included). The final palette decision (retro action item, owner: Tuana) lands at the Friday design session.
   - Mid-sprint hardening from the July 12 review requests: interactive ledger tables (sortable signals, click-to-filter cost rows), monotone-curve charts, performance budget tests over the mock-data pipeline, and a regression fix that restored Swagger UI under the strict CSP.
   - The sprint's second week pulled the **Sprint 3 core forward**: detection quality (rolling baseline, MAD, weekly seasonality), the mission DSL + reflex engine, the unified security and fraud lanes, the guardrail pack (call budget, timeout, numeric post-check), the operations-intelligence analytics, the chronicler agent, the persisted agent trace and finally the **agent bus with a live feed panel** — the whole inter-agent conversation streaming into the dashboard as it happens.
   - The fraud lane is developed in this repository as published deterministic rule arithmetic (no ML); its strongest signals and a projected budget overrun now file cards into the same human decision inbox — three missions, one decision box.
@@ -489,9 +489,21 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Point Completion Logic**: Sprint 2 carries 13 of the 36 total backlog points: Gemini agent spike (2), Analyst agent (3), Recommender with debate-lite (3), human-in-the-loop lifecycle (3), decision memory (2). All five stories are code-complete as of July 12 — the suite has since grown to 387 automated tests (~7s on the fake provider) — and formal completion is assessed at the July 19 review and demo.
 
-- **Daily Scrum**: daily communication continues over WhatsApp with team meetings on Slack; evidence screenshots are collected in `ProjectManagement/Sprint2Documents/` through the sprint.
+- **Backlog order and story selections**: The Sprint 2 backlog is ordered by dependency — the Gemini agent spike first (it unblocks both agents), then the Analyst and Recommender agents, the human-in-the-loop lifecycle, and finally decision memory feeding the Recommender. Each estimate is kept below half the sprint total (at most 3 of 13). Stories are split into tasks on the Miro board and assigned across the four active team members; on the board blue cards are user stories and red/orange cards are tasks (legend on the board itself).
 
-- **Product Status — input → output on the running increment**: full-page captures of the Sprint 2 dashboard on mock data. One `POST /pulse` (input) drives the whole chain; the inbox, ledger and summary strip below are the output of exactly that call plus one operator approval:
+- **Daily Scrum**: daily communication runs over WhatsApp with team meetings and huddles on Slack. Evidence in [ProjectManagement/Sprint2Documents/](ProjectManagement/Sprint2Documents/): [WhatsApp daily coordination](ProjectManagement/Sprint2Documents/whatsapp_daily_scrum.png) · [Slack huddle (1h 36m)](ProjectManagement/Sprint2Documents/slack_huddle.png) · [dashboard shared for review](ProjectManagement/Sprint2Documents/slack_dashboard_share.png) · [frontend build shared](ProjectManagement/Sprint2Documents/slack_frontend_share.png).
+
+- **Sprint board update**:
+
+  ![Sprint 2 Burndown](ProjectManagement/Sprint2Documents/burndown_sprint2.png)
+
+  ![Miro Scrum Board — Sprint 2](ProjectManagement/Sprint2Documents/miro_board_sprint2.png)
+
+  Detail — Done column with per-member owners: [part 1](ProjectManagement/Sprint2Documents/miro_board_sprint2_done_column.png) · [part 2](ProjectManagement/Sprint2Documents/miro_board_sprint2_done_column_2.png) · [part 3](ProjectManagement/Sprint2Documents/miro_board_sprint2_done_column_3.png).
+
+  The committed 13 points were code-complete by July 12 — about a week ahead of the sprint deadline — so the actual line sits below the ideal for the whole sprint; the second week was then spent pulling the Sprint 3 core forward as bonus. On the board, blue cards are user stories and red/orange cards are tasks (legend on the board itself).
+
+- **Product Status — the running increment at sprint close**: a single full-page capture of the `/broadsheet` view (every room on one page) on mock data, horizon palette. One `POST /pulse` (input) drives the cost chain; the anomaly feed, cost ledger, investigation and decision inbox below are the output of that call plus one operator approval:
 
   ```bash
   curl -X POST http://127.0.0.1:8000/pulse
@@ -506,11 +518,15 @@ These constraints are intentional Sprint 1 decisions, not oversights:
       "action_id": 2, "action_state": "proposed", "preferred": "CAUTIOUS"}]}
   ```
 
-  ![CloudSentinel Sprint 2 dashboard — cobalt](ProjectManagement/Sprint2Documents/dashboard_cobalt.png)
+  ![CloudSentinel Sprint 2 — broadsheet, every room on one page](ProjectManagement/Sprint2Documents/broadsheet_sprint2.png)
 
-  Both planted spikes are detected, triaged REAL, filed as proposals; the compute action was approved and executed — SIMULATION, the database action still awaits the hand. Palette directions for the design decision: [night](ProjectManagement/Sprint2Documents/dashboard_night.png) · [paper](ProjectManagement/Sprint2Documents/dashboard_paper.png) · [Swagger — 13 endpoints](ProjectManagement/Sprint2Documents/swagger_13_endpoints.png).
+  Both planted cost spikes are detected (compute z=3.61, database z=3.60), triaged REAL and filed as proposals; the compute action was approved and executed — SIMULATION, the database action still awaits the hand. The same sheet runs the unified security lane (2 signals) and the experimental fraud lane (3 holds) through the same governance rails and decision inbox. Palette directions for the design decision: [night](ProjectManagement/Sprint2Documents/dashboard_night.png) · [paper](ProjectManagement/Sprint2Documents/dashboard_paper.png).
 
-- **Sprint Review**: Sprint 2 closed with all five committed stories completed (13/13 points), demoed end to end at the July 19 review over `POST /pulse`: detect → Analyst triage with cited evidence → debate-lite skeptic → Recommender options with Python-computed savings → decision inbox → operator verdict → decision memory. Everything ran on the deterministic provider (the live Gemini key is provisioned separately from a billing-disabled project), which is itself the demo's point: the agent layer degrades honestly and never blocks on quota. Beyond the committed scope, the second week of the sprint pulled the Sprint 3 core forward — detection-quality controls, the mission DSL and reflex engine, the unified security and fraud watch, the guardrail pack, the operations-intelligence analytics, the chronicler agent, the persisted agent trace, the live agent-feed panel, cross-lane HITL cards (fraud holds and the budget guard) and self-hosted Swagger under one strict CSP — growing the suite from 27 tests at Sprint 1 close to **387 tests over 32 endpoints**. Decisions taken: the fraud lane stays rule-based and in-repo; deployment (Render, `render.yaml` ready) and the live-key spike open Sprint 3; the final palette decision is carried into the Sprint 3 design session with the three-way switcher shipped.
+  ![CloudSentinel API — self-hosted Swagger, 46 endpoints](ProjectManagement/Sprint2Documents/swagger_sprint2.png)
+
+  The full API surface at sprint close is **46 endpoints** (self-hosted Swagger, no CDN). The committed Sprint 2 scope was the agent-layer subset — analyze / recommend / actions / decisions / pulse, [13 endpoints captured mid-sprint](ProjectManagement/Sprint2Documents/swagger_13_endpoints.png); the second-week bonus (security / fraud / missions / analytics / chronicler / agent bus) and the July-19 decision-brain groundwork grew it to 46.
+
+- **Sprint Review**: Sprint 2 closed with all five committed stories completed (13/13 points), demoed end to end at the July 19 review over `POST /pulse`: detect → Analyst triage with cited evidence → debate-lite skeptic → Recommender options with Python-computed savings → decision inbox → operator verdict → decision memory. Everything ran on the deterministic provider (the live Gemini key is deferred to Sprint 3, to be provisioned from a billing-disabled project), which is itself the demo's point: the agent layer degrades honestly and never blocks on quota. Beyond the committed scope, the second week of the sprint pulled the Sprint 3 core forward — detection-quality controls, the mission DSL and reflex engine, the unified security and fraud watch, the guardrail pack, the operations-intelligence analytics, the chronicler agent, the persisted agent trace, the live agent-feed panel, cross-lane HITL cards (fraud holds and the budget guard) and self-hosted Swagger under one strict CSP — growing the suite from 27 tests at Sprint 1 close to **387 tests over 32 endpoints**. Decisions taken: the fraud lane stays rule-based and in-repo; deployment (Render, `render.yaml` ready) and the live-key spike open Sprint 3; the final palette decision is carried into the Sprint 3 design session with the four-way switcher shipped.
 
   | Story | Points | Result |
   |---|---|---|
@@ -537,11 +553,13 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Head start**: the Sprint 3 technical core was pulled forward into Sprint 2's second week and is already shipped — detection quality (rolling baseline / MAD / weekly seasonality), the mission DSL + reflex engine, the **security lane through the identical detection line**, the fraud rule-score lane with cross-lane HITL cards, the guardrail pack, operations-intelligence analytics, the chronicler agent, the agent bus with its live feed panel, self-hosted Swagger and the demo-operations knobs (date rebase, demo reset, read-only showcase).
 
+- **Decision-brain pre-work (July 19, ahead of Sprint 3 planning)**: a decision-brain layer was built as groundwork for the final sprint — local identity with roles (`/auth` register / login / me, PBKDF2, server-derived operator identity on decisions), history-synthesis insights (`GET /insights`), a HITL-safe self-review loop (`POST /insights/self-review`, which only ever *proposes*), saved read-only routines (`/routines` CRUD + run + suggestions), curated remediation runbooks with keyword retrieval (`/runbooks`, `/runbooks/match`), a detector backtest (`GET /metrics/backtest`, precision / recall on planted ground truth), leave-one-out anomaly scoring, signal enrichment (blast-radius tiers + MITRE / FinOps references), shareable Markdown incident reports (`GET /actions/{id}/report`) and an in-dashboard **brain room** wiring it all live. This is deliberately scoped as Sprint 3 groundwork, not Sprint 2 delivery: it advances the hardening backlog's identity (B1) and detection-quality (B6) items and grows the suite from the Sprint 2 close of 387 tests / 32 endpoints to **446 tests over 46 endpoints**. The sprint's *committed* scope below is unchanged — the live-key spike, deployment and the 3-minute video.
+
 - **Backlog**: the full prioritized working list — committed competition scope, the hardening backlog from the July 18 engineering review, the freeze list and the definition of done — lives in **[docs/sprint3_backlog.md](docs/sprint3_backlog.md)**; stories are cut onto the Miro board from there.
 
 - **Remaining scope** (headline items — the backlog holds the detail):
   - **Live Gemini spike** — provision the billing-disabled key and measure real RPM/RPD with `scripts/spike_gemini.py`; the whole chain already runs on the deterministic provider, so this lights up narratives, not correctness.
-  - **Continuous integration** — ✅ landed at Sprint 2 close: [`ci.yml`](.github/workflows/ci.yml) runs ruff + the full suite (444 tests) on every push and PR; Sprint 3 grows it with browser E2E and a post-deploy smoke.
+  - **Continuous integration** — ✅ landed at Sprint 2 close: [`ci.yml`](.github/workflows/ci.yml) runs ruff + the full suite (446 tests) on every push and PR; Sprint 3 grows it with browser E2E and a post-deploy smoke.
   - **Deployment** — Render (`render.yaml` ready, non-root healthchecked image) with UptimeRobot on `/health` and `SENTINEL_READONLY=1` on the public link; the dashboard's LIVE banner switches on via `SENTINEL_ENV=render`.
   - **Live-data trial & market watch** — a credential-free real billing export through the source-agnostic loader, and the trend/news-driven "possible suggestions" table.
   - **User's-eye UX pass** — friction measured from the operator's seat; the four-palette switcher shipped with horizon as the default; EN/TR overview kept in sync ([Türkçe özet](docs/README.tr.md)).

@@ -40,7 +40,10 @@ August 2.
 1. **Real identity** — OIDC/OAuth login, server-derived operator identity
    (today the name is free text from the browser), `viewer / analyst /
    approver / admin` roles, tenant isolation; the audit trail becomes
-   trustworthy only after this.
+   trustworthy only after this. *Partly landed in the July 19 pre-work:
+   local `/auth` (register / login / me, PBKDF2), the four roles and
+   server-derived operator identity on decisions now ship; OIDC/OAuth and
+   tenant isolation remain open.*
 2. **Durable state** — PostgreSQL + migrations + backup; today an ephemeral
    restart erases decision memory and the audit ledger, which contradicts
    the product's own promise.
@@ -56,7 +59,10 @@ August 2.
 6. **Detection upgrades** — leave-one-out / forecasting-residual scoring
    (today the anomalous point inflates its own baseline), backtesting with
    precision/recall, alert suppression + deduplication, and a fixture long
-   enough to actually exercise weekly seasonality.
+   enough to actually exercise weekly seasonality. *Partly landed in the
+   July 19 pre-work: leave-one-out scoring and a precision/recall backtest
+   (`GET /metrics/backtest`) now ship; forecasting-residual scoring,
+   suppression/deduplication and the longer seasonality fixture remain open.*
 7. **Savings model realism** — resource-level math (SKU, utilization,
    region, commitments) with a confidence interval, replacing the
    `excess × 30 × containment%` heuristic.
@@ -80,9 +86,20 @@ main risk. Until section A is done, no work lands on:
 
 - fraud-lane expansion (it stays published rule arithmetic, in-repo),
 - new palettes or themes beyond the final palette decision,
-- radar animation growth and new agent characters,
-- additional analytics panels or "intelligence" metrics,
+- radar animation growth and new decorative agent characters,
+- cosmetic analytics panels or "intelligence" metrics that do not advance
+  section B,
 - new mission-DSL features.
+
+**Update (July 19) — decision-brain direction unfrozen.** The freeze targets
+*polish that crowds out substance*, not substance itself. The decision-brain
+pre-work shipped that day — identity + roles, insights, the HITL-safe
+self-review loop, saved routines, runbook retrieval, the detector backtest and
+leave-one-out scoring — is explicitly **hardening-backlog work**: it advances
+section B items 1 and 6, so it is permitted rather than frozen. What stays
+frozen is unchanged — cosmetic panels, extra palettes or animation, fraud-lane
+expansion and new mission-DSL features that do not move a section-B item
+forward.
 
 ## D — Definition of Done (north star)
 
