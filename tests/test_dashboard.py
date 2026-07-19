@@ -72,6 +72,18 @@ def test_dashboard_hidden_from_openapi_schema():
     }
 
 
+def test_dashboard_ships_the_brain_room():
+    """The brain room surfaces /insights and the HITL-safe self-review cycle."""
+    page = client.get("/").text
+    assert 'id="sec-brain"' in page
+    assert 'data-view="brain"' in page
+    assert 'id="brain-review"' in page
+    app_js = client.get("/static/app.js").text
+    assert "renderBrain" in app_js
+    assert "/insights/self-review" in app_js
+    assert client.get("/brain").status_code == 200
+
+
 def test_security_headers_present_on_dashboard():
     response = client.get("/")
     assert response.status_code == 200

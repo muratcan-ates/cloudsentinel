@@ -1426,6 +1426,7 @@ async function refreshDecisionSurfaces() {
   renderDecisions();
   renderAudit();
   renderIntelligence();
+  renderBrain();
 }
 
 async function decideAction(actionId, verb) {
@@ -1947,6 +1948,7 @@ const VIEW_SECTIONS = {
   investigate: ["sec-investigation"],
   decide: ["sec-decisions", "sec-ledger"],
   intel: ["sec-intelligence"],
+  brain: ["sec-brain"],
 };
 const ALL_SECTIONS = [...new Set(Object.values(VIEW_SECTIONS).flat())];
 const VIEW_TITLES = {
@@ -1954,6 +1956,7 @@ const VIEW_TITLES = {
   investigate: "Investigation",
   decide: "Decision Desk",
   intel: "Intelligence",
+  brain: "Brain",
   all: "Broadsheet",
 };
 
@@ -2082,6 +2085,64 @@ try {
 feedState.timer = setInterval(pollFeed, FEED_POLL_MS);
 pollFeed();
 
+/* The brain room: history synthesis (GET /insights) plus a HITL-safe
+   self-review cycle. Read-only; every proposal is still a human decision. */
+async function renderBrain() {
+  const setList = (id, items, empty) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = "";
+    const values = items.length ? items : [empty];
+    values.forEach((value) => {
+      const li = document.createElement("li");
+      if (!items.length) li.className = "meta";
+      li.textContent = value;
+      el.appendChild(li);
+    });
+  };
+  try {
+    const data = await fetchJson("/insights");
+    setList("brain-observations", data.observations || [], "no observations yet");
+    setList(
+      "brain-predictions",
+      (data.predictions || []).map((p) => p.statement),
+      "not enough history to project a run rate"
+    );
+    setList(
+      "brain-recommendations",
+      (data.recommendations || []).map((r) => `${r.focus}: ${r.action}`),
+      "nothing to recommend right now"
+    );
+  } catch {
+    /* leave the placeholders; the panel simply stays quiet */
+  }
+}
+
+document.getElementById("brain-review")?.addEventListener("click", async () => {
+  const out = document.getElementById("brain-proposals");
+  if (!out) return;
+  out.textContent = "";
+  try {
+    const response = await fetch("/insights/self-review", { method: "POST" });
+    const data = await response.json();
+    const items = (data.proposals || []).map((p) => `[${p.area}] ${p.proposal}`);
+    const values = items.length
+      ? items
+      : ["no proposals — nothing to improve right now"];
+    values.forEach((value) => {
+      const li = document.createElement("li");
+      if (!items.length) li.className = "meta";
+      li.textContent = value;
+      out.appendChild(li);
+    });
+  } catch {
+    const li = document.createElement("li");
+    li.className = "meta";
+    li.textContent = "self-review unavailable";
+    out.appendChild(li);
+  }
+});
+
 /* First paint: the ledger seeds and the empty-state panels do not depend on the
    API, so they render even if the very first scan fails. */
 renderInvestigation();
@@ -2089,4 +2150,5 @@ renderDecisions();
 renderAudit();
 renderIntelligence();
 renderWatch();
+renderBrain();
 scan();

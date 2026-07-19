@@ -558,7 +558,7 @@ def dashboard() -> FileResponse:
 
 # The dashboard's rooms are real URLs (back/forward and sharing work); the
 # client resolves the view from the path, so every room serves the same page.
-for _view_path in ("/watch", "/investigate", "/decide", "/intel", "/broadsheet"):
+for _view_path in ("/watch", "/investigate", "/decide", "/intel", "/brain", "/broadsheet"):
     app.add_api_route(_view_path, dashboard, include_in_schema=False)
 
 

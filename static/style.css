@@ -1714,3 +1714,18 @@ main .ledger-wide {
 #tour-card .tour-actions { display: flex; justify-content: space-between; }
 @media (prefers-reduced-motion: reduce) { #tour-card { animation: none; } }
 @media print { #tour-card { display: none; } }
+
+/* Brain room — history synthesis + self-review */
+.brain-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.4rem;
+  margin-top: 0.9rem;
+}
+.brain-list { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+.brain-list li { margin: 0.3rem 0; }
+.brain-review { margin-top: 1.4rem; }
+.brain-review ul { margin-top: 0.7rem; }
+@media (max-width: 760px) {
+  .brain-grid { grid-template-columns: 1fr; }
+}
