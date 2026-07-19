@@ -84,6 +84,15 @@ def test_dashboard_ships_the_brain_room():
     assert client.get("/brain").status_code == 200
 
 
+def test_dashboard_ships_the_routines_panel():
+    """The brain room runs suggested routines on demand (read-only)."""
+    page = client.get("/").text
+    assert 'id="routine-suggestions"' in page
+    app_js = client.get("/static/app.js").text
+    assert "renderRoutines" in app_js
+    assert "/routines/suggestions" in app_js
+
+
 def test_security_headers_present_on_dashboard():
     response = client.get("/")
     assert response.status_code == 200

@@ -1729,3 +1729,17 @@ main .ledger-wide {
 @media (max-width: 760px) {
   .brain-grid { grid-template-columns: 1fr; }
 }
+
+/* Routines panel (brain room) */
+.brain-routines { margin-top: 1.6rem; }
+.brain-routines li { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.routine-output {
+  margin-top: 0.9rem;
+  padding: 0.8rem 1rem;
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: 6px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}

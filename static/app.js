@@ -1427,6 +1427,7 @@ async function refreshDecisionSurfaces() {
   renderAudit();
   renderIntelligence();
   renderBrain();
+  renderRoutines();
 }
 
 async function decideAction(actionId, verb) {
@@ -2143,6 +2144,67 @@ document.getElementById("brain-review")?.addEventListener("click", async () => {
   }
 });
 
+/* Routines: rituals suggested from the current state; running one is read-only
+   (insights + pending + cost). A run reuses a saved routine of the same name
+   so repeated clicks do not clutter the store. */
+async function renderRoutines() {
+  const list = document.getElementById("routine-suggestions");
+  if (!list) return;
+  try {
+    const data = await fetchJson("/routines/suggestions");
+    list.textContent = "";
+    const suggestions = data.suggestions || [];
+    if (!suggestions.length) {
+      const li = document.createElement("li");
+      li.className = "meta";
+      li.textContent = "no routine suggestions";
+      list.appendChild(li);
+      return;
+    }
+    suggestions.forEach((suggestion) => {
+      const li = document.createElement("li");
+      const label = document.createElement("span");
+      label.textContent = `${suggestion.name} — ${suggestion.rationale} `;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "head-action";
+      button.textContent = "run ▸";
+      button.addEventListener("click", () => runRoutine(suggestion));
+      li.appendChild(label);
+      li.appendChild(button);
+      list.appendChild(li);
+    });
+  } catch {
+    /* quiet — the panel keeps its placeholder */
+  }
+}
+
+async function runRoutine(suggestion) {
+  const out = document.getElementById("routine-output");
+  if (!out) return;
+  out.hidden = false;
+  out.textContent = "running…";
+  try {
+    const existing = await fetchJson("/routines");
+    let routine = (existing.routines || []).find((r) => r.name === suggestion.name);
+    if (!routine) {
+      const created = await fetch("/routines", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: suggestion.name, steps: suggestion.steps }),
+      });
+      routine = await created.json();
+    }
+    const response = await fetch(`/routines/${routine.id}/run`, { method: "POST" });
+    const run = await response.json();
+    out.textContent = (run.steps || [])
+      .map((step) => `${step.step}: ${JSON.stringify(step.summary)}`)
+      .join("\n\n");
+  } catch {
+    out.textContent = "routine run failed";
+  }
+}
+
 /* First paint: the ledger seeds and the empty-state panels do not depend on the
    API, so they render even if the very first scan fails. */
 renderInvestigation();
@@ -2151,4 +2213,5 @@ renderAudit();
 renderIntelligence();
 renderWatch();
 renderBrain();
+renderRoutines();
 scan();
