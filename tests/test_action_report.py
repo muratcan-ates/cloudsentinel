@@ -36,6 +36,9 @@ def test_incident_report_renders_the_full_timeline(client):
     assert "## Triage" in markdown
     assert "Blast radius" in markdown
     assert "FinOps Framework" in markdown
+    # Post-action verification plan (detect-to-resolution).
+    assert "## Verification" in markdown
+    assert "Re-measure" in markdown
     # Honesty carried into the artifact, not just the UI.
     assert "simulated by design" in markdown
 

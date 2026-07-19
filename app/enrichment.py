@@ -31,3 +31,27 @@ def framework_reference(kind: str) -> dict:
         "framework": "FinOps Framework",
         "reference": "Anomaly Management capability",
     }
+
+
+def verification_plan(anomaly: dict, savings: dict) -> list[str]:
+    """How a human confirms an approved action actually resolved the signal.
+
+    Deterministic, evidence-first: what to re-measure, the expected direction,
+    and the saving that should follow. Execution is simulated in the
+    competition build, so this is the plan production would run to close the
+    detect-to-resolution loop against real post-change data.
+    """
+    service = anomaly.get("service", "the service")
+    baseline = anomaly.get("service_mean", "its baseline")
+    steps = [
+        f"Re-measure {service}'s daily cost for 7 days after the change.",
+        f"Confirm it returns toward its baseline (~{baseline}).",
+    ]
+    monthly = savings.get("cautious_monthly")
+    if monthly:
+        steps.append(f"Expected saving if resolved: ~${monthly}/month (cautious).")
+    steps.append(
+        "Execution is simulated here; in production this step re-checks the "
+        "real post-change cost and links the result to the audit record."
+    )
+    return steps

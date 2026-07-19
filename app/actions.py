@@ -28,7 +28,11 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Resp
 
 from app import bus, db
 from app.auth import UserOut, optional_user
-from app.enrichment import blast_radius_tier, framework_reference
+from app.enrichment import (
+    blast_radius_tier,
+    framework_reference,
+    verification_plan,
+)
 from app.models import ActionDecisionRequest, ActionListReport, ActionRecord, ActionState
 
 logger = logging.getLogger("cloudsentinel.actions")
@@ -477,6 +481,11 @@ def _render_report(
         lines += ["## Execution", "", f"- Mode: **{execution.get('mode', '—')}**"]
         if execution.get("note"):
             lines.append(f"- {execution['note']}")
+        lines.append("")
+
+    if anomaly:
+        lines += ["## Verification", ""]
+        lines += [f"- {step}" for step in verification_plan(anomaly, savings)]
         lines.append("")
 
     lines += [
