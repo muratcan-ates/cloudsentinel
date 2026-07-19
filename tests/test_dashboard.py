@@ -102,6 +102,15 @@ def test_dashboard_ships_the_runbook_search():
     assert "/runbooks/match" in app_js
 
 
+def test_dashboard_ships_the_backtest_table():
+    """The brain room shows detector precision/recall on ground truth."""
+    page = client.get("/").text
+    assert 'id="backtest-table"' in page
+    app_js = client.get("/static/app.js").text
+    assert "renderBacktest" in app_js
+    assert "/metrics/backtest" in app_js
+
+
 def test_security_headers_present_on_dashboard():
     response = client.get("/")
     assert response.status_code == 200

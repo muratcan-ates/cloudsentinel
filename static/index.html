@@ -225,6 +225,11 @@
           <input class="runbook-search" id="runbook-query" type="search" placeholder="e.g. ec2 cost spike" aria-label="Search remediation runbooks" />
           <ul class="brain-list" id="runbook-results"></ul>
         </div>
+        <div class="brain-backtest">
+          <h3 class="microcap">detection backtest</h3>
+          <p class="meta">precision/recall on planted synthetic ground truth — z-score vs MAD vs leave-one-out; measured, not narrated</p>
+          <div class="backtest-table" id="backtest-table"></div>
+        </div>
       </section>
     </main>
 

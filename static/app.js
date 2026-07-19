@@ -2248,6 +2248,38 @@ if (runbookInput) {
   });
 }
 
+/* Detection backtest: precision/recall on planted ground truth (static). */
+async function renderBacktest() {
+  const host = document.getElementById("backtest-table");
+  if (!host) return;
+  try {
+    const data = await fetchJson("/metrics/backtest");
+    host.textContent = "";
+    const table = document.createElement("table");
+    const head = document.createElement("tr");
+    ["scenario", "mode", "precision", "recall", "FN"].forEach((heading) => {
+      const th = document.createElement("th");
+      th.textContent = heading;
+      head.appendChild(th);
+    });
+    table.appendChild(head);
+    (data.rows || []).forEach((row) => {
+      const tr = document.createElement("tr");
+      [row.scenario, row.mode, row.precision, row.recall, row.false_negatives].forEach(
+        (value) => {
+          const td = document.createElement("td");
+          td.textContent = value === null || value === undefined ? "—" : String(value);
+          tr.appendChild(td);
+        }
+      );
+      table.appendChild(tr);
+    });
+    host.appendChild(table);
+  } catch {
+    /* quiet — the panel stays empty */
+  }
+}
+
 /* First paint: the ledger seeds and the empty-state panels do not depend on the
    API, so they render even if the very first scan fails. */
 renderInvestigation();
@@ -2257,4 +2289,5 @@ renderIntelligence();
 renderWatch();
 renderBrain();
 renderRoutines();
+renderBacktest();
 scan();

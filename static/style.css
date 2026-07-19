@@ -1758,3 +1758,15 @@ main .ledger-wide {
   font: inherit;
 }
 .runbook-search:focus { outline: 2px solid currentColor; outline-offset: 1px; }
+
+/* Detection backtest table (brain room) */
+.brain-backtest { margin-top: 1.6rem; }
+.backtest-table { margin-top: 0.7rem; overflow-x: auto; }
+.backtest-table table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+.backtest-table th, .backtest-table td {
+  text-align: left;
+  padding: 0.35rem 0.7rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-variant-numeric: tabular-nums;
+}
+.backtest-table th { text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.72rem; opacity: 0.7; }
