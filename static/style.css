@@ -1770,3 +1770,25 @@ main .ledger-wide {
   font-variant-numeric: tabular-nums;
 }
 .backtest-table th { text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.72rem; opacity: 0.7; }
+
+/* Identity / login (brain room) */
+.brain-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  margin: 0.8rem 0 0.2rem;
+  padding: 0.7rem 0.9rem;
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 6px;
+}
+#identity-form { display: inline-flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.brain-identity input {
+  padding: 0.4rem 0.6rem;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 5px;
+  color: inherit;
+  font: inherit;
+}
+.brain-identity input:focus { outline: 2px solid currentColor; outline-offset: 1px; }

@@ -195,6 +195,17 @@
       <section class="ledger-wide" id="sec-brain" aria-labelledby="brain-heading">
         <h2 class="section-word" id="brain-heading">the brain</h2>
         <p class="meta">what the system concludes from its own history — computed, never generated; every suggestion is a human decision</p>
+        <div class="brain-identity" id="brain-identity">
+          <span class="microcap">identity</span>
+          <span class="meta" id="identity-status">not signed in — decisions use the operator field</span>
+          <span id="identity-form">
+            <input id="auth-username" type="text" placeholder="username" autocomplete="username" aria-label="Username" />
+            <input id="auth-password" type="password" placeholder="password" autocomplete="current-password" aria-label="Password" />
+            <button class="head-action" type="button" id="auth-register">register</button>
+            <button class="head-action" type="button" id="auth-login">sign in</button>
+          </span>
+          <button class="head-action" type="button" id="auth-logout" hidden>sign out</button>
+        </div>
         <div class="brain-grid">
           <div class="intel-block">
             <p class="microcap">observations</p>

@@ -111,6 +111,16 @@ def test_dashboard_ships_the_backtest_table():
     assert "/metrics/backtest" in app_js
 
 
+def test_dashboard_ships_the_login_form():
+    """Sign-in wires a server-derived operator identity into decisions."""
+    page = client.get("/").text
+    assert 'id="auth-username"' in page
+    assert 'id="auth-login"' in page
+    app_js = client.get("/static/app.js").text
+    assert "/auth/login" in app_js
+    assert "authHeaders" in app_js
+
+
 def test_security_headers_present_on_dashboard():
     response = client.get("/")
     assert response.status_code == 200

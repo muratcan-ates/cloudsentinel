@@ -1444,6 +1444,7 @@ async function decideAction(actionId, verb) {
       headers: {
         "Idempotency-Key": crypto.randomUUID(),
         "Content-Type": "application/json",
+        ...authHeaders(),
       },
       body: JSON.stringify({ actor, rationale }),
     });
@@ -2280,6 +2281,107 @@ async function renderBacktest() {
   }
 }
 
+/* Identity: local sign-in so a decision carries a server-derived operator —
+   the audit trail stops being free browser text. Token in localStorage;
+   decideAction attaches it and the server derives the actor from the session. */
+let authToken = null;
+try {
+  authToken = localStorage.getItem("sentinel-token") || null;
+} catch {
+  authToken = null;
+}
+
+function authHeaders() {
+  return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+}
+
+async function refreshIdentity() {
+  const status = document.getElementById("identity-status");
+  const form = document.getElementById("identity-form");
+  const logout = document.getElementById("auth-logout");
+  if (!status) return;
+  if (!authToken) {
+    status.textContent = "not signed in — decisions use the operator field";
+    if (form) form.hidden = false;
+    if (logout) logout.hidden = true;
+    return;
+  }
+  try {
+    const me = await (await fetch("/auth/me", { headers: authHeaders() })).json();
+    if (!me.username) throw new Error("bad token");
+    status.textContent = `signed in as ${me.username} (${me.role}) — decisions carry this identity`;
+    if (form) form.hidden = true;
+    if (logout) logout.hidden = false;
+  } catch {
+    authToken = null;
+    try {
+      localStorage.removeItem("sentinel-token");
+    } catch {
+      /* storage unavailable */
+    }
+    status.textContent = "session expired — sign in again";
+    if (form) form.hidden = false;
+    if (logout) logout.hidden = true;
+  }
+}
+
+async function authAction(kind) {
+  const username = document.getElementById("auth-username")?.value.trim();
+  const password = document.getElementById("auth-password")?.value || "";
+  const status = document.getElementById("identity-status");
+  if (!username || !password) {
+    if (status) status.textContent = "enter a username and password (min 8 chars)";
+    return;
+  }
+  try {
+    if (kind === "register") {
+      const reg = await fetch("/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password, role: "approver" }),
+      });
+      if (!reg.ok && reg.status !== 409) {
+        if (status) status.textContent = "registration failed (name taken or weak password)";
+        return;
+      }
+    }
+    const login = await fetch("/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!login.ok) {
+      if (status) status.textContent = "invalid username or password";
+      return;
+    }
+    authToken = (await login.json()).token;
+    try {
+      localStorage.setItem("sentinel-token", authToken);
+    } catch {
+      /* storage unavailable — token lives for this session only */
+    }
+    await refreshIdentity();
+  } catch {
+    if (status) status.textContent = "auth request failed";
+  }
+}
+
+document
+  .getElementById("auth-register")
+  ?.addEventListener("click", () => authAction("register"));
+document
+  .getElementById("auth-login")
+  ?.addEventListener("click", () => authAction("login"));
+document.getElementById("auth-logout")?.addEventListener("click", () => {
+  authToken = null;
+  try {
+    localStorage.removeItem("sentinel-token");
+  } catch {
+    /* storage unavailable */
+  }
+  refreshIdentity();
+});
+
 /* First paint: the ledger seeds and the empty-state panels do not depend on the
    API, so they render even if the very first scan fails. */
 renderInvestigation();
@@ -2290,4 +2392,5 @@ renderWatch();
 renderBrain();
 renderRoutines();
 renderBacktest();
+refreshIdentity();
 scan();
