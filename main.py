@@ -231,7 +231,7 @@ def pulse_rate_limit() -> int:
 async def guard_expensive_endpoints(request: Request, call_next):
     """Rate-limit POST /pulse and tag every response with a request id."""
     request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]
-    if request.method == "POST" and readonly_enabled():
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"} and readonly_enabled():
         return Response(
             content='{"detail": "read-only demo mode — write operations are disabled"}',
             status_code=403,

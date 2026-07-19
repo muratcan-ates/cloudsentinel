@@ -52,7 +52,9 @@ def test_register_login_me_flow(client):
         json={"username": "alice", "password": "s3cret-pw!", "role": "approver"},
     )
     assert reg.status_code == 201
-    assert reg.json()["role"] == "approver"
+    # Security: self-registration can NEVER grant an elevated role — the
+    # requested 'approver' is ignored and the account is created as 'viewer'.
+    assert reg.json()["role"] == "viewer"
     assert "password" not in reg.json()
     assert "password_hash" not in reg.json()
 
@@ -66,7 +68,7 @@ def test_register_login_me_flow(client):
     me = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert me.status_code == 200
     assert me.json()["username"] == "alice"
-    assert me.json()["role"] == "approver"
+    assert me.json()["role"] == "viewer"
 
 
 def test_login_rejects_a_bad_password(client):
@@ -97,3 +99,23 @@ def test_invalid_role_is_rejected(client):
         json={"username": "dave", "password": "password-12", "role": "root"},
     )
     assert response.status_code == 422
+
+
+def test_self_registration_cannot_become_admin(client):
+    """Security regression: an anonymous caller can never self-elevate."""
+    reg = client.post(
+        "/auth/register",
+        json={"username": "mallory", "password": "password-99", "role": "admin"},
+    )
+    assert reg.status_code == 201
+    assert reg.json()["role"] == "viewer"
+
+
+def test_readonly_mode_blocks_writes_including_delete(client, monkeypatch):
+    """Security regression: read-only mode blocks every write verb, not just POST."""
+    created = client.post("/routines", json={"name": "rb", "steps": ["insights"]})
+    routine_id = created.json()["id"]
+    monkeypatch.setenv("SENTINEL_READONLY", "1")
+    blocked = client.post("/routines", json={"name": "z", "steps": ["insights"]})
+    assert blocked.status_code == 403
+    assert client.delete(f"/routines/{routine_id}").status_code == 403

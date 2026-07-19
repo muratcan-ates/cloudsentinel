@@ -71,7 +71,12 @@ def _to_user(row: sqlite3.Row) -> UserOut:
 def register(
     body: RegisterRequest, conn: sqlite3.Connection = Depends(db.get_db)
 ) -> UserOut:
-    """Create a local account. Role defaults to the least-privileged viewer."""
+    """Create a local account — always the least-privileged 'viewer'.
+
+    Self-service registration is anonymous, so it must never grant an elevated
+    role: the requested role is validated for a clean error, but the account is
+    always created as 'viewer'. Elevating a role is an admin-only action.
+    """
     if body.role not in ROLES:
         raise HTTPException(
             status_code=422, detail=f"role must be one of {list(ROLES)}"
@@ -83,7 +88,7 @@ def register(
             cursor = conn.execute(
                 "INSERT INTO users (username, password_hash, salt, role) "
                 "VALUES (?, ?, ?, ?)",
-                (body.username, password_hash, salt, body.role),
+                (body.username, password_hash, salt, "viewer"),
             )
             user_id = cursor.lastrowid
     except sqlite3.IntegrityError:
