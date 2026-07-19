@@ -66,6 +66,8 @@ def test_dashboard_hidden_from_openapi_schema():
         "/routines/suggestions",
         "/routines/{routine_id}",
         "/routines/{routine_id}/run",
+        "/runbooks",
+        "/runbooks/match",
         "/security/signals"
     }
 
