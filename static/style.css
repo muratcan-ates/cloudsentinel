@@ -404,8 +404,8 @@ h1 .period { color: var(--accent); }
   margin-right: 10px;
   vertical-align: 2px;
 }
-.edition.down { color: var(--alert); }
-.edition.down::before { background: var(--alert); }
+.edition.down { color: var(--ink-dim); }
+.edition.down::before { background: var(--ink-dim); }
 
 /* ---------- summary strip (fused to the masthead) ---------- */
 
@@ -714,7 +714,7 @@ main {
   font-family: "Instrument Serif", serif;
   font-style: italic;
   font-size: 18px;
-  color: var(--alert);
+  color: var(--ink-dim);
 }
 
 /* cost ledger */

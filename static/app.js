@@ -1593,13 +1593,13 @@ async function scan() {
       `LAST SCAN ${utcNow()} — MOCK DATA — ` +
       `AI ${state.provider === "gemini" ? "LIVE (GEMINI)" : "FAKE PROVIDER"}`;
     editionLine.classList.remove("down");
-  } catch (error) {
+  } catch {
     if (sequence !== scanSequence) return;
-    editionLine.textContent = "LINK LOST — MOCK DATA — SPRINT III";
+    editionLine.textContent = "RECONNECTING — MOCK DATA — SPRINT III";
     editionLine.classList.add("down");
-    anomalyList.innerHTML = `<p class="error-note">Signal lost — ${escapeHtml(error.message)}.</p>`;
-    document.getElementById("anomaly-meta").textContent = "scan failed — the panels keep the last successful scan";
-    if (!state.costs) document.getElementById("cost-meta").textContent = "signal lost";
+    anomalyList.innerHTML = `<p class="error-note">Reconnecting — the panels keep the last successful scan.</p>`;
+    document.getElementById("anomaly-meta").textContent = "waiting to reconnect — the panels keep the last successful scan";
+    if (!state.costs) document.getElementById("cost-meta").textContent = "reconnecting…";
   } finally {
     if (sequence === scanSequence) {
       anomalyList.style.opacity = "1";
