@@ -491,7 +491,15 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Backlog order and story selections**: The Sprint 2 backlog is ordered by dependency — the Gemini agent spike first (it unblocks both agents), then the Analyst and Recommender agents, the human-in-the-loop lifecycle, and finally decision memory feeding the Recommender. Each estimate is kept below half the sprint total (at most 3 of 13). Stories are split into tasks on the Miro board and assigned across the four active team members; on the board blue cards are user stories and red/orange cards are tasks (legend on the board itself).
 
-- **Daily Scrum**: daily communication runs over WhatsApp with team meetings and huddles on Slack. Evidence in [ProjectManagement/Sprint2Documents/](ProjectManagement/Sprint2Documents/): [WhatsApp daily coordination](ProjectManagement/Sprint2Documents/whatsapp_daily_scrum.png) · [Slack huddle (1h 36m)](ProjectManagement/Sprint2Documents/slack_huddle.png) · [dashboard shared for review](ProjectManagement/Sprint2Documents/slack_dashboard_share.png) · [frontend build shared](ProjectManagement/Sprint2Documents/slack_frontend_share.png).
+- **Daily Scrum**: daily communication runs over WhatsApp with team meetings and huddles on Slack — evidence captured through the sprint:
+
+  ![WhatsApp — daily coordination](ProjectManagement/Sprint2Documents/whatsapp_daily_scrum.png)
+
+  ![Slack — the team in a 1h 36m huddle](ProjectManagement/Sprint2Documents/slack_huddle.png)
+
+  ![Slack — dashboard shared for team review](ProjectManagement/Sprint2Documents/slack_dashboard_share.png)
+
+  ![Slack — frontend build shared](ProjectManagement/Sprint2Documents/slack_frontend_share.png)
 
 - **Sprint board update**:
 
