@@ -102,8 +102,14 @@ CloudSentinel is an agentic decision-support system that monitors cloud cost and
 - Live dashboard: anomaly feed with a live sentinel radar, cost ledger, investigation evidence, decision inbox (with operator identity + rationale capture), audit ledger and operations intelligence — real page rooms (`/watch`, `/investigate`, `/decide`, `/intel`), four palettes, WCAG AA, strict CSP
 - **Shift-handover brief** (`GET /analytics/handover`) — the standing operator questions answered from persisted state, printable to one page; a **guided jury tour** (`?tour=1`) walks the rooms in reading order
 - **Fully self-contained** — every font is self-hosted (`static/fonts/`) and Swagger is vendored, so the CSP allows no remote host on any path; shareable deep links (`?threshold=&service=`) open on the exact scene, and a `[BOOT]` manifest names each instance on startup
-- REST API (FastAPI, 33 endpoints) with self-hosted Swagger documentation (no CDN); a `/health` liveness ping and a `/ready` readiness probe (database, mission config and dataset) for deploy/uptime gating
+- REST API (FastAPI, 46 endpoints) with self-hosted Swagger documentation (no CDN); a `/health` liveness ping and a `/ready` readiness probe (database, mission config and dataset) for deploy/uptime gating
 - Demo operations, all env-gated: whole-week date rebase, demo reset with seeded verdict history, read-only public showcase mode; a borderline signal makes the sensitivity slider meaningful (lower it, a third warning surfaces)
+- **Decision brain** (`GET /insights`) — reflects on persisted history into observations, a run-rate cost projection and improvement recommendations, all computed not generated; a **self-review cycle** (`POST /insights/self-review`) proposes changes to the system itself (reflex candidates, threshold reviews, calibration, backlog) and applies nothing, publishing the cycle to the agent feed
+- **Routines** (`/routines`, `/routines/suggestions`) — saved, read-only analysis playbooks plus a routines agent that suggests them from the current state, runnable on demand
+- **Local identity** (`/auth`) — register/login with salted PBKDF2 and `viewer/analyst/approver/admin` roles; a signed-in operator's identity is **server-derived** onto every approval and rejection, so the audit trail is not free browser text
+- **Signal enrichment** — each incident report carries a blast-radius tier (L0–L3), an industry-framework reference (FinOps / MITRE ATT&CK), a post-action verification plan and a cited remediation runbook from a curated, keyword-matched library (`/runbooks`, RAG-lite, offline)
+- **Detection backtest** (`GET /metrics/backtest`) — precision/recall on planted synthetic ground truth across z-score, MAD and leave-one-out scoring, so contamination resistance is measured, not claimed; **incident reports** export as shareable Markdown (`GET /actions/{id}/report`)
+- **Brain room** in the dashboard (`/brain`) — insights, self-review, routines, runbook search, the backtest table and operator sign-in, wired live
 
 ## What It Does / What It Deliberately Does Not
 
@@ -117,7 +123,7 @@ The whole contract on one table — the right column is design, not backlog:
 | Scores payment events with published, hand-reproducible rules (per-rule point attribution) — an experimental lane showing the governance rails generalize past cost & security | Run ML fraud models, auto-block payments, hide the scoring arithmetic, or present fraud as the core product |
 | Remembers operator verdicts and feeds them back into future recommendations, disclosing how many were considered | Learn silently — memory use is visible on the card, and the chain's execution is traced hop by hop |
 | Accounts for its own AI spend (call ledger, cache hits, fallbacks, quota view) under a per-run call budget | Burn quota unbounded, retry forever, or fail when the LLM is unavailable — every agent degrades to a labeled rule-based fallback |
-| Ships hardened: strict CSP with self-hosted docs, security headers, rate-limited pulse, idempotent decisions, JSON failure envelope | Ship auth/RBAC, Postgres, schedulers or Slack — deliberate boundaries of this build, not oversights |
+| Ships hardened: strict CSP with self-hosted docs, security headers, rate-limited pulse, idempotent decisions, JSON failure envelope, and local auth (salted PBKDF2, roles) that gives every decision a server-derived operator identity | Ship Postgres, background schedulers, real cloud adapters or Slack — deliberate boundaries of this build, not oversights |
 
 ## Target Audience
 
@@ -200,7 +206,12 @@ cloudsentinel/
 │   ├── fraud.py          fraud lane — published deterministic rule score
 │   ├── actions.py        human-in-the-loop action lifecycle
 │   ├── decisions.py      decision memory retrieval + ledger export
-│   ├── analytics.py      funnel, savings, trend/forecast/what-if/ROI, self-FinOps
+│   ├── analytics.py      funnel, savings, trend/forecast/what-if/ROI, self-FinOps, backtest
+│   ├── insights.py       decision brain — history synthesis + HITL-safe self-review
+│   ├── routines.py       saved read-only analysis playbooks + routines agent
+│   ├── runbooks.py       curated remediation runbooks — keyword retrieval (RAG-lite)
+│   ├── enrichment.py     blast-radius tiers, framework refs, verification plans
+│   ├── auth.py           local identity — salted PBKDF2, roles, session tokens
 │   ├── pulse.py          one-call end-to-end chain + persisted last run
 │   ├── ops.py            env-gated demo reset
 │   ├── llm.py            provider layer: Gemini, context-aware fake, fallbacks, budget
@@ -210,7 +221,7 @@ cloudsentinel/
 ├── configs/              mission YAMLs — finops, security, fraud
 ├── static/               dashboard — tokenized design system, 4 palettes, vendored Swagger UI
 ├── scripts/              smoke test, failure drill, detection benchmark, Gemini spike
-├── tests/                406 pytest cases incl. performance budgets
+├── tests/                444 pytest cases incl. performance budgets
 ├── docs/                 architecture & agent design
 ├── Makefile              setup / run / test / demo / smoke / drill
 └── ProjectManagement/    sprint evidence packs (boards, screenshots)
@@ -287,7 +298,7 @@ docker run -p 8000:8000 cloudsentinel
 | **Python 3.12** | Core language (pinned in venv, CI and Docker) |
 | **FastAPI + Uvicorn** | REST API and ASGI server |
 | **Pydantic v2** | Typed request/response models and validation |
-| **pytest + httpx** | Automated test suite (406 tests, incl. performance budgets) |
+| **pytest + httpx** | Automated test suite (444 tests, incl. performance budgets) |
 | **SQLite** (stdlib `sqlite3`) | WAL-mode persistence core: action lifecycle, decision memory, LLM cache, idempotency |
 | **Docker** | Containerized, deployment-ready packaging |
 | **Gemini** (`google-genai`) | LLM provider layer with quota-aware retry and rule-based fallback |
@@ -530,7 +541,7 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Remaining scope** (headline items — the backlog holds the detail):
   - **Live Gemini spike** — provision the billing-disabled key and measure real RPM/RPD with `scripts/spike_gemini.py`; the whole chain already runs on the deterministic provider, so this lights up narratives, not correctness.
-  - **Continuous integration** — ✅ landed at Sprint 2 close: [`ci.yml`](.github/workflows/ci.yml) runs ruff + the full suite (406 tests) on every push and PR; Sprint 3 grows it with browser E2E and a post-deploy smoke.
+  - **Continuous integration** — ✅ landed at Sprint 2 close: [`ci.yml`](.github/workflows/ci.yml) runs ruff + the full suite (444 tests) on every push and PR; Sprint 3 grows it with browser E2E and a post-deploy smoke.
   - **Deployment** — Render (`render.yaml` ready, non-root healthchecked image) with UptimeRobot on `/health` and `SENTINEL_READONLY=1` on the public link; the dashboard's LIVE banner switches on via `SENTINEL_ENV=render`.
   - **Live-data trial & market watch** — a credential-free real billing export through the source-agnostic loader, and the trend/news-driven "possible suggestions" table.
   - **User's-eye UX pass** — friction measured from the operator's seat; the four-palette switcher shipped with horizon as the default; EN/TR overview kept in sync ([Türkçe özet](docs/README.tr.md)).
