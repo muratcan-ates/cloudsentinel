@@ -209,6 +209,12 @@ DEFAULT_PULSE_RATE_LIMIT = 60
 RATE_WINDOW_SECONDS = 60.0
 _pulse_hits: defaultdict[str, deque] = defaultdict(deque)
 
+# Credential stuffing guard: /auth/login is cheap to script and expensive to
+# serve (PBKDF2 by design), so it gets its own, much tighter window.
+LOGIN_RATE_LIMIT_ENV = "SENTINEL_LOGIN_RATE_LIMIT_PER_MINUTE"
+DEFAULT_LOGIN_RATE_LIMIT = 10
+_login_hits: defaultdict[str, deque] = defaultdict(deque)
+
 # Read-only showcase mode: a public demo link must survive strangers'
 # clicks. One env knob blocks every write while the panels keep reading.
 READONLY_ENV = "SENTINEL_READONLY"
@@ -218,13 +224,35 @@ def readonly_enabled() -> bool:
     return os.environ.get(READONLY_ENV, "").strip() == "1"
 
 
-def pulse_rate_limit() -> int:
-    raw = os.environ.get(RATE_LIMIT_ENV, "").strip()
+def _env_limit(name: str, default: int) -> int:
+    raw = os.environ.get(name, "").strip()
     try:
         value = int(raw)
     except ValueError:
-        return DEFAULT_PULSE_RATE_LIMIT
-    return value if value >= 0 else DEFAULT_PULSE_RATE_LIMIT
+        return default
+    return value if value >= 0 else default
+
+
+def pulse_rate_limit() -> int:
+    return _env_limit(RATE_LIMIT_ENV, DEFAULT_PULSE_RATE_LIMIT)
+
+
+def login_rate_limit() -> int:
+    return _env_limit(LOGIN_RATE_LIMIT_ENV, DEFAULT_LOGIN_RATE_LIMIT)
+
+
+def _over_limit(bucket: defaultdict[str, deque], client: str, limit: int) -> bool:
+    """Sliding-window check; records the hit when it is allowed."""
+    if limit <= 0:
+        return False
+    now = time.monotonic()
+    hits = bucket[client]
+    while hits and now - hits[0] > RATE_WINDOW_SECONDS:
+        hits.popleft()
+    if len(hits) >= limit:
+        return True
+    hits.append(now)
+    return False
 
 
 @app.middleware("http")
@@ -238,22 +266,25 @@ async def guard_expensive_endpoints(request: Request, call_next):
             media_type="application/json",
             headers={"X-Request-ID": request_id},
         )
-    if request.method == "POST" and request.url.path == "/pulse":
-        limit = pulse_rate_limit()
-        if limit > 0:
-            client = request.client.host if request.client else "unknown"
-            now = time.monotonic()
-            hits = _pulse_hits[client]
-            while hits and now - hits[0] > RATE_WINDOW_SECONDS:
-                hits.popleft()
-            if len(hits) >= limit:
-                return Response(
-                    content='{"detail": "pulse rate limit exceeded"}',
-                    status_code=429,
-                    media_type="application/json",
-                    headers={"Retry-After": "60", "X-Request-ID": request_id},
-                )
-            hits.append(now)
+    if request.method == "POST":
+        client = request.client.host if request.client else "unknown"
+        path = request.url.path
+        if path == "/pulse" and _over_limit(_pulse_hits, client, pulse_rate_limit()):
+            return Response(
+                content='{"detail": "pulse rate limit exceeded"}',
+                status_code=429,
+                media_type="application/json",
+                headers={"Retry-After": "60", "X-Request-ID": request_id},
+            )
+        if path == "/auth/login" and _over_limit(
+            _login_hits, client, login_rate_limit()
+        ):
+            return Response(
+                content='{"detail": "too many sign-in attempts — try again shortly"}',
+                status_code=429,
+                media_type="application/json",
+                headers={"Retry-After": "60", "X-Request-ID": request_id},
+            )
     response = await call_next(request)
     response.headers.setdefault("X-Request-ID", request_id)
     return response
@@ -333,22 +364,35 @@ def readiness_check(response: Response) -> ReadinessStatus:
         finally:
             conn.close()
         checks.append(ReadinessCheck(name="database", ok=True, detail="reachable"))
-    except Exception as exc:  # connectivity or missing schema
-        checks.append(ReadinessCheck(name="database", ok=False, detail=str(exc)[:120]))
+    except Exception:  # connectivity or missing schema
+        # Fixed reason codes only: the probe is unauthenticated, so the raw
+        # exception (which can carry file paths) is logged, never returned.
+        logging.getLogger("cloudsentinel.ready").warning(
+            "readiness: database check failed", exc_info=True
+        )
+        checks.append(ReadinessCheck(name="database", ok=False, detail="unreachable"))
 
     try:
         mission_name = get_mission().mission
         checks.append(
             ReadinessCheck(name="missions", ok=True, detail=f"loaded ({mission_name})")
         )
-    except MissionError as exc:
-        checks.append(ReadinessCheck(name="missions", ok=False, detail=str(exc)[:120]))
+    except MissionError:
+        logging.getLogger("cloudsentinel.ready").warning(
+            "readiness: mission config failed to load", exc_info=True
+        )
+        checks.append(
+            ReadinessCheck(name="missions", ok=False, detail="config unavailable")
+        )
 
     try:
         rows = len(load_dataset()["daily_costs"])
         checks.append(ReadinessCheck(name="dataset", ok=True, detail=f"{rows} cost rows"))
-    except Exception as exc:
-        checks.append(ReadinessCheck(name="dataset", ok=False, detail=str(exc)[:120]))
+    except Exception:
+        logging.getLogger("cloudsentinel.ready").warning(
+            "readiness: dataset failed to load", exc_info=True
+        )
+        checks.append(ReadinessCheck(name="dataset", ok=False, detail="unavailable"))
 
     ready = all(check.ok for check in checks)
     if not ready:

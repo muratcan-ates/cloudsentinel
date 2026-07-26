@@ -2372,7 +2372,14 @@ document
 document
   .getElementById("auth-login")
   ?.addEventListener("click", () => authAction("login"));
-document.getElementById("auth-logout")?.addEventListener("click", () => {
+document.getElementById("auth-logout")?.addEventListener("click", async () => {
+  // Revoke server-side first so the token dies with the session, then clear
+  // locally regardless of the outcome (the client must never stay "signed in").
+  try {
+    await fetch("/auth/logout", { method: "POST", headers: authHeaders() });
+  } catch {
+    /* offline — the local clear below still signs this browser out */
+  }
   authToken = null;
   try {
     localStorage.removeItem("sentinel-token");

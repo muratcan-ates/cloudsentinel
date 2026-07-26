@@ -18,6 +18,15 @@ from fastapi.responses import Response
 from app import db
 from app.models import DecisionListReport, DecisionRecord, DecisionSearchReport
 
+# Leading characters a spreadsheet treats as the start of a formula.
+_CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_safe(value: str) -> str:
+    """Prefix a formula-looking cell with an apostrophe so Excel shows text."""
+    text = str(value)
+    return f"'{text}" if text.startswith(_CSV_FORMULA_PREFIXES) else text
+
 router = APIRouter(tags=["memory"])
 
 
@@ -34,7 +43,12 @@ router = APIRouter(tags=["memory"])
 def export_decisions_csv(
     conn: sqlite3.Connection = Depends(db.get_db),
 ) -> Response:
-    """Download the decision ledger as CSV — the audit trail, portable."""
+    """Download the decision ledger as CSV — the audit trail, portable.
+
+    Operator-supplied text (service, rationale) is neutralised against CSV
+    formula injection: a leading =, +, -, @, tab or CR would otherwise be
+    executed as a formula when the export is opened in a spreadsheet.
+    """
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
     writer.writerow(["id", "action_id", "service", "verdict", "rationale", "decided_at"])
@@ -46,9 +60,9 @@ def export_decisions_csv(
             [
                 row["id"],
                 row["action_id"],
-                row["service"],
+                _csv_safe(row["service"]),
                 row["verdict"],
-                row["rationale"] or "",
+                _csv_safe(row["rationale"] or ""),
                 row["created_at"],
             ]
         )

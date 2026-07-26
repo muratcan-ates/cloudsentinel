@@ -25,6 +25,15 @@ from app import db
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 ROLES = ("viewer", "analyst", "approver", "admin")
+
+# Sessions expire so a captured token cannot grant access forever; the
+# operator can also end one early with POST /auth/logout.
+SESSION_MAX_AGE_HOURS = 12
+
+
+def _session_cutoff() -> str:
+    """SQLite datetime modifier for the oldest still-valid session."""
+    return f"-{SESSION_MAX_AGE_HOURS} hours"
 _PBKDF2_ROUNDS = 240_000
 
 
@@ -132,8 +141,8 @@ def current_user(
         raise HTTPException(status_code=401, detail="missing bearer token")
     row = conn.execute(
         "SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id "
-        "WHERE s.token = ?",
-        (token,),
+        "WHERE s.token = ? AND s.created_at >= datetime('now', ?)",
+        (token, _session_cutoff()),
     ).fetchone()
     if row is None:
         raise HTTPException(status_code=401, detail="invalid or expired token")
@@ -157,8 +166,8 @@ def optional_user(
         return None
     row = conn.execute(
         "SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id "
-        "WHERE s.token = ?",
-        (token,),
+        "WHERE s.token = ? AND s.created_at >= datetime('now', ?)",
+        (token, _session_cutoff()),
     ).fetchone()
     return _to_user(row) if row is not None else None
 
@@ -184,3 +193,22 @@ def require_role(minimum: str):
 def me(user: UserOut = Depends(current_user)) -> UserOut:
     """Return the authenticated user."""
     return user
+
+
+@router.post("/logout")
+def logout(
+    authorization: str | None = Header(None),
+    conn: sqlite3.Connection = Depends(db.get_db),
+) -> dict:
+    """End the current session — the token stops working immediately.
+
+    Idempotent and quiet: an absent or already-invalid token still returns
+    200, so a client can always clear its state without branching.
+    """
+    token = ""
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+    if token:
+        with db.writing(conn):
+            conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+    return {"detail": "signed out"}

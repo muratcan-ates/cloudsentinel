@@ -111,6 +111,48 @@ def test_self_registration_cannot_become_admin(client):
     assert reg.json()["role"] == "viewer"
 
 
+def test_logout_revokes_the_session(client):
+    """Security: a token must be revocable — logout kills it immediately."""
+    token = _token(client, "nina")
+    auth = {"Authorization": f"Bearer {token}"}
+    assert client.get("/auth/me", headers=auth).status_code == 200
+    assert client.post("/auth/logout", headers=auth).status_code == 200
+    assert client.get("/auth/me", headers=auth).status_code == 401
+
+
+def test_expired_sessions_are_rejected(client):
+    """Security: sessions age out, so a captured token is not valid forever."""
+    from app import db
+
+    token = _token(client, "oscar")
+    auth = {"Authorization": f"Bearer {token}"}
+    assert client.get("/auth/me", headers=auth).status_code == 200
+    conn = db.connect()
+    try:
+        with db.writing(conn):
+            conn.execute(
+                "UPDATE sessions SET created_at = datetime('now', '-48 hours') "
+                "WHERE token = ?",
+                (token,),
+            )
+    finally:
+        conn.close()
+    assert client.get("/auth/me", headers=auth).status_code == 401
+
+
+def test_login_is_rate_limited(client, monkeypatch):
+    """Security: online brute-force is throttled per client IP."""
+    monkeypatch.setenv("SENTINEL_LOGIN_RATE_LIMIT_PER_MINUTE", "3")
+    client.post("/auth/register", json={"username": "pat", "password": "password-99"})
+    codes = [
+        client.post(
+            "/auth/login", json={"username": "pat", "password": "wrong-pw-000"}
+        ).status_code
+        for _ in range(5)
+    ]
+    assert 429 in codes
+
+
 def test_readonly_mode_blocks_writes_including_delete(client, monkeypatch):
     """Security regression: read-only mode blocks every write verb, not just POST."""
     created = client.post("/routines", json={"name": "rb", "steps": ["insights"]})

@@ -282,3 +282,22 @@ def test_memory_digest_is_capped(client):
     lines = digest.splitlines()
     assert len(lines) == recommender.DECISION_MEMORY_LIMIT
     assert "rationale-7" in lines[0]  # newest first
+
+
+def test_csv_export_neutralises_formula_injection(client):
+    """Security: a rationale starting with = must not execute in a spreadsheet."""
+    from app import db
+
+    conn = db.connect()
+    try:
+        with db.writing(conn):
+            conn.execute(
+                "INSERT INTO decisions (action_id, service, verdict, rationale, "
+                "input_context_json) VALUES (NULL, 'ec2', 'approved', ?, '{}')",
+                ('=HYPERLINK("http://evil","x")',),
+            )
+    finally:
+        conn.close()
+    body = client.get("/decisions/export").text
+    assert "'=HYPERLINK" in body          # neutralised with a leading apostrophe
+    assert "\n=HYPERLINK" not in body     # never starts a cell bare
