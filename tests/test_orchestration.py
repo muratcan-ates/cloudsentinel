@@ -153,6 +153,44 @@ def test_chronicler_briefing_is_served_from_cache(client):
     assert [row["from_cache"] for row in usage] == [0, 1]
 
 
+def test_live_mode_skips_the_cache_entirely(client, monkeypatch):
+    """SENTINEL_COSTS_SOURCE=self: live facts move between pulses, so the
+    exact-facts key would never repeat — the chronicler neither reads nor
+    writes llm_cache and the table cannot grow write-only at a zero hit
+    rate."""
+    monkeypatch.setenv("SENTINEL_COSTS_SOURCE", "self")
+    facts = {
+        "cost_signals": 2,
+        "security_signals": 1,
+        "fraud_flagged": 0,
+        "cross_lane_cards": 0,
+        "analyzed": 2,
+        "proposals_filed": 2,
+        "proposals_reused": 0,
+        "top_service": "network",
+    }
+    conn = db.connect()
+    try:
+        first = chronicler.write_briefing(conn, facts)
+        second = chronicler.write_briefing(conn, facts)
+    finally:
+        conn.close()
+
+    assert first["from_cache"] is False
+    assert second["from_cache"] is False  # no cache read: identical facts paid again
+
+    conn = db.connect()
+    try:
+        cached = conn.execute("SELECT count(*) FROM llm_cache").fetchone()[0]
+        usage = conn.execute(
+            "SELECT from_cache FROM ai_usage WHERE agent = 'chronicler' ORDER BY id"
+        ).fetchall()
+    finally:
+        conn.close()
+    assert cached == 0  # and no cache write either
+    assert [row["from_cache"] for row in usage] == [0, 0]
+
+
 def test_dry_budget_briefing_falls_back_deterministically(client, monkeypatch):
     monkeypatch.setenv("SENTINEL_PULSE_LLM_BUDGET", "0")
     body = client.post("/pulse").json()

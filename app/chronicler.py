@@ -9,8 +9,9 @@ never invents a number.
 
 Quota discipline mirrors the other agents: the call charges the pulse's
 LLM budget (a dry budget lands on the deterministic fallback), answers
-are cached by exact facts, and every call — live, fake, cached or
-fallback — is ledgered in ``ai_usage``.
+are cached by exact facts on the mock cost lane only (live facts never
+repeat, so live mode skips the cache), and every call — live, fake,
+cached or fallback — is ledgered in ``ai_usage``.
 """
 
 import json
@@ -19,7 +20,7 @@ import sqlite3
 
 from pydantic import BaseModel
 
-from app import bus, db
+from app import bus, db, feeds
 from app.llm import (
     generate_with_fallback,
     get_provider,
@@ -102,7 +103,15 @@ def write_briefing(conn: sqlite3.Connection, facts: dict) -> dict:
         + wrap_untrusted(json.dumps(facts, sort_keys=True))
     )
 
-    cached = db.cache_get(conn, model, prompt, CHRONICLER_SYSTEM_INSTRUCTION)
+    # Live cost data (self telemetry or a feed) moves between pulses, so
+    # the exact-facts key would never repeat: every read misses and every
+    # run minted a dead row. Off the mock fixture the cache is skipped whole.
+    cacheable = feeds.costs_source() == "mock"
+    cached = (
+        db.cache_get(conn, model, prompt, CHRONICLER_SYSTEM_INSTRUCTION)
+        if cacheable
+        else None
+    )
     if cached is not None and cached["response_json"]:
         envelope = json.loads(cached["response_json"])
         report = BriefingReport.model_validate(envelope["report"])
@@ -130,7 +139,7 @@ def write_briefing(conn: sqlite3.Connection, facts: dict) -> dict:
             prompt=prompt,
             from_cache=from_cache,
         )
-        if source != "fallback" and not from_cache:
+        if cacheable and source != "fallback" and not from_cache:
             db.cache_put(
                 conn,
                 model,

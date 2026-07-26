@@ -520,6 +520,46 @@ def test_timeout_expired_proposal_re_recommends_from_cache(client):
     assert decisions == 0  # the timeout really recorded nothing
 
 
+def test_live_mode_skips_the_cache_entirely(client, monkeypatch):
+    """SENTINEL_COSTS_SOURCE=self: live cost data re-keys every prompt, so
+    the recommender neither reads nor writes llm_cache — the table cannot
+    grow write-only with a zero hit rate. Even the timeout-expiry lane
+    (the one production cache replay) pays a fresh call instead."""
+    monkeypatch.setenv("SENTINEL_COSTS_SOURCE", "self")
+    provider = SchemaAwareProvider({"RecommenderReport": HIGH_CONF_REPORT})
+    monkeypatch.setattr(recommender, "get_provider", lambda: provider)
+    event_id = seed_analyzed_event()
+
+    first = client.post(f"/anomalies/{event_id}/recommend").json()
+    conn = db.connect()
+    try:
+        with db.writing(conn):
+            conn.execute(
+                "UPDATE actions SET proposed_at = datetime('now', '-100 hours') "
+                "WHERE id = ?",
+                (first["action_id"],),
+            )
+    finally:
+        conn.close()
+    assert client.get("/actions").json()["actions"][0]["state"] == "rejected"
+
+    second = client.post(f"/anomalies/{event_id}/recommend").json()
+    assert first["from_cache"] is False
+    assert second["from_cache"] is False
+    assert len(provider.calls) == 2  # no cache read: the re-recommend paid again
+
+    conn = db.connect()
+    try:
+        cached = conn.execute("SELECT count(*) FROM llm_cache").fetchone()[0]
+        usage = conn.execute(
+            "SELECT from_cache FROM ai_usage WHERE agent = 'recommender' ORDER BY id"
+        ).fetchall()
+    finally:
+        conn.close()
+    assert cached == 0  # and no cache write either
+    assert [row["from_cache"] for row in usage] == [0, 0]
+
+
 def test_concurrent_recommends_file_exactly_one_action(client):
     """Two racing recommends: the in-transaction re-check under BEGIN
     IMMEDIATE must collapse them onto one inbox card."""

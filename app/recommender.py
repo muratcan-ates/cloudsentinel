@@ -20,8 +20,10 @@ injects prior operator decisions through that parameter in a single
 commit and nothing else may move.
 
 Quota and safety rules mirror the Analyst: cache only provider answers
-(never fallback), ledger every call in ai_usage, no LLM calls inside an
-open transaction, untrusted payloads spotlighted.
+(never fallback, and only on the mock cost lane — live data re-keys
+every prompt, so live mode skips the cache), ledger every call in
+ai_usage, no LLM calls inside an open transaction, untrusted payloads
+spotlighted.
 """
 
 import json
@@ -34,7 +36,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import BaseModel
 
-from app import bus, db
+from app import bus, db, feeds
 from app.llm import (
     Confidence,
     generate_with_fallback,
@@ -478,7 +480,13 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
         RECOMMENDER_SYSTEM_INSTRUCTION
         + f"\x00debate_threshold={escalation_threshold:.2f}"
     )
-    cached = db.cache_get(conn, model, prompt, cache_scope)
+    # Live cost data (self telemetry or a feed) moves between pulses, so
+    # the exact-prompt key would never repeat: every read misses and every
+    # run minted a dead row. Off the mock fixture the cache is skipped
+    # whole; an unchanged open proposal still replays through its actions
+    # row, and only the timeout-expiry lane pays a fresh call.
+    cacheable = feeds.costs_source() == "mock"
+    cached = db.cache_get(conn, model, prompt, cache_scope) if cacheable else None
     if cached is not None and cached["response_json"]:
         envelope = json.loads(cached["response_json"])
         from_cache = True
@@ -661,7 +669,7 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
                 source=source,
                 prompt=skeptic_prompt,
             )
-        if source != "fallback" and not from_cache:
+        if cacheable and source != "fallback" and not from_cache:
             db.cache_put(
                 conn,
                 model,
