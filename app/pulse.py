@@ -38,11 +38,13 @@ logger = logging.getLogger("cloudsentinel.pulse")
 router = APIRouter(tags=["agents"])
 
 # One pulse may spend at most this many provider calls (S3-⑤). The mock
-# demo needs ~6 (2 signals x analyst+reflection+recommender); debates can
-# add two more and the chronicler's briefing is one — 10 covers the full
-# chain without letting a runaway loop burn the day's free-tier quota.
+# demo needs ~6 (2 signals x analyst+reflection+recommender); both mock
+# signals are critical, so a convened review panel can add up to 3 calls
+# each, and the chronicler's briefing is one — 14 covers the full chain
+# with headroom without letting a runaway loop burn the day's free-tier
+# quota.
 PULSE_BUDGET_ENV = "SENTINEL_PULSE_LLM_BUDGET"
-DEFAULT_PULSE_LLM_BUDGET = 10
+DEFAULT_PULSE_LLM_BUDGET = 14
 
 
 def pulse_llm_budget() -> int:

@@ -41,9 +41,11 @@ def test_recommendation_carries_the_agent_trace(client):
     assert by_step["analyst"]["source"] == "fake"
     assert by_step["recommender"]["duration_ms"] >= 0
     assert by_step["recommender"]["from_cache"] is False
-    # fake confidence (0.5) sits under the debate bar, so the skeptic ran
-    assert "skeptic" in steps
-    assert by_step["skeptic"]["revised"] in (True, False)
+    # fake confidence (0.5) sits under the debate bar, and the first mock
+    # signal is critical — the ladder's top rung convened the review panel
+    assert "panel" in steps
+    assert by_step["panel"]["revised"] in (True, False)
+    assert by_step["panel"]["answered"] >= 2
 
     # the trace is part of the persisted evidence pack, not just the response
     action = client.get("/actions").json()["actions"][0]

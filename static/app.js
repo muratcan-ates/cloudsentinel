@@ -962,6 +962,30 @@ function preferredMonthlySaving(detail) {
 function transcriptFold(detail) {
   if (!detail.transcript) return "";
   const transcript = detail.transcript;
+  const reviewers = transcript.reviewers;
+  if (reviewers && reviewers.length) {
+    // panel transcript: one row per reviewer — persona, the model that
+    // seat actually ran, its stance (or abstention) and its argument
+    const rows = reviewers
+      .map((reviewer) => {
+        const stance = reviewer.stance
+          ? `${reviewer.stance}${reviewer.agreed ? "" : " — dissent"}`
+          : "abstained";
+        return `<p class="meta">${escapeHtml(
+          `${reviewer.persona} · ${reviewer.model} — ${stance} · ${reviewer.argument || ""}`
+        )}</p>`;
+      })
+      .join("");
+    return `<details class="transcript"><summary>review panel convened — ${transcript.agreed ? "consensus" : "stance revised"}</summary>
+       <p class="meta">trigger — ${escapeHtml(transcript.trigger || "")}</p>
+       ${rows}
+       <p class="meta">${
+         transcript.agreed
+           ? `the majority backed the ${escapeHtml(transcript.original_preferred || "draft")} stance`
+           : `the majority revised the stance ${escapeHtml(transcript.original_preferred || "")} → ${escapeHtml(transcript.final_preferred || "")}`
+       }</p>
+     </details>`;
+  }
   return `<details class="transcript"><summary>skeptic reviewed this — ${transcript.agreed ? "consensus" : "stance revised"}</summary>
        <p class="meta">trigger — ${escapeHtml(transcript.trigger || "")}</p>
        <p class="body">${escapeHtml(transcript.skeptic_rationale || "")}</p>
@@ -989,6 +1013,12 @@ function traceFold(detail) {
   const label = (entry) => {
     if (entry.step === "memory")
       return `memory — ${entry.entries} prior verdict${entry.entries === 1 ? "" : "s"} recalled`;
+    if (entry.step === "panel")
+      return (
+        `panel — ${entry.answered}/${entry.reviewers} reviewers answered · ` +
+        `${entry.revised ? "stance revised" : "consensus"}` +
+        (typeof entry.duration_ms === "number" ? ` · ${entry.duration_ms.toFixed(0)} ms` : "")
+      );
     const bits = [entry.step, entry.source === "fallback" ? "rule-based fallback" : entry.source];
     if (entry.from_cache) bits.push("cached");
     if (entry.reflected) bits.push("reflection pass");

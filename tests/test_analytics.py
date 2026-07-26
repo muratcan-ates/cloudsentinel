@@ -6,6 +6,8 @@ anywhere), corrupt rows must degrade to "skipped" instead of a 500, and
 the trend endpoint's windows must add up against /costs/daily.
 """
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -224,6 +226,20 @@ def test_telemetry_ledger_counts_are_pinned(client):
         db.record_ai_usage(
             conn, agent="skeptic", model="m", source="gemini", prompt="c"
         )
+        # debates count persisted transcripts, not skeptic call rows — a
+        # panel convenes three reviewers for ONE debate
+        with db.writing(conn):
+            event_id = db.upsert_event(
+                conn,
+                kind="cost_anomaly",
+                service="pinned",
+                occurred_on="2026-07-01",
+                payload_json="{}",
+            )
+            conn.execute(
+                "INSERT INTO actions (event_id, title, detail_json) VALUES (?, ?, ?)",
+                (event_id, "pinned", json.dumps({"transcript": {"agreed": True}})),
+            )
     finally:
         conn.close()
 
@@ -232,7 +248,7 @@ def test_telemetry_ledger_counts_are_pinned(client):
     assert telemetry["by_source"] == {"fake": 1, "gemini": 2}
     assert telemetry["requests_total"] == 3
     assert telemetry["cache_hits"] == 1
-    assert telemetry["debates"] == 1
+    assert telemetry["debates"] == 1  # one transcript on record
 
 
 def test_ai_usage_live_calls_exclude_cache_replays(client):

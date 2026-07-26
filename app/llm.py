@@ -40,6 +40,13 @@ logger = logging.getLogger("cloudsentinel.llm")
 
 # Quota-starved backup, if ever needed: gemini-2.5-flash-lite.
 DEFAULT_MODEL = "gemini-2.5-flash"
+# Heterogeneous review panel (critical contested calls): genuinely
+# different Gemini variants argue the same decision on one billing-
+# disabled key — model diversity without a new SDK or a second bill.
+# Comma-separated SENTINEL_PANEL_MODELS overrides (jury-day quota
+# pressure may force swapping pro out without a deploy).
+DEFAULT_PANEL_MODELS = ("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro")
+PANEL_MODELS_ENV = "SENTINEL_PANEL_MODELS"
 
 MAX_ATTEMPTS = 4
 TRANSIENT_STATUS = {500, 502, 503, 504}
@@ -480,3 +487,35 @@ def get_provider() -> LLMProvider:
         DEFAULT_MODEL,
     )
     return GeminiProvider()
+
+
+def panel_models() -> tuple[str, ...]:
+    """The review panel's model roster — env override with a safe default."""
+    raw = os.environ.get(PANEL_MODELS_ENV, "").strip()
+    if not raw:
+        return DEFAULT_PANEL_MODELS
+    models = tuple(model.strip() for model in raw.split(",") if model.strip())
+    return models or DEFAULT_PANEL_MODELS
+
+
+def get_panel_providers(models: tuple[str, ...] | None = None) -> list[LLMProvider]:
+    """One provider per panel seat, mirroring ``get_provider``'s selection.
+
+    Fake mode returns FakeProviders — fake stays fake, and the panel must
+    never display live model ids it did not actually run. Live mode builds
+    ONE genai.Client and shares it across the per-model providers (one
+    connection pool; each seat still self-labels via ``.model`` for the
+    cache key and the usage ledger).
+    """
+    models = models or panel_models()
+    if provider_mode() == "fake":
+        return [FakeProvider() for _ in models]
+    logger.warning(
+        "review panel convenes LIVE across %d Gemini models — requests "
+        "count against the shared free-tier daily quota",
+        len(models),
+    )
+    first = GeminiProvider(model=models[0])
+    return [first] + [
+        GeminiProvider(model=name, client=first._client) for name in models[1:]
+    ]

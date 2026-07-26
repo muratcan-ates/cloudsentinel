@@ -179,17 +179,21 @@ def _telemetry(conn: sqlite3.Connection) -> AgentTelemetry:
     cache_hits = conn.execute(
         "SELECT count(*) FROM ai_usage WHERE from_cache = 1"
     ).fetchone()[0]
-    # Did the skeptic ever CHANGE an outcome? Count persisted transcripts
-    # whose verdict overturned the draft stance — the debate's measurable
-    # effect, not just its occurrence.
+    # Debates are counted from persisted transcripts, not skeptic call
+    # rows: a panel convenes three reviewers for ONE debate, so the call
+    # ledger would triple the figure. Overturns count transcripts whose
+    # verdict changed the draft stance — the debate's measurable effect.
+    debates = 0
     overturned = 0
     for row in conn.execute("SELECT detail_json FROM actions"):
         try:
             transcript = json.loads(row["detail_json"]).get("transcript")
         except json.JSONDecodeError:
             continue
-        if isinstance(transcript, dict) and transcript.get("agreed") is False:
-            overturned += 1
+        if isinstance(transcript, dict):
+            debates += 1
+            if transcript.get("agreed") is False:
+                overturned += 1
 
     return AgentTelemetry(
         triage_distribution=dict(sorted(triage.items())),
@@ -198,7 +202,7 @@ def _telemetry(conn: sqlite3.Connection) -> AgentTelemetry:
         cache_hits=cache_hits,
         by_source=by_source,
         by_agent=by_agent,
-        debates=by_agent.get("skeptic", 0),
+        debates=debates,
         debates_overturned=overturned,
     )
 

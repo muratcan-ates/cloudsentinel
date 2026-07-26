@@ -234,8 +234,9 @@ def test_savings_are_computed_in_python_not_by_the_model(client):
 
 
 def test_fake_provider_low_confidence_triggers_debate(client):
-    """FakeProvider confidence (0.5) sits under the 0.6 debate threshold."""
-    event_id = seed_analyzed_event()
+    """FakeProvider confidence (0.5) sits under the 0.6 debate threshold.
+    Warning seed: the single-skeptic lane (critical convenes the panel)."""
+    event_id = seed_analyzed_event(z_score=2.5)
     body = client.post(f"/anomalies/{event_id}/recommend").json()
     assert body["escalation_reason"] is not None
     assert "low confidence" in body["escalation_reason"]
@@ -300,7 +301,7 @@ def test_disagreement_triggers_debate_and_skeptic_can_flip(client, monkeypatch):
         {"RecommenderReport": HIGH_CONF_REPORT, "SkepticVerdict": SKEPTIC_DISAGREES}
     )
     monkeypatch.setattr(recommender, "get_provider", lambda: provider)
-    event_id = seed_analyzed_event(triage="SEASONAL")
+    event_id = seed_analyzed_event(triage="SEASONAL", z_score=2.5)
     body = client.post(f"/anomalies/{event_id}/recommend").json()
     assert provider.calls == ["RecommenderReport", "SkepticVerdict"]
     assert "disagreement" in body["escalation_reason"]
@@ -323,7 +324,7 @@ def test_skeptic_agreement_never_flips_the_stance(client, monkeypatch):
         }
     )
     monkeypatch.setattr(recommender, "get_provider", lambda: provider)
-    event_id = seed_analyzed_event(triage="SEASONAL")  # disagreement debate
+    event_id = seed_analyzed_event(triage="SEASONAL", z_score=2.5)  # disagreement debate
     body = client.post(f"/anomalies/{event_id}/recommend").json()
     assert body["preferred"] == "BOLD"  # not flipped
     assert body["transcript"]["agreed"] is True
@@ -336,7 +337,7 @@ def test_skeptic_nonquota_failure_keeps_the_draft(client, monkeypatch):
     the cache, and the inbox."""
     provider = SkepticExplodesProvider()
     monkeypatch.setattr(recommender, "get_provider", lambda: provider)
-    event_id = seed_analyzed_event()  # fake confidence 0.5 -> debate fires
+    event_id = seed_analyzed_event(z_score=2.5)  # fake confidence 0.5 -> debate fires
 
     response = client.post(f"/anomalies/{event_id}/recommend")
     assert response.status_code == 200
@@ -371,7 +372,7 @@ def test_skeptic_ledger_row_hashes_the_skeptic_prompt(client, monkeypatch):
         }
     )
     monkeypatch.setattr(recommender, "get_provider", lambda: provider)
-    event_id = seed_analyzed_event()
+    event_id = seed_analyzed_event(z_score=2.5)
     client.post(f"/anomalies/{event_id}/recommend")
 
     conn = db.connect()
@@ -391,7 +392,9 @@ def test_skeptic_ledger_row_hashes_the_skeptic_prompt(client, monkeypatch):
 
 
 def test_debate_is_at_most_one_extra_call(client, monkeypatch):
-    """Low confidence AND disagreement together still cost one skeptic call."""
+    """On the WARNING rung of the ladder, low confidence AND disagreement
+    together still cost exactly one skeptic call; the critical rung's
+    panel cap is pinned in test_panel.py."""
     provider = SchemaAwareProvider(
         {
             "RecommenderReport": {**HIGH_CONF_REPORT, "confidence": {"score": 0.3, "rationale": "unsure"}},
@@ -399,7 +402,7 @@ def test_debate_is_at_most_one_extra_call(client, monkeypatch):
         }
     )
     monkeypatch.setattr(recommender, "get_provider", lambda: provider)
-    event_id = seed_analyzed_event(triage="SEASONAL")
+    event_id = seed_analyzed_event(triage="SEASONAL", z_score=2.5)
     client.post(f"/anomalies/{event_id}/recommend")
     assert provider.calls == ["RecommenderReport", "SkepticVerdict"]
 
@@ -481,8 +484,9 @@ def test_timeout_expired_proposal_re_recommends_from_cache(client):
     system:timeout rejection records NO decision (memory holds human
     intent only), so the prompt is unchanged — the replay must come from
     llm_cache with the debate outcome verbatim, be ledgered from_cache=1,
-    and never re-run the skeptic."""
-    event_id = seed_analyzed_event()
+    and never re-run the skeptic. Warning seed pins the single-skeptic
+    lane; the panel replay ride-along is pinned in test_panel.py."""
+    event_id = seed_analyzed_event(z_score=2.5)
     first = client.post(f"/anomalies/{event_id}/recommend").json()
     conn = db.connect()
     try:
@@ -687,9 +691,15 @@ def test_third_anomaly_day_escalates_even_at_high_confidence(client, monkeypatch
         }
     )
     monkeypatch.setattr(recommender, "get_provider", lambda: provider)
-    seed_analyzed_event(service="compute", occurred_on="2026-07-09", analyzed=False)
-    seed_analyzed_event(service="compute", occurred_on="2026-07-10", analyzed=False)
-    event_id = seed_analyzed_event(service="compute", occurred_on="2026-07-11")
+    seed_analyzed_event(
+        service="compute", occurred_on="2026-07-09", analyzed=False, z_score=2.5
+    )
+    seed_analyzed_event(
+        service="compute", occurred_on="2026-07-10", analyzed=False, z_score=2.5
+    )
+    event_id = seed_analyzed_event(
+        service="compute", occurred_on="2026-07-11", z_score=2.5
+    )
     body = client.post(f"/anomalies/{event_id}/recommend").json()
     assert body["escalation_reason"] is not None
     assert "repeated reflex" in body["escalation_reason"]
