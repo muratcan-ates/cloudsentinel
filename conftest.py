@@ -40,6 +40,7 @@ def _isolated_db(tmp_path, monkeypatch):
         "SENTINEL_DEMO_RESET",
         "SENTINEL_READONLY",
         "SENTINEL_COSTS_SOURCE",
+        "SENTINEL_COSTS_FILE",
         "SENTINEL_COSTS_FEED_URL",
         "SENTINEL_SECURITY_FEED_URL",
         "SENTINEL_FRAUD_FEED_URL",

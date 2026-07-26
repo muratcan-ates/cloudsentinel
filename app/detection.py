@@ -136,6 +136,11 @@ def load_dataset() -> dict:
         from app import telemetry
 
         return telemetry.usage_dataset()
+    if source == "file":
+        try:
+            return feeds.read_costs_file()
+        except feeds.FeedUnavailable:
+            feeds.record_fallback("costs", feeds.MOCK_FILE_FALLBACK)
     if source == "feed":
         try:
             return feeds.fetch_costs_feed()

@@ -125,7 +125,7 @@ Analyst's critical-severity second pass, not a separate roster entry.
 | Routines | `GET`/`POST /routines` · `GET /routines/suggestions` · `GET`/`DELETE /routines/{id}` · `POST /routines/{id}/run` |
 | Runbooks | `GET /runbooks` · `GET /runbooks/match` |
 | Lanes | `GET /security/signals` · `GET /fraud/signals` (band / min_score filters) |
-| Live data | `GET /telemetry/usage` (the app's own request history — the cost lane's dataset when `SENTINEL_COSTS_SOURCE=self`) |
+| Live data | `GET /telemetry/usage` (the app's own request history — the cost lane's dataset when `SENTINEL_COSTS_SOURCE=self`; `SENTINEL_COSTS_FILE` serves an imported billing export, `SENTINEL_*_FEED_URL` polls external JSON feeds) |
 | Missions | `GET /reflex/suggestions` |
 | Analytics | `GET /analytics/decisions` · `/costs/trend` · `/costs/forecast` · `/whatif` · `/roi` · `/ai` · `/calibration` · `/headline` · `/handover` · `GET /metrics/detection` · `GET /metrics/backtest` |
 | Ops | `GET /health` (liveness: version, provider, readonly, per-lane data sources) · `GET /ready` (readiness: database, mission config, dataset) · `POST /ops/demo-reset` (env-gated) |

@@ -7,6 +7,8 @@ instead of poisoning the detectors, failures fall back fetch -> last
 good payload -> mock, and /health names each lane's source.
 """
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -192,6 +194,67 @@ def test_failed_refresh_is_retried_once_per_ttl(monkeypatch):
     clock["now"] = 1500.0  # within the re-stamped TTL: no new attempt
     assert load_dataset()["currency"] == "EUR"
     assert calls == [1000.0, 1400.0]
+
+
+def test_costs_file_lane_serves_an_imported_export(tmp_path, monkeypatch):
+    dataset = {
+        "currency": "TRY",
+        "daily_costs": [
+            {"date": "2026-07-20", "service": "compute", "cost": 41.5},
+        ],
+    }
+    target = tmp_path / "live_costs.json"
+    target.write_text(json.dumps(dataset))
+    monkeypatch.setenv("SENTINEL_COSTS_FILE", str(target))
+    assert feeds.costs_source() == "file"
+    loaded = load_dataset()
+    assert loaded["currency"] == "TRY"
+    assert loaded["daily_costs"] == [
+        {"date": "2026-07-20", "service": "compute", "cost": 41.5}
+    ]
+    assert feeds.data_sources()["costs"] == "file"
+    # a broken file must not darken the panels — mock answers, honestly
+    target.write_text("{ not json")
+    assert len(load_dataset()["daily_costs"]) == 56
+    assert feeds.data_sources()["costs"] == "mock (file unavailable)"
+
+
+def test_costs_source_precedence(monkeypatch):
+    monkeypatch.setenv("SENTINEL_COSTS_FILE", "/tmp/x.json")
+    monkeypatch.setenv("SENTINEL_COSTS_FEED_URL", "https://example.test/costs")
+    assert feeds.costs_source() == "file"  # local truth beats a remote poll
+    monkeypatch.setenv("SENTINEL_COSTS_SOURCE", "self")
+    assert feeds.costs_source() == "self"  # explicit source wins
+    monkeypatch.setenv("SENTINEL_COSTS_SOURCE", "mock")
+    assert feeds.costs_source() == "mock"
+
+
+def test_import_costs_converts_a_billing_export(tmp_path):
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location(
+        "import_costs",
+        Path(__file__).resolve().parent.parent / "scripts" / "import_costs.py",
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    rows = [
+        # Azure Cost Management style headers, ISO datetime, duplicate day
+        {"UsageDate": "2026-07-01T00:00:00Z", "ServiceName": "compute", "CostInBillingCurrency": "10.5", "BillingCurrency": "EUR"},
+        {"UsageDate": "2026-07-01", "ServiceName": "compute", "CostInBillingCurrency": "2.0", "BillingCurrency": "EUR"},
+        {"UsageDate": "07/02/2026", "ServiceName": "storage", "CostInBillingCurrency": "3.25", "BillingCurrency": "EUR"},
+        {"UsageDate": "not-a-date", "ServiceName": "storage", "CostInBillingCurrency": "1.0", "BillingCurrency": "EUR"},
+    ]
+    dataset, dropped = module.convert(rows)
+    assert dropped == 1
+    assert dataset["currency"] == "EUR"
+    assert dataset["daily_costs"] == [
+        {"date": "2026-07-01", "service": "compute", "cost": 12.5},
+        {"date": "2026-07-02", "service": "storage", "cost": 3.25},
+    ]
+    # the written dataset is accepted end-to-end by the file lane
+    assert feeds._validate_costs(dataset)["daily_costs"] == dataset["daily_costs"]
 
 
 def test_data_sources_report_the_served_source_not_the_config(monkeypatch):

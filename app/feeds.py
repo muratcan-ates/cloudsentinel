@@ -4,9 +4,16 @@ Each data lane keeps its bundled mock file as the default and gains an
 opt-in live mode, resolved per request:
 
     costs     SENTINEL_COSTS_SOURCE=self          the app's own telemetry
+              SENTINEL_COSTS_FILE=path.json       imported billing export
               SENTINEL_COSTS_FEED_URL=https://…   external JSON feed
     security  SENTINEL_SECURITY_FEED_URL=…        external JSON feed
     fraud     SENTINEL_FRAUD_FEED_URL=…           external JSON feed
+
+The file lane is the credential-free "real billing export" trial
+(backlog A4): scripts/import_costs.py converts an Azure Cost
+Management / AWS CUR CSV export into the dataset contract, and the
+cost lane serves that JSON directly — no cloud credentials, no
+network.
 
 A feed must answer the exact JSON shape of its mock file; records that
 do not fit the contract are dropped (and counted in the log) rather
@@ -18,18 +25,21 @@ payload -> bundled mock file. With no live knob set, the mock path is
 byte-identical to before, which keeps the test suite and CI hermetic.
 """
 
+import json
 import logging
 import math
 import os
 import threading
 import time
 from datetime import date
+from pathlib import Path
 
 import httpx
 
 logger = logging.getLogger("cloudsentinel.feeds")
 
 COSTS_SOURCE_ENV = "SENTINEL_COSTS_SOURCE"  # self | mock (default)
+COSTS_FILE_ENV = "SENTINEL_COSTS_FILE"
 COSTS_FEED_ENV = "SENTINEL_COSTS_FEED_URL"
 SECURITY_FEED_ENV = "SENTINEL_SECURITY_FEED_URL"
 FRAUD_FEED_ENV = "SENTINEL_FRAUD_FEED_URL"
@@ -49,6 +59,7 @@ _served: dict[str, str] = {}
 _lock = threading.Lock()
 
 MOCK_FALLBACK = "mock (feed unavailable)"
+MOCK_FILE_FALLBACK = "mock (file unavailable)"
 
 
 class FeedUnavailable(Exception):
@@ -65,15 +76,21 @@ def feed_ttl_seconds() -> float:
 
 
 def costs_source() -> str:
-    """Resolve the cost lane's source: self | feed | mock.
+    """Resolve the cost lane's source: self | file | feed | mock.
 
-    An explicit SENTINEL_COSTS_SOURCE=mock wins over a configured feed
-    URL, so a demo can flip back to the fixture without unsetting it.
+    An explicit SENTINEL_COSTS_SOURCE (self or mock) wins over the
+    other knobs, so a demo can flip lanes without unsetting them; an
+    imported billing file wins over a feed URL (local truth beats a
+    remote poll).
     """
     raw = os.environ.get(COSTS_SOURCE_ENV, "").strip().lower()
     if raw == "self":
         return "self"
-    if raw != "mock" and os.environ.get(COSTS_FEED_ENV, "").strip():
+    if raw == "mock":
+        return "mock"
+    if os.environ.get(COSTS_FILE_ENV, "").strip():
+        return "file"
+    if os.environ.get(COSTS_FEED_ENV, "").strip():
         return "feed"
     return "mock"
 
@@ -102,15 +119,15 @@ def data_sources() -> dict[str, str]:
     with _lock:
         for lane, configured in sources.items():
             served = _served.get(lane)
-            if configured == "feed" and served and served != "feed":
+            if configured in ("feed", "file") and served and served != configured:
                 sources[lane] = served
     return sources
 
 
-def record_fallback(name: str) -> None:
-    """Loaders report here when a configured feed fell back to the mock."""
+def record_fallback(name: str, note: str = MOCK_FALLBACK) -> None:
+    """Loaders report here when a configured live source fell back to mock."""
     with _lock:
-        _served[name] = MOCK_FALLBACK
+        _served[name] = note
 
 
 def reset_cache() -> None:
@@ -328,6 +345,25 @@ def _validate_fraud(data: dict) -> dict:
         },
         "events": records,
     }
+
+
+def read_costs_file() -> dict:
+    """The imported billing export, validated to the dataset contract.
+
+    Read fresh on every call — the file is local and small, and a
+    re-import must show up without a restart. Raises FeedUnavailable
+    on any failure so the caller falls back to the bundled mock.
+    """
+    path = Path(os.environ[COSTS_FILE_ENV].strip())
+    try:
+        with path.open() as f:
+            payload = _validate_costs(json.load(f))
+    except Exception as exc:
+        logger.warning("costs file %s failed (%s)", path, exc)
+        raise FeedUnavailable("costs") from exc
+    with _lock:
+        _served["costs"] = "file"
+    return payload
 
 
 def fetch_costs_feed() -> dict:
