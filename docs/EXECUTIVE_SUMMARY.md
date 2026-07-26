@@ -54,16 +54,17 @@ The machine watches, the human decides.
 Built on FastAPI + Python 3.12 with a Gemini provider abstraction that
 degrades honestly to a deterministic fake and a rule-based fallback, so the
 full demo runs offline with no quota gamble. Quality bar: **400+ automated
-tests** over 30+ endpoints, ruff-clean, CI on every push and PR, a
-13-step live smoke sweep, and a benchmark harness that measures rather than
-asserts.
+tests** over 40+ endpoints, ruff-clean, CI on every push and PR, a
+13-step live smoke sweep, a detection benchmark and a 200-case agent-chain
+eval ([scorecard](EVAL_SCORECARD.md)) that measure rather than assert.
 
 ## Boundaries we state, not hide
 
-Data is synthetic and execution is **simulated by design** for the
-competition; there is no authentication, sqlite rather than Postgres, no
-background scheduler, and the fraud lane is published deterministic
-arithmetic, not ML. These are documented decisions in `Scope & Limitations`
+Data is synthetic by default and execution is **simulated by design** for
+the competition; identity is local (register/sign-in with server-derived
+operator identity — no OIDC or tenant isolation yet), sqlite rather than
+Postgres, no background scheduler, and the fraud lane is published
+deterministic arithmetic, not ML. These are documented decisions in `Scope & Limitations`
 and the Sprint 3 backlog — the honest label is *a well-engineered prototype
 that faithfully simulates a production product's behavior*. The roadmap to
 close that gap (real identity, durable state, scheduled ingestion, one real
