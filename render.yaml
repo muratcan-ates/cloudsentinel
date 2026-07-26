@@ -21,3 +21,12 @@ services:
       # Lights the "LIVE ON RENDER" banner on the dashboard edition line.
       - key: SENTINEL_ENV
         value: render
+      # Public showcase: strangers' clicks must not mutate shared state —
+      # every write answers 403 and the dashboard says so. Deliberate for
+      # the jury link; drop only on a private instance.
+      - key: SENTINEL_READONLY
+        value: "1"
+      # The live-data knobs (SENTINEL_COSTS_SOURCE=self, SENTINEL_COSTS_FILE,
+      # SENTINEL_*_FEED_URL) stay unset here on purpose: the public demo
+      # serves the reproducible fixture; a fresh ephemeral deploy has no
+      # accumulated telemetry history to show.
