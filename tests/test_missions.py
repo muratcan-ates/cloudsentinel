@@ -362,3 +362,47 @@ def test_changed_debate_threshold_partitions_the_llm_cache(client, config_dir):
     clear_mission_cache()
     second = client.post(f"/anomalies/{event_id}/recommend").json()
     assert second["from_cache"] is False  # new threshold -> new cache partition
+
+
+# --- quick-switch (in-memory override) ---------------------------------------
+
+
+def test_quick_switch_resolution_order(monkeypatch):
+    from app.missions import set_active_mission
+
+    assert get_mission().mission == "finops"  # code default
+    monkeypatch.setenv("SENTINEL_MISSION", "security")
+    clear_mission_cache()
+    assert get_mission().mission == "security"  # env boot default
+    set_active_mission("fraud")
+    assert get_mission().mission == "fraud"  # in-memory override outranks env
+    assert get_mission("finops").mission == "finops"  # explicit arg always wins
+    clear_mission_cache()  # the test hook also resets the override
+    monkeypatch.delenv("SENTINEL_MISSION")
+    assert get_mission().mission == "finops"
+
+
+def test_set_active_mission_rejects_unknown_slugs():
+    from app.missions import set_active_mission
+
+    with pytest.raises(MissionError):
+        set_active_mission("ghost")
+    assert get_mission().mission == "finops"  # a failed flip changes nothing
+
+
+def test_pulse_quick_switch_flips_every_following_surface(client):
+    body = client.post("/pulse?mission=security").json()
+    assert body["mission"] == "security"
+    # the flip is LIVE: the dashboard's polling surface follows it too
+    assert client.get("/anomalies").json()["mission"] == "security"
+
+
+def test_pulse_unknown_mission_fails_loudly(client):
+    response = client.post("/pulse?mission=ghost")
+    assert response.status_code == 400
+    assert "mission" in response.json()["detail"]
+    assert client.get("/anomalies").json()["mission"] == "finops"  # unchanged
+
+
+def test_pulse_malformed_mission_is_rejected_by_the_pattern(client):
+    assert client.post("/pulse?mission=../etc").status_code == 422

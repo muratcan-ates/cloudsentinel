@@ -11,6 +11,7 @@ The mission name is a filename component, so it is allow-listed to a
 strict slug — a path traversal can never reach outside ``configs/``.
 """
 
+import os
 import re
 from pathlib import Path
 from typing import Literal
@@ -78,10 +79,29 @@ class MissionConfig(BaseModel):
 
 _cache: dict[str, MissionConfig] = {}
 
+# Live quick-switch (in-memory, process-local): the dashboard flips the
+# active mission through POST /pulse?mission=… and every no-arg
+# get_mission() caller — /anomalies, /ready, the debate threshold —
+# follows together. Lane-pinned callers (security/fraud) pass explicit
+# names and never follow. Resolution: explicit arg > in-memory override
+# > SENTINEL_MISSION env (ops boot default) > code default.
+_active_mission: str | None = None
+MISSION_ENV = "SENTINEL_MISSION"
+
 
 def clear_mission_cache() -> None:
     """Test hook: force the next ``get_mission`` to re-read the file."""
+    global _active_mission
     _cache.clear()
+    _active_mission = None
+
+
+def set_active_mission(name: str) -> "MissionConfig":
+    """Validate and flip the process-wide active mission (quick-switch)."""
+    global _active_mission
+    config = load_mission(name)  # MissionError on unknown/invalid slugs
+    _active_mission = name
+    return config
 
 
 def load_mission(name: str) -> MissionConfig:
@@ -115,8 +135,19 @@ def load_mission(name: str) -> MissionConfig:
     return config
 
 
-def get_mission(name: str = DEFAULT_MISSION) -> MissionConfig:
-    """Cached mission lookup — configs are immutable within a process."""
+def get_mission(name: str | None = None) -> MissionConfig:
+    """Cached mission lookup — configs are immutable within a process.
+
+    A no-arg call resolves the ACTIVE mission (quick-switch override,
+    then the env boot default, then finops); an explicit name always
+    wins, so the lane-pinned callers never follow the switch.
+    """
+    if name is None:
+        name = (
+            _active_mission
+            or os.environ.get(MISSION_ENV, "").strip()
+            or DEFAULT_MISSION
+        )
     if name not in _cache:
         _cache[name] = load_mission(name)
     return _cache[name]

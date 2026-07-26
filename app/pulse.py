@@ -25,7 +25,7 @@ from app import bus, db, fraud
 from app.analyst import analyze_event
 from app.analytics import file_budget_risk_action
 from app.chronicler import write_briefing
-from app.missions import MissionError, get_mission
+from app.missions import MissionError, get_mission, set_active_mission
 from app.recommender import recommend_for_event
 from app.detection import DEFAULT_THRESHOLD, load_daily_costs, run_detection
 from app.models import LastPulseReport, PulseBriefing, PulseChainLink, PulseReport
@@ -76,9 +76,25 @@ def run_pulse(
             "demonstrates the rule-based fallback lane live."
         ),
     ),
+    mission: str | None = Query(
+        None,
+        pattern="^[a-z][a-z0-9_-]{0,63}$",
+        description=(
+            "Quick-switch: flip the ACTIVE mission before this run — the "
+            "same engine re-reads its thresholds, detector and debate bar "
+            "from another YAML, and every mission-following surface "
+            "(/anomalies, /ready, the debate threshold) flips with it."
+        ),
+    ),
     conn: sqlite3.Connection = Depends(db.get_db),
 ) -> PulseReport:
     """Run detect → analyze → recommend for every current signal."""
+    if mission is not None:
+        try:
+            set_active_mission(mission)
+        except MissionError as error:
+            # a typo must fail loudly, not fall into the silent defaults lane
+            raise HTTPException(status_code=400, detail=str(error)) from error
     records = load_daily_costs()
     # Reflex first: the deterministic pass carries the mission's settings
     # and its measured latency opens the tagged log chain.

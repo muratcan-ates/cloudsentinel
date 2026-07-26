@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CloudSentinel — Anomaly Watch</title>
-  <link rel="stylesheet" href="/static/style.css?v=s6.6" />
+  <link rel="stylesheet" href="/static/style.css?v=s6.7" />
   <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
   <meta name="description" content="CloudSentinel — cloud cost and security anomaly watch: detection, evidence-cited AI triage and human-approved remediation, execution simulated by design." />
   <meta property="og:title" content="CloudSentinel — Anomaly Watch" />
@@ -70,6 +70,13 @@
         <label class="microcap select-label" for="service-filter">Service
           <select id="service-filter" aria-label="Filter signals by service">
             <option value="">all</option>
+          </select>
+        </label>
+        <label class="microcap select-label" for="mission-select" title="one engine, three YAMLs — the switch re-reads thresholds, detector and the debate bar; the next Pulse runs under the new mission">Mission
+          <select id="mission-select" aria-label="Quick-switch the active mission">
+            <option value="finops">finops</option>
+            <option value="security">security</option>
+            <option value="fraud">fraud</option>
           </select>
         </label>
         <label class="microcap select-label" for="operator-name">Operator
@@ -152,6 +159,7 @@
         <h2 class="section-word" id="dec-heading">decision inbox</h2>
       </header>
       <p class="meta" id="decision-meta">a proposed action stays inert until an operator accepts or rejects it — execution is always simulated</p>
+      <p class="meta" id="decision-split" aria-live="polite"></p>
       <div id="decision-list" aria-live="polite"></div>
       </section>
 
@@ -304,6 +312,6 @@
     </div>
   </aside>
 
-  <script src="/static/app.js?v=s6.6"></script>
+  <script src="/static/app.js?v=s6.7"></script>
 </body>
 </html>

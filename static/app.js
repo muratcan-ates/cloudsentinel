@@ -1083,7 +1083,65 @@ function actionStatusLine(action) {
   return `rejected · ${action.decided_by || "operator"}`;
 }
 
+/* Reflex/conscious split — the filed cards' honest ledger: which sailed
+   through with no review call, which escalated and why, what the debate
+   changed. Pure client-side aggregation over the already-fetched cards —
+   measured from the cards themselves, not narrated; legacy cards without
+   an escalation record make no claim either way. */
+function renderDecisionSplit() {
+  const host = document.getElementById("decision-split");
+  if (!host) return;
+  const details = state.actions.map((action) => action.detail || {});
+  if (!details.length) {
+    host.textContent = "";
+    return;
+  }
+  let ruleLane = 0;
+  let reflex = 0;
+  let escalated = 0;
+  let lowConfidence = 0;
+  let disagreement = 0;
+  let repeated = 0;
+  let overruled = 0;
+  for (const detail of details) {
+    if (detail.kind === "fraud_hold" || detail.kind === "budget_risk") {
+      ruleLane += 1;
+      continue;
+    }
+    if (!("escalation_reason" in detail)) continue;
+    const reason = detail.escalation_reason;
+    if (reason == null) {
+      reflex += 1;
+      continue;
+    }
+    escalated += 1;
+    if (reason.startsWith("low confidence")) lowConfidence += 1;
+    else if (reason.startsWith("analyst-recommender disagreement")) disagreement += 1;
+    else if (reason.startsWith("repeated reflex")) repeated += 1;
+    if (detail.transcript && detail.transcript.agreed === false) overruled += 1;
+  }
+  const chips = [];
+  if (reflex)
+    chips.push(`<span class="stat-chip"><span class="chip-strong">${reflex}</span> sailed through — no skeptic call</span>`);
+  if (escalated) {
+    const why = [
+      lowConfidence ? `${lowConfidence}× low confidence` : "",
+      disagreement ? `${disagreement}× disagreement` : "",
+      repeated ? `${repeated}× repeated reflex` : "",
+    ]
+      .filter(Boolean)
+      .join(", ");
+    chips.push(`<span class="stat-chip"><span class="chip-strong">${escalated}</span> escalated${why ? ` — ${why}` : ""}</span>`);
+  }
+  if (overruled)
+    chips.push(`<span class="stat-chip"><span class="chip-strong">${overruled}</span> overruled by review</span>`);
+  if (ruleLane)
+    chips.push(`<span class="stat-chip"><span class="chip-strong">${ruleLane}</span> rule-lane — no LLM</span>`);
+  host.innerHTML = chips.length ? `these cards, measured — ${chips.join(" ")}` : "";
+}
+
 function renderDecisions() {
+  renderDecisionSplit();
   const pending = state.actions.filter((a) => a.state === "proposed").length;
   document.getElementById("decision-meta").textContent = pending
     ? `${pending} proposal${pending === 1 ? "" : "s"} awaiting an accountable hand — nothing executes automatically, execution is always simulated`
@@ -1701,6 +1759,9 @@ async function scan() {
     populateServiceFilter();
     renderAll(anomalies);
     syncUrlParams();
+    // the mission dropdown mirrors the server's active mission
+    const missionSelect = document.getElementById("mission-select");
+    if (missionSelect && anomalies.mission) missionSelect.value = anomalies.mission;
     editionLine.textContent =
       `SYSTEM ONLINE — ${state.env === "render" ? "LIVE ON RENDER — " : ""}` +
       `${state.readonly ? "READ-ONLY DEMO — " : ""}` +
@@ -1734,7 +1795,13 @@ async function runPulse() {
   pulseButton.disabled = true;
   pulseButton.textContent = "pulse running…";
   try {
-    const response = await fetch("/pulse", { method: "POST" });
+    // quick-switch rides the pulse: the selected mission flips the active
+    // YAML server-side, and every mission-following surface follows
+    const missionChoice = document.getElementById("mission-select")?.value;
+    const response = await fetch(
+      missionChoice ? `/pulse?mission=${encodeURIComponent(missionChoice)}` : "/pulse",
+      { method: "POST" }
+    );
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const report = await response.json();
     // run ledger: each chain hop lands in section V under the summary
@@ -1793,6 +1860,9 @@ thresholdInput.addEventListener("change", scan);
 serviceFilter.addEventListener("change", scan);
 rescanButton.addEventListener("click", scan);
 pulseButton.addEventListener("click", runPulse);
+// flipping the mission runs the chain under the new YAML right away —
+// the switch IS the demo beat, not a silent preference
+document.getElementById("mission-select")?.addEventListener("change", runPulse);
 
 document.addEventListener("click", (event) => {
   const themeChoice = event.target.closest("[data-theme-choice]");

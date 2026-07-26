@@ -201,6 +201,19 @@ def test_dashboard_ships_interactive_controls():
     assert 'data-anomaly-sort="z"' in page  # sortable signal table
 
 
+def test_dashboard_ships_the_mission_switch_and_the_split_strip():
+    """One engine, three YAMLs: the live mission quick-switch rides the
+    pulse, and the decide room measures its own cards — which sailed
+    through reflex-fast, which escalated and why, what review changed."""
+    page = client.get("/").text
+    assert 'id="mission-select"' in page
+    assert 'id="decision-split"' in page
+    app_js = client.get("/static/app.js").text
+    assert "/pulse?mission=" in app_js
+    assert "renderDecisionSplit" in app_js
+    assert "no skeptic call" in app_js
+
+
 def test_dashboard_ships_the_vitrin_and_pulse_controls():
     """Favicon, OG metadata and the one-click pulse chain are product."""
     page = client.get("/").text
