@@ -1779,9 +1779,9 @@ main .ledger-wide {
   letter-spacing: 0.08em;
   fill: var(--ink-faint);
 }
-.backtest-svg .bar.zscore { fill: var(--ink-faint); }
-.backtest-svg .bar.mad { fill: var(--accent); }
-.backtest-svg .bar.loo { fill: var(--ink-dim); }
+.backtest-svg .bt-bar.zscore { fill: var(--ink-faint); }
+.backtest-svg .bt-bar.mad { fill: var(--accent); }
+.backtest-svg .bt-bar.loo { fill: var(--ink-dim); }
 .backtest-svg .bar-value { fill: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .backtest-legend { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .backtest-legend .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 1px; }

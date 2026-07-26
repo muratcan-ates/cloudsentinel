@@ -661,6 +661,7 @@ function drawGroupedBars(svg, groups) {
   }
   const groupWidth = innerWidth / (groups.length || 1);
   const barGap = 6;
+  const captions = []; // appended after every bar so no column paints over a label
   groups.forEach((group, groupIndex) => {
     const barCount = group.bars.length || 1;
     const barWidth = Math.min(26, (groupWidth - barGap * (barCount + 1)) / barCount);
@@ -670,14 +671,16 @@ function drawGroupedBars(svg, groups) {
       const x = start + barIndex * (barWidth + barGap);
       const center = x + barWidth / 2;
       if (bar.value == null) {
-        svg.append(
+        captions.push(
           svgEl("text", { class: "tick-label", x: center.toFixed(1), y: (yFor(0) - 4).toFixed(1), "text-anchor": "middle" }, "—")
         );
         return;
       }
       const y = yFor(bar.value);
+      // "bt-bar", not "bar": the cost ledger's global .bar rule (height: 2px)
+      // would override the rect's geometry attribute in SVG2
       const rect = svgEl("rect", {
-        class: `bar ${bar.cls}`,
+        class: `bt-bar ${bar.cls}`,
         x: x.toFixed(1),
         y: y.toFixed(1),
         width: barWidth.toFixed(1),
@@ -686,11 +689,11 @@ function drawGroupedBars(svg, groups) {
       if (bar.title) rect.append(svgEl("title", {}, bar.title));
       svg.append(rect);
       const caption = bar.note ? `${bar.value.toFixed(2)} · ${bar.note}` : bar.value.toFixed(2);
-      svg.append(
+      captions.push(
         svgEl("text", { class: "tick-label bar-value", x: center.toFixed(1), y: (y - 4).toFixed(1), "text-anchor": "middle" }, caption)
       );
     });
-    svg.append(
+    captions.push(
       svgEl(
         "text",
         { class: "tick-label group-label", x: (pad.left + groupIndex * groupWidth + groupWidth / 2).toFixed(1), y: height - 4, "text-anchor": "middle" },
@@ -698,6 +701,7 @@ function drawGroupedBars(svg, groups) {
       )
     );
   });
+  svg.append(...captions);
 }
 
 function renderTrend() {
