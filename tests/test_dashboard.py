@@ -94,6 +94,18 @@ def test_dashboard_ships_the_routines_panel():
     assert "/routines/suggestions" in app_js
 
 
+def test_dashboard_ships_the_routine_save_controls():
+    """Persistence is explicit, not a run side effect: suggestions carry a
+    save button, and the saved list runs or retires stored routines."""
+    page = client.get("/").text
+    assert 'id="routine-saved"' in page
+    app_js = client.get("/static/app.js").text
+    assert "renderSavedRoutines" in app_js
+    assert "ensureRoutine" in app_js
+    assert "saveRoutine" in app_js
+    assert "deleteRoutine" in app_js
+
+
 def test_dashboard_ships_the_runbook_search():
     """The brain room retrieves curated remediation runbooks (RAG-lite)."""
     page = client.get("/").text

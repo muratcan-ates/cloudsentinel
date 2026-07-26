@@ -1428,6 +1428,7 @@ async function refreshDecisionSurfaces() {
   renderIntelligence();
   renderBrain();
   renderRoutines();
+  renderSavedRoutines();
 }
 
 async function decideAction(actionId, verb) {
@@ -2146,8 +2147,10 @@ document.getElementById("brain-review")?.addEventListener("click", async () => {
 });
 
 /* Routines: rituals suggested from the current state; running one is read-only
-   (insights + pending + cost). A run reuses a saved routine of the same name
-   so repeated clicks do not clutter the store. */
+   (insights + pending + cost). Saving is explicit now — a suggestion can be
+   persisted without running it, and the saved list runs or retires stored
+   rows. A save reuses a stored routine of the same name so repeated clicks
+   do not clutter the store (the server allows duplicates by design). */
 async function renderRoutines() {
   const list = document.getElementById("routine-suggestions");
   if (!list) return;
@@ -2166,13 +2169,20 @@ async function renderRoutines() {
       const li = document.createElement("li");
       const label = document.createElement("span");
       label.textContent = `${suggestion.name} — ${suggestion.rationale} `;
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "head-action";
-      button.textContent = "run ▸";
-      button.addEventListener("click", () => runRoutine(suggestion));
+      const run = document.createElement("button");
+      run.type = "button";
+      run.className = "head-action";
+      run.textContent = "run ▸";
+      run.addEventListener("click", () => runRoutine(suggestion));
+      const save = document.createElement("button");
+      save.type = "button";
+      save.className = "head-action";
+      save.textContent = "save ★";
+      save.title = "persist this ritual without running it";
+      save.addEventListener("click", () => saveRoutine(suggestion));
       li.appendChild(label);
-      li.appendChild(button);
+      li.appendChild(run);
+      li.appendChild(save);
       list.appendChild(li);
     });
   } catch {
@@ -2180,29 +2190,119 @@ async function renderRoutines() {
   }
 }
 
-async function runRoutine(suggestion) {
+function routineFailureNote(error) {
+  return error?.message === "HTTP 403"
+    ? "read-only demo — the routine store cannot be changed here"
+    : null;
+}
+
+async function ensureRoutine(suggestion) {
+  const existing = await fetchJson("/routines");
+  const found = (existing.routines || []).find((r) => r.name === suggestion.name);
+  if (found) return found;
+  const created = await fetch("/routines", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: suggestion.name,
+      description: suggestion.rationale || "",
+      steps: suggestion.steps,
+    }),
+  });
+  if (!created.ok) throw new Error(`HTTP ${created.status}`);
+  return created.json();
+}
+
+function showRoutineMessage(text) {
   const out = document.getElementById("routine-output");
   if (!out) return;
   out.hidden = false;
-  out.textContent = "running…";
+  out.textContent = text;
+}
+
+async function renderSavedRoutines() {
+  const list = document.getElementById("routine-saved");
+  if (!list) return;
   try {
-    const existing = await fetchJson("/routines");
-    let routine = (existing.routines || []).find((r) => r.name === suggestion.name);
-    if (!routine) {
-      const created = await fetch("/routines", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: suggestion.name, steps: suggestion.steps }),
-      });
-      routine = await created.json();
+    const data = await fetchJson("/routines");
+    list.textContent = "";
+    const routines = data.routines || [];
+    if (!routines.length) {
+      const li = document.createElement("li");
+      li.className = "meta";
+      li.textContent = "nothing saved yet — save a suggestion above";
+      list.appendChild(li);
+      return;
     }
-    const response = await fetch(`/routines/${routine.id}/run`, { method: "POST" });
+    routines.forEach((routine) => {
+      const li = document.createElement("li");
+      const label = document.createElement("span");
+      const description = routine.description ? ` · ${routine.description}` : "";
+      label.textContent = `${routine.name} — ${(routine.steps || []).join(" + ")}${description} `;
+      const run = document.createElement("button");
+      run.type = "button";
+      run.className = "head-action";
+      run.textContent = "run ▸";
+      run.addEventListener("click", () => runRoutineById(routine.id));
+      const retire = document.createElement("button");
+      retire.type = "button";
+      retire.className = "head-action";
+      retire.textContent = "retire ✕";
+      retire.title = "delete this saved routine";
+      retire.addEventListener("click", () => deleteRoutine(routine));
+      li.appendChild(label);
+      li.appendChild(run);
+      li.appendChild(retire);
+      list.appendChild(li);
+    });
+  } catch {
+    /* quiet — the panel keeps its placeholder */
+  }
+}
+
+async function saveRoutine(suggestion) {
+  try {
+    await ensureRoutine(suggestion);
+    await renderSavedRoutines();
+  } catch (error) {
+    showRoutineMessage(routineFailureNote(error) || "saving the routine failed");
+  }
+}
+
+async function deleteRoutine(routine) {
+  try {
+    const response = await fetch(`/routines/${routine.id}`, { method: "DELETE" });
+    if (!response.ok && response.status !== 404) throw new Error(`HTTP ${response.status}`);
+    await renderSavedRoutines();
+  } catch (error) {
+    showRoutineMessage(routineFailureNote(error) || "retiring the routine failed");
+  }
+}
+
+async function runRoutineById(routineId) {
+  showRoutineMessage("running…");
+  const out = document.getElementById("routine-output");
+  if (!out) return;
+  try {
+    const response = await fetch(`/routines/${routineId}/run`, { method: "POST" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const run = await response.json();
     out.textContent = (run.steps || [])
       .map((step) => `${step.step}: ${JSON.stringify(step.summary)}`)
       .join("\n\n");
-  } catch {
-    out.textContent = "routine run failed";
+  } catch (error) {
+    out.textContent = routineFailureNote(error) || "routine run failed";
+  }
+}
+
+async function runRoutine(suggestion) {
+  showRoutineMessage("running…");
+  try {
+    const routine = await ensureRoutine(suggestion);
+    renderSavedRoutines(); // the run may have just persisted the routine
+    await runRoutineById(routine.id);
+  } catch (error) {
+    showRoutineMessage(routineFailureNote(error) || "routine run failed");
   }
 }
 
@@ -2410,6 +2510,7 @@ renderIntelligence();
 renderWatch();
 renderBrain();
 renderRoutines();
+renderSavedRoutines();
 renderBacktest();
 refreshIdentity();
 scan();

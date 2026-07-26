@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CloudSentinel — Anomaly Watch</title>
-  <link rel="stylesheet" href="/static/style.css?v=s6.0" />
+  <link rel="stylesheet" href="/static/style.css?v=s6.1" />
   <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
   <meta name="description" content="CloudSentinel — cloud cost and security anomaly watch: detection, evidence-cited AI triage and human-approved remediation, execution simulated by design." />
   <meta property="og:title" content="CloudSentinel — Anomaly Watch" />
@@ -228,6 +228,8 @@
           <h3 class="microcap">routines — saved rituals</h3>
           <p class="meta">suggested from the current state; running one is read-only (insights + pending approvals + cost)</p>
           <ul class="brain-list" id="routine-suggestions"><li class="meta">—</li></ul>
+          <p class="microcap routine-saved-head">saved — persisted in the store</p>
+          <ul class="brain-list" id="routine-saved"><li class="meta">nothing saved yet — save a suggestion above</li></ul>
           <pre class="routine-output" id="routine-output" hidden></pre>
         </div>
         <div class="brain-runbooks">
@@ -296,6 +298,6 @@
     </div>
   </aside>
 
-  <script src="/static/app.js?v=s6.0"></script>
+  <script src="/static/app.js?v=s6.1"></script>
 </body>
 </html>

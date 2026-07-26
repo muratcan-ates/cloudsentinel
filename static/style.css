@@ -1741,6 +1741,7 @@ main .ledger-wide {
 /* Routines panel (brain room) */
 .brain-routines { margin-top: 1.6rem; }
 .brain-routines li { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.routine-saved-head { margin-top: 1rem; }
 .routine-output {
   margin-top: 0.9rem;
   padding: 0.8rem 1rem;
