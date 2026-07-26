@@ -78,6 +78,31 @@ def test_pulse_is_idempotent_and_quota_cheap(client):
     assert second["fraud_holds_filed"] == 0  # the open cards were reused
 
 
+def test_pulse_start_prunes_the_llm_cache(client):
+    """The prune must actually run at pulse start: a cache seeded past the
+    keep limit (live-mode growth) comes back bounded after one pulse."""
+    conn = db.connect()
+    try:
+        for index in range(db.CACHE_KEEP_ROWS + 25):
+            db.cache_put(conn, "gemini", f"stale-prompt-{index}", "stale")
+    finally:
+        conn.close()
+
+    client.post("/pulse")
+
+    # The prune runs at pulse START, before the run's own agents cache
+    # their answers — so the bound is asserted on the seeded rows, not on
+    # the total the pulse legitimately grew afterwards.
+    conn = db.connect()
+    try:
+        stale = conn.execute(
+            "SELECT count(*) FROM llm_cache WHERE response_text = 'stale'"
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    assert stale == db.CACHE_KEEP_ROWS
+
+
 def test_pulse_respects_the_threshold_parameter(client):
     quiet = client.post("/pulse", params={"threshold": 3.7}).json()
     assert quiet["signals"] == 0  # kills a hardcoded-threshold mutant

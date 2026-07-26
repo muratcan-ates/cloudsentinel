@@ -259,6 +259,30 @@ def test_second_analysis_is_served_from_cache(client, monkeypatch):
     assert [row["from_cache"] for row in usage] == [0, 1]
 
 
+def test_live_mode_skips_the_cache_entirely(client, monkeypatch):
+    """SENTINEL_COSTS_SOURCE=self: the moving evidence window would mint a
+    fresh key every pulse, so the analyst neither reads nor writes
+    llm_cache — the table cannot grow write-only with a zero hit rate."""
+    monkeypatch.setenv("SENTINEL_COSTS_SOURCE", "self")
+    provider = CountingProvider()
+    monkeypatch.setattr(analyst, "get_provider", lambda: provider)
+    event_id = seed_anomaly_event(z_score=2.2)
+
+    first = client.post(f"/anomalies/{event_id}/analyze").json()
+    second = client.post(f"/anomalies/{event_id}/analyze").json()
+
+    assert first["from_cache"] is False
+    assert second["from_cache"] is False
+    assert provider.calls == 2  # no cache read: the second run paid again
+
+    conn = db.connect()
+    try:
+        cached = conn.execute("SELECT count(*) FROM llm_cache").fetchone()[0]
+    finally:
+        conn.close()
+    assert cached == 0  # and no cache write either
+
+
 def test_fallback_answers_when_llm_unavailable_and_is_not_cached(client, monkeypatch):
     monkeypatch.setattr(analyst, "get_provider", lambda: UnavailableProvider())
     event_id = seed_anomaly_event(z_score=5.0)

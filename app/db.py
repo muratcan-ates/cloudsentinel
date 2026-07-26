@@ -411,6 +411,29 @@ def cache_put(
     )
 
 
+# Keep the cache bounded: live cost data moves between pulses, so exact-
+# prompt keys stop repeating and the table would otherwise grow write-only.
+# Pruning runs at each pulse start (the agent_feed pattern), far above what
+# the mock demo's stable keys ever accumulate.
+CACHE_KEEP_ROWS = 500
+
+
+def prune_llm_cache(conn: sqlite3.Connection, keep_rows: int = CACHE_KEEP_ROWS) -> None:
+    """Drop all but the ``keep_rows`` most recently written cache entries.
+
+    ``cache_put`` re-stamps ``created_at`` on refresh, so ordering by it
+    keeps the entries most recently earned or reused; rowid breaks
+    same-second ties toward the later insert. Single statement — safe in
+    autocommit, per the recorded carve-out.
+    """
+    conn.execute(
+        "DELETE FROM llm_cache WHERE key NOT IN ("
+        "SELECT key FROM llm_cache ORDER BY created_at DESC, rowid DESC LIMIT ?"
+        ")",
+        (keep_rows,),
+    )
+
+
 # --- AI usage ledger --------------------------------------------------------
 
 

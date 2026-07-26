@@ -106,6 +106,7 @@ def run_pulse(
     )
 
     bus.prune(conn)
+    db.prune_llm_cache(conn)
     bus.emit(
         conn,
         "reflex",

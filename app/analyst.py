@@ -10,7 +10,9 @@ Quota discipline (locked plan decisions):
 - Reflection (a second self-review pass) runs only for critical-severity
   signals, as the detection layer classified them.
 - Results are cached in ``llm_cache`` keyed by model + system + prompt;
-  a cache hit answers without any provider call.
+  a cache hit answers without any provider call. Mock lane only: live
+  cost data re-keys every prompt, so live mode skips the cache and
+  replay of an unchanged event rides ``events.analysis_json``.
 - Every provider call (and every cache hit) lands in the ``ai_usage``
   ledger with its source and prompt hash.
 - When the LLM is unavailable the deterministic rule-based fallback
@@ -31,7 +33,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import BaseModel
 
-from app import bus, db
+from app import bus, db, feeds
 from app.llm import (
     Confidence,
     LLMProvider,
@@ -228,7 +230,16 @@ def analyze_event(conn: sqlite3.Connection, event: sqlite3.Row) -> AnalysisRespo
     prompt = build_prompt(anomaly, evidence)
     reflection_prompt: str | None = None
 
-    cached = db.cache_get(conn, model, prompt, ANALYST_SYSTEM_INSTRUCTION)
+    # Live cost data (self telemetry or a feed) moves between pulses, so
+    # the exact-prompt key would never repeat: every read misses and every
+    # run minted a dead row. Off the mock fixture the cache is skipped
+    # whole; replay of an unchanged event rides events.analysis_json.
+    cacheable = feeds.costs_source() == "mock"
+    cached = (
+        db.cache_get(conn, model, prompt, ANALYST_SYSTEM_INSTRUCTION)
+        if cacheable
+        else None
+    )
     if cached is not None and cached["response_json"]:
         envelope = json.loads(cached["response_json"])
         report = AnalystReport.model_validate(envelope["report"])
@@ -310,7 +321,7 @@ def analyze_event(conn: sqlite3.Connection, event: sqlite3.Row) -> AnalysisRespo
                 source=source,
                 prompt=reflection_prompt,
             )
-        if source != "fallback" and not from_cache:
+        if cacheable and source != "fallback" and not from_cache:
             db.cache_put(
                 conn,
                 model,

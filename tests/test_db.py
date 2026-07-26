@@ -270,6 +270,29 @@ def test_cache_roundtrip_with_system_instruction(conn):
     assert row["response_text"] == "sys-answer"
 
 
+def test_prune_llm_cache_keeps_the_newest_rows(conn):
+    """Live-mode keys never repeat, so the prune must bound the table
+    while keeping exactly the most recently written entries."""
+    for index in range(8):
+        db.cache_put(conn, "gemini", f"prompt-{index}", f"answer-{index}")
+    db.prune_llm_cache(conn, keep_rows=3)
+    rows = conn.execute(
+        "SELECT response_text FROM llm_cache ORDER BY rowid"
+    ).fetchall()
+    assert [row["response_text"] for row in rows] == [
+        "answer-5",
+        "answer-6",
+        "answer-7",
+    ]
+
+
+def test_prune_llm_cache_leaves_small_tables_alone(conn):
+    db.cache_put(conn, "gemini", "prompt", "answer")
+    db.prune_llm_cache(conn)  # default keep_rows far above one row
+    assert conn.execute("SELECT count(*) FROM llm_cache").fetchone()[0] == 1
+    assert db.cache_get(conn, "gemini", "prompt")["response_text"] == "answer"
+
+
 # --- ai_usage ---------------------------------------------------------------
 
 
