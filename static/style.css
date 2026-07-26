@@ -1768,6 +1768,27 @@ main .ledger-wide {
 }
 .runbook-search:focus { outline: 2px solid currentColor; outline-offset: 1px; }
 
+/* Detection backtest chart (brain room) — grouped recall bars drawn with
+   the same hairline grid and tick voice as the trend chart. Mode colors
+   flow through the tokens so all four palettes keep working; the accent
+   marks MAD, the headline finding, and nothing else in this block. */
+.backtest-svg { display: block; width: 100%; height: 150px; margin-top: 0.7rem; overflow: visible; }
+.backtest-svg .grid { stroke: var(--hair); stroke-width: 1; shape-rendering: crispEdges; }
+.backtest-svg .tick-label {
+  font: 500 9px "Inter", sans-serif;
+  letter-spacing: 0.08em;
+  fill: var(--ink-faint);
+}
+.backtest-svg .bar.zscore { fill: var(--ink-faint); }
+.backtest-svg .bar.mad { fill: var(--accent); }
+.backtest-svg .bar.loo { fill: var(--ink-dim); }
+.backtest-svg .bar-value { fill: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.backtest-legend { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.backtest-legend .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 1px; }
+.backtest-legend .swatch.zscore { background: var(--ink-faint); }
+.backtest-legend .swatch.mad { background: var(--accent); }
+.backtest-legend .swatch.loo { background: var(--ink-dim); }
+
 /* Detection backtest table (brain room) */
 .brain-backtest { margin-top: 1.6rem; }
 .backtest-table { margin-top: 0.7rem; overflow-x: auto; }

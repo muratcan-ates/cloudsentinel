@@ -124,6 +124,18 @@ def test_dashboard_ships_the_backtest_table():
     assert "/metrics/backtest" in app_js
 
 
+def test_dashboard_draws_the_backtest_as_a_chart():
+    """The backtest renders as self-drawn grouped recall bars wired to the
+    sensitivity slider, and surfaces the server's own caveat note."""
+    page = client.get("/").text
+    assert 'id="backtest-legend"' in page
+    assert 'id="backtest-note"' in page
+    app_js = client.get("/static/app.js").text
+    assert "drawGroupedBars" in app_js
+    assert "backtest-svg" in app_js
+    assert "/metrics/backtest?threshold=" in app_js
+
+
 def test_dashboard_ships_the_login_form():
     """Sign-in wires a server-derived operator identity into decisions."""
     page = client.get("/").text

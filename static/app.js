@@ -641,6 +641,65 @@ function drawSeries(svg, values, { spikes = [], area = false, axes = null, band 
   return { points, scale };
 }
 
+/* Grouped bars on a fixed 0→1 scale (precision/recall live there): hairline
+   grid, one <rect> per bar, the exact value printed above each cap — the
+   measurement is the ornament. A null value prints "—" instead of a bar.
+   groups: [{label, bars: [{cls, value, note, title}]}] */
+function drawGroupedBars(svg, groups) {
+  svg.replaceChildren();
+  const [, , width, height] = svg.getAttribute("viewBox").split(" ").map(Number);
+  const pad = { left: 34, right: 8, top: 14, bottom: 18 };
+  const innerWidth = width - pad.left - pad.right;
+  const innerHeight = height - pad.top - pad.bottom;
+  const yFor = (value) => pad.top + (1 - value) * innerHeight;
+  for (const tick of [0, 0.5, 1]) {
+    const y = yFor(tick).toFixed(1);
+    svg.append(
+      svgEl("line", { class: "grid", x1: pad.left, x2: width - pad.right, y1: y, y2: y }),
+      svgEl("text", { class: "tick-label", x: pad.left - 6, y: Number(y) + 3, "text-anchor": "end" }, tick.toFixed(1))
+    );
+  }
+  const groupWidth = innerWidth / (groups.length || 1);
+  const barGap = 6;
+  groups.forEach((group, groupIndex) => {
+    const barCount = group.bars.length || 1;
+    const barWidth = Math.min(26, (groupWidth - barGap * (barCount + 1)) / barCount);
+    const rowWidth = barCount * barWidth + (barCount - 1) * barGap;
+    const start = pad.left + groupIndex * groupWidth + (groupWidth - rowWidth) / 2;
+    group.bars.forEach((bar, barIndex) => {
+      const x = start + barIndex * (barWidth + barGap);
+      const center = x + barWidth / 2;
+      if (bar.value == null) {
+        svg.append(
+          svgEl("text", { class: "tick-label", x: center.toFixed(1), y: (yFor(0) - 4).toFixed(1), "text-anchor": "middle" }, "—")
+        );
+        return;
+      }
+      const y = yFor(bar.value);
+      const rect = svgEl("rect", {
+        class: `bar ${bar.cls}`,
+        x: x.toFixed(1),
+        y: y.toFixed(1),
+        width: barWidth.toFixed(1),
+        height: Math.max(yFor(0) - y, 1).toFixed(1),
+      });
+      if (bar.title) rect.append(svgEl("title", {}, bar.title));
+      svg.append(rect);
+      const caption = bar.note ? `${bar.value.toFixed(2)} · ${bar.note}` : bar.value.toFixed(2);
+      svg.append(
+        svgEl("text", { class: "tick-label bar-value", x: center.toFixed(1), y: (y - 4).toFixed(1), "text-anchor": "middle" }, caption)
+      );
+    });
+    svg.append(
+      svgEl(
+        "text",
+        { class: "tick-label group-label", x: (pad.left + groupIndex * groupWidth + groupWidth / 2).toFixed(1), y: height - 4, "text-anchor": "middle" },
+        group.label
+      )
+    );
+  });
+}
+
 function renderTrend() {
   const svg = document.getElementById("cost-trend");
   const readout = document.getElementById("trend-readout");
@@ -2349,37 +2408,60 @@ if (runbookInput) {
   });
 }
 
-/* Detection backtest: precision/recall on planted ground truth (static). */
+/* Detection backtest: recall on planted ground truth, drawn as grouped bars —
+   one group per scenario, one bar per detector mode, at the sensitivity the
+   slider currently holds. Precision and FN ride each bar's tooltip, and the
+   server's own caveat note (why MAD wins the contaminated baseline) is
+   surfaced verbatim instead of being dropped. */
+const BACKTEST_MODES = [
+  { mode: "zscore", cls: "zscore" },
+  { mode: "mad", cls: "mad" },
+  { mode: "zscore+loo", cls: "loo" },
+];
+
 async function renderBacktest() {
   const host = document.getElementById("backtest-table");
   if (!host) return;
   try {
-    const data = await fetchJson("/metrics/backtest");
+    const threshold = parseFloat(thresholdInput?.value) || 2;
+    const data = await fetchJson(`/metrics/backtest?threshold=${threshold}`);
+    const rows = data.rows || [];
+    const scenarios = [...new Set(rows.map((row) => row.scenario))];
+    const groups = scenarios.map((scenario) => ({
+      label: scenario,
+      bars: BACKTEST_MODES.flatMap(({ mode, cls }) => {
+        const row = rows.find((r) => r.scenario === scenario && r.mode === mode);
+        if (!row) return [];
+        return [{
+          cls,
+          value: row.recall,
+          note: row.false_negatives > 0 ? `FN ${row.false_negatives}` : "",
+          title:
+            `${scenario} · ${mode} — precision ${row.precision ?? "—"}, ` +
+            `recall ${row.recall ?? "—"}, false negatives ${row.false_negatives}`,
+        }];
+      }),
+    }));
     host.textContent = "";
-    const table = document.createElement("table");
-    const head = document.createElement("tr");
-    ["scenario", "mode", "precision", "recall", "FN"].forEach((heading) => {
-      const th = document.createElement("th");
-      th.textContent = heading;
-      head.appendChild(th);
+    const svg = svgEl("svg", {
+      class: "backtest-svg",
+      viewBox: "0 0 460 150",
+      role: "img",
+      "aria-label": "Detection backtest — recall per scenario for z-score, MAD and leave-one-out",
     });
-    table.appendChild(head);
-    (data.rows || []).forEach((row) => {
-      const tr = document.createElement("tr");
-      [row.scenario, row.mode, row.precision, row.recall, row.false_negatives].forEach(
-        (value) => {
-          const td = document.createElement("td");
-          td.textContent = value === null || value === undefined ? "—" : String(value);
-          tr.appendChild(td);
-        }
-      );
-      table.appendChild(tr);
-    });
-    host.appendChild(table);
+    drawGroupedBars(svg, groups);
+    host.appendChild(svg);
+    const legend = document.getElementById("backtest-legend");
+    if (legend) legend.hidden = false;
+    const note = document.getElementById("backtest-note");
+    if (note) note.textContent = data.note ? `threshold ${data.threshold} — ${data.note}` : "";
   } catch {
     /* quiet — the panel stays empty */
   }
 }
+
+// the sensitivity slider drives the backtest too — the bars move with it
+thresholdInput?.addEventListener("change", renderBacktest);
 
 /* Identity: local sign-in so a decision carries a server-derived operator —
    the audit trail stops being free browser text. Token in localStorage;

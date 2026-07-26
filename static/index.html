@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CloudSentinel — Anomaly Watch</title>
-  <link rel="stylesheet" href="/static/style.css?v=s6.1" />
+  <link rel="stylesheet" href="/static/style.css?v=s6.2" />
   <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
   <meta name="description" content="CloudSentinel — cloud cost and security anomaly watch: detection, evidence-cited AI triage and human-approved remediation, execution simulated by design." />
   <meta property="og:title" content="CloudSentinel — Anomaly Watch" />
@@ -240,8 +240,14 @@
         </div>
         <div class="brain-backtest">
           <h3 class="microcap">detection backtest</h3>
-          <p class="meta">precision/recall on planted synthetic ground truth — z-score vs MAD vs leave-one-out; measured, not narrated</p>
+          <p class="meta">recall on planted synthetic ground truth at the current sensitivity — z-score vs MAD vs leave-one-out; precision and misses ride each bar; measured, not narrated</p>
           <div class="backtest-table" id="backtest-table"></div>
+          <p class="meta backtest-legend" id="backtest-legend" hidden>
+            <span class="swatch zscore" aria-hidden="true"></span> z-score
+            <span class="swatch mad" aria-hidden="true"></span> MAD
+            <span class="swatch loo" aria-hidden="true"></span> z-score + leave-one-out
+          </p>
+          <p class="meta" id="backtest-note"></p>
         </div>
       </section>
     </main>
@@ -298,6 +304,6 @@
     </div>
   </aside>
 
-  <script src="/static/app.js?v=s6.1"></script>
+  <script src="/static/app.js?v=s6.2"></script>
 </body>
 </html>
