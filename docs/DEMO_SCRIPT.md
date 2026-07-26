@@ -125,4 +125,5 @@ path uses the real model; the demo does not depend on it.
   onayladın, refleks kuralı yapalım mı?" — proposals only, never applied
   automatically.
 - **Routines:** save a suggested ritual in `/brain`, run it from the
-  saved list — persistence is explicit, and running one is read-only.
+  saved list — a suggestion can be saved without running it, and running
+  one is read-only.
