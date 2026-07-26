@@ -1306,15 +1306,17 @@ function renderAudit() {
 }
 
 /* ---------- guided jury tour (?tour=1) ----------
-   A five-stop walk through the rooms, so a first-time viewer reads the
-   product in the right order. Vanilla DOM, no inline handlers, and it
-   respects the same no-reload navigation the navbar uses. */
+   A walk through the rooms — one stop each — so a first-time viewer reads
+   the product in the right order. Vanilla DOM, no inline handlers, and it
+   respects the same no-reload navigation the navbar uses. Stop numbering
+   is derived from the list, so adding a room here is the whole change. */
 const TOUR_STOPS = [
-  { view: "watch", title: "1 / 5 · Watch", body: "Cost, security and fraud anomalies surface here through one detection line. The radar sweeps the live signal field; drag sensitivity and a borderline signal appears." },
-  { view: "investigate", title: "2 / 5 · Investigation", body: "Pick a signal for its 14-day evidence, the Analyst's cited triage and the Recommender's two options — cautious and bold — with savings computed in Python." },
-  { view: "decide", title: "3 / 5 · Decision desk", body: "Every critical action waits for a human. Approve or reject with a rationale; nothing executes unapproved, and execution is always simulated." },
-  { view: "intel", title: "4 / 5 · Intelligence", body: "The funnel, approved value, forecast, calibration and the self-FinOps ledger — pure arithmetic over what the pipeline persisted. Print a shift handover from here." },
-  { view: "all", title: "5 / 5 · The whole broadsheet", body: "Open the agent feed (bottom right) and hit Pulse: watch six agents reason in the open, hop by hop, in real time." },
+  { view: "watch", title: "Watch", body: "Cost, security and fraud anomalies surface here through one detection line. The radar sweeps the live signal field; drag sensitivity and a borderline signal appears." },
+  { view: "investigate", title: "Investigation", body: "Pick a signal for its 14-day evidence, the Analyst's cited triage and the Recommender's two options — cautious and bold — with savings computed in Python." },
+  { view: "decide", title: "Decision desk", body: "Every critical action waits for a human. Approve or reject with a rationale; nothing executes unapproved, and execution is always simulated." },
+  { view: "intel", title: "Intelligence", body: "The funnel, approved value, forecast, calibration and the self-FinOps ledger — pure arithmetic over what the pipeline persisted. Print a shift handover from here." },
+  { view: "brain", title: "The brain", body: "What the system concludes from its own history: insights, a HITL-safe self-review, saved routines, runbook retrieval and a measured detection backtest. Every suggestion still waits for a human." },
+  { view: "all", title: "The whole broadsheet", body: "Open the agent feed (bottom right) and hit Pulse: watch six agents reason in the open, hop by hop, in real time." },
 ];
 
 function startTour() {
@@ -1330,7 +1332,7 @@ function startTour() {
     applyView(s.view);
     window.scrollTo({ top: 0 });
     card.innerHTML =
-      `<p class="tour-title microcap">${escapeHtml(s.title)}</p>` +
+      `<p class="tour-title microcap">${escapeHtml(`${step + 1} / ${TOUR_STOPS.length} · ${s.title}`)}</p>` +
       `<p class="tour-body">${escapeHtml(s.body)}</p>` +
       `<div class="tour-actions">` +
       `<button class="row-action" type="button" data-tour="skip">skip</button>` +
