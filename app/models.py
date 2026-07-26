@@ -39,6 +39,11 @@ class HealthStatus(BaseModel):
     # SENTINEL_READONLY=1 turns the public link into a safe showcase:
     # every POST answers 403 and the dashboard says so.
     readonly: bool = False
+    # Where each data lane's records come from right now, keyed by lane
+    # (costs, security, fraud): "mock" (bundled fixture), "self" (the
+    # app's own telemetry) or "feed" (external URL). The dashboard's
+    # data badge renders this instead of assuming mock.
+    data_sources: dict[str, str] = Field(default_factory=dict)
 
 
 class ReadinessCheck(BaseModel):
@@ -76,6 +81,28 @@ class DailyCostReport(BaseModel):
     dates: list[str]
     services: list[DailyServiceSeries]
     totals: list[float]
+
+
+class TelemetryRecord(BaseModel):
+    """One day of real, self-observed traffic for one organ."""
+
+    date: str
+    service: str
+    cost: float
+
+
+class TelemetryUsageReport(BaseModel):
+    """The app's own request history in the cost-dataset contract.
+
+    Served by GET /telemetry/usage and consumed by the cost lane when
+    SENTINEL_COSTS_SOURCE=self — cost carries requests/day (currency
+    "req"), so the same detectors and panels run over live usage.
+    """
+
+    description: str
+    currency: str
+    period: Period
+    daily_costs: list[TelemetryRecord]
 
 
 class Anomaly(BaseModel):

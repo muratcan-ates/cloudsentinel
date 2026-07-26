@@ -36,7 +36,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
 
-from app import bus, db
+from app import bus, db, feeds
 from app.detection import shift_iso, demo_rebase_delta
 from app.missions import MissionError, get_mission
 from app.models import FraudRuleHit, FraudSignal, FraudSignalReport
@@ -65,6 +65,13 @@ _warned_mission_fallback = False
 
 
 def load_fraud_dataset() -> dict:
+    # Live mode (SENTINEL_FRAUD_FEED_URL): data is already current, no
+    # rebase; a dead feed falls back to the bundled fixture below.
+    if feeds.fraud_source() == "feed":
+        try:
+            return feeds.fetch_fraud_feed()
+        except feeds.FeedUnavailable:
+            feeds.record_fallback("fraud")
     with FRAUD_DATA_FILE.open() as f:
         dataset = json.load(f)
     # Same whole-week demo shift as the cost lane (see demo_rebase_delta).

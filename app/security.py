@@ -19,7 +19,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, Query
 
-from app import db
+from app import db, feeds
 from app.detection import DEFAULT_THRESHOLD, shift_iso, demo_rebase_delta, run_detection
 from app.missions import MissionError, get_mission
 from app.models import SecuritySignal, SecuritySignalReport
@@ -35,6 +35,13 @@ EVENT_KIND = "security_anomaly"
 
 
 def load_security_dataset() -> dict:
+    # Live mode (SENTINEL_SECURITY_FEED_URL): data is already current, no
+    # rebase; a dead feed falls back to the bundled fixture below.
+    if feeds.security_source() == "feed":
+        try:
+            return feeds.fetch_security_feed()
+        except feeds.FeedUnavailable:
+            feeds.record_fallback("security")
     with SECURITY_DATA_FILE.open() as f:
         dataset = json.load(f)
     # Same whole-week demo shift as the cost lane, so cross-lane same-day

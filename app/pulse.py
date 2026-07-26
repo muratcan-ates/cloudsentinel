@@ -125,12 +125,17 @@ def run_pulse(
     with llm_call_budget(budget_limit) as budget:
         for anomaly in anomalies:
                 with db.writing(conn):
+                    # A live source can re-state a day's figures; when the
+                    # payload changes, the pinned analysis is dropped so the
+                    # analyst re-triages the numbers actually on screen.
+                    # Identical payloads (mock lane) keep their analysis.
                     event_id = db.upsert_event(
                         conn,
                         kind="cost_anomaly",
                         service=anomaly.service,
                         occurred_on=anomaly.date,
                         payload_json=anomaly.model_dump_json(exclude={"id"}),
+                        refresh_analysis_on_change=True,
                     )
                 logger.info(
                     "[SIGNAL] %s",

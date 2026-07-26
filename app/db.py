@@ -156,6 +156,14 @@ _SCHEMA_STATEMENTS = (
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS telemetry_usage (
+        service TEXT NOT NULL,
+        day TEXT NOT NULL,
+        hits INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (service, day)
+    )
+    """,
     "CREATE INDEX IF NOT EXISTS idx_actions_state ON actions(state)",
     "CREATE INDEX IF NOT EXISTS idx_decisions_service ON decisions(service)",
     # Natural key: rescans must yield the same event id for the same signal,
@@ -238,6 +246,19 @@ def init_db(path: Path | str | None = None) -> None:
 _INITIALIZED_PATHS: set[str] = set()
 
 
+def connect_ready(path: Path | str | None = None) -> sqlite3.Connection:
+    """Connect with the schema guaranteed, once per resolved path.
+
+    The lazy-init dance get_db always did, shared so non-request writers
+    (telemetry flushes, scripts) stay correct without a lifespan.
+    """
+    target = str(path or db_path())
+    if target not in _INITIALIZED_PATHS:
+        init_db(target)
+        _INITIALIZED_PATHS.add(target)
+    return connect(target)
+
+
 def get_db() -> Iterator[sqlite3.Connection]:
     """FastAPI dependency: one connection per request, always closed.
 
@@ -245,11 +266,7 @@ def get_db() -> Iterator[sqlite3.Connection]:
     correct even when the app runs without its lifespan (module-level
     test clients); redundant with the startup hook, and idempotent.
     """
-    target = str(db_path())
-    if target not in _INITIALIZED_PATHS:
-        init_db(target)
-        _INITIALIZED_PATHS.add(target)
-    conn = connect(target)
+    conn = connect_ready()
     try:
         yield conn
     finally:
@@ -263,13 +280,33 @@ def upsert_event(
     service: str,
     occurred_on: str,
     payload_json: str,
+    refresh_analysis_on_change: bool = False,
 ) -> int:
     """Insert or refresh an event by natural key; returns its stable id.
 
     Re-detections update the payload (costs may be re-stated) but keep
     the id, so analyses and actions stay attached across rescans. Call
     inside an open ``writing()`` transaction.
+
+    ``refresh_analysis_on_change`` drops the stored analysis when the
+    incoming payload differs from the stored one: a live feed can
+    re-state a day's figures, and an analyst narrative pinned to the
+    old numbers would silently lie. Identical payloads (the mock lane,
+    idempotent re-polls) keep their analysis and stay cache-cheap.
     """
+    if refresh_analysis_on_change:
+        row = conn.execute(
+            "INSERT INTO events (kind, service, occurred_on, payload_json) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(kind, service, occurred_on) DO UPDATE SET "
+            "analysis_json = CASE "
+            "WHEN events.payload_json = excluded.payload_json "
+            "THEN events.analysis_json ELSE NULL END, "
+            "payload_json = excluded.payload_json "
+            "RETURNING id",
+            (kind, service, occurred_on, payload_json),
+        ).fetchone()
+        return row["id"]
     row = conn.execute(
         "INSERT INTO events (kind, service, occurred_on, payload_json) "
         "VALUES (?, ?, ?, ?) "

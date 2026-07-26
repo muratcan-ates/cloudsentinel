@@ -39,5 +39,16 @@ def _isolated_db(tmp_path, monkeypatch):
         "SENTINEL_REBASE_DATES",
         "SENTINEL_DEMO_RESET",
         "SENTINEL_READONLY",
+        "SENTINEL_COSTS_SOURCE",
+        "SENTINEL_COSTS_FEED_URL",
+        "SENTINEL_SECURITY_FEED_URL",
+        "SENTINEL_FRAUD_FEED_URL",
+        "SENTINEL_FEED_TTL_SECONDS",
+        "SENTINEL_SELF_TELEMETRY",
     ):
         monkeypatch.delenv(env, raising=False)
+    # live-data state is process-global; each test starts with a clean slate
+    from app import feeds, telemetry
+
+    feeds.reset_cache()
+    telemetry.reset_buffer()

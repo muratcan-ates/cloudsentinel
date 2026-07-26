@@ -69,8 +69,22 @@ def test_dashboard_hidden_from_openapi_schema():
         "/routines/{routine_id}/run",
         "/runbooks",
         "/runbooks/match",
-        "/security/signals"
+        "/security/signals",
+        "/telemetry/usage"
     }
+
+
+def test_dashboard_labels_the_data_sources_honestly():
+    """The edition line's data badge is runtime-derived from /health
+    data_sources — never a hardcoded MOCK DATA claim in the static page."""
+    page = client.get("/").text
+    chip = page.split('id="chip-system"')[1].split("</p>")[0]
+    assert "MOCK DATA" not in chip
+    app_js = client.get("/static/app.js").text
+    assert "dataBadge" in app_js
+    assert "health.data_sources" in app_js
+    assert "LIVE DATA" in app_js
+    assert "MOCK DATA" in app_js
 
 
 def test_dashboard_ships_the_brain_room():
@@ -95,8 +109,8 @@ def test_dashboard_ships_the_routines_panel():
 
 
 def test_dashboard_ships_the_routine_save_controls():
-    """Persistence is explicit, not a run side effect: suggestions carry a
-    save button, and the saved list runs or retires stored routines."""
+    """Saving is possible without running: suggestions carry a save button,
+    and the saved list runs or retires stored routines."""
     page = client.get("/").text
     assert 'id="routine-saved"' in page
     app_js = client.get("/static/app.js").text

@@ -112,7 +112,7 @@ Analyst's critical-severity second pass, not a separate roster entry.
 | `pulse_log` | every pulse report — `GET /pulse/last` replays the latest run |
 | `agent_feed` | every inter-agent hop, cursor-streamed by `GET /agents/feed` |
 
-## API Surface (implemented — 47 endpoints)
+## API Surface (implemented — 48 endpoints)
 
 | Area | Endpoints |
 |---|---|
@@ -125,9 +125,10 @@ Analyst's critical-severity second pass, not a separate roster entry.
 | Routines | `GET`/`POST /routines` · `GET /routines/suggestions` · `GET`/`DELETE /routines/{id}` · `POST /routines/{id}/run` |
 | Runbooks | `GET /runbooks` · `GET /runbooks/match` |
 | Lanes | `GET /security/signals` · `GET /fraud/signals` (band / min_score filters) |
+| Live data | `GET /telemetry/usage` (the app's own request history — the cost lane's dataset when `SENTINEL_COSTS_SOURCE=self`) |
 | Missions | `GET /reflex/suggestions` |
 | Analytics | `GET /analytics/decisions` · `/costs/trend` · `/costs/forecast` · `/whatif` · `/roi` · `/ai` · `/calibration` · `/headline` · `/handover` · `GET /metrics/detection` · `GET /metrics/backtest` |
-| Ops | `GET /health` (liveness: version, provider, readonly) · `GET /ready` (readiness: database, mission config, dataset) · `POST /ops/demo-reset` (env-gated) |
+| Ops | `GET /health` (liveness: version, provider, readonly, per-lane data sources) · `GET /ready` (readiness: database, mission config, dataset) · `POST /ops/demo-reset` (env-gated) |
 | Agent bus | `GET /agents` (roster) · `GET /agents/feed` (live cursor stream) |
 
 ## Mission DSL

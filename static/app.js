@@ -75,6 +75,7 @@ const state = {
   env: "local", // deploy environment from /health — drives the LIVE banner
   provider: "fake", // GET /health provider — fake (dormant Gemini) vs live
   readonly: false, // SENTINEL_READONLY showcase mode — writes are disabled
+  dataSources: {}, // GET /health data_sources — lane → mock | self | feed
   auditExpanded: false, // section V shows the newest entries until asked
   audit: [
     { time: "ledger", title: "Loading the decision ledger…", copy: "Operator verdicts, persisted across restarts, appear here on load." },
@@ -157,6 +158,17 @@ const escapeHtml = (value) =>
 
 const utcNow = () =>
   new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) + " UTC";
+
+/* The edition line's data badge tells the truth per lane: "MOCK DATA" only
+   while every lane serves its bundled fixture; live lanes are named
+   (self = the app's own telemetry, feed = external URL). A lane whose feed
+   fell back reports "mock (feed unavailable)" — that is mock, not live. */
+function dataBadge() {
+  const lanes = Object.entries(state.dataSources || {})
+    .filter(([, source]) => source && !String(source).startsWith("mock"))
+    .map(([lane, source]) => `${lane}: ${source}`);
+  return lanes.length ? `LIVE DATA (${lanes.join(", ")})` : "MOCK DATA";
+}
 
 /* "4d ago" for a YYYY-MM-DD — relative context without touching the data. */
 function daysAgo(dateStr) {
@@ -688,10 +700,16 @@ function drawGroupedBars(svg, groups) {
       });
       if (bar.title) rect.append(svgEl("title", {}, bar.title));
       svg.append(rect);
-      const caption = bar.note ? `${bar.value.toFixed(2)} · ${bar.note}` : bar.value.toFixed(2);
+      // two stacked lines — a combined "0.50 · FN 1" caption is wider than
+      // the bar pitch and collided with its neighbor's when values were close
       captions.push(
-        svgEl("text", { class: "tick-label bar-value", x: center.toFixed(1), y: (y - 4).toFixed(1), "text-anchor": "middle" }, caption)
+        svgEl("text", { class: "tick-label bar-value", x: center.toFixed(1), y: (y - 4).toFixed(1), "text-anchor": "middle" }, bar.value.toFixed(2))
       );
+      if (bar.note) {
+        captions.push(
+          svgEl("text", { class: "tick-label bar-value", x: center.toFixed(1), y: (y - 14).toFixed(1), "text-anchor": "middle" }, bar.note)
+        );
+      }
     });
     captions.push(
       svgEl(
@@ -1656,12 +1674,12 @@ async function scan() {
     editionLine.textContent =
       `SYSTEM ONLINE — ${state.env === "render" ? "LIVE ON RENDER — " : ""}` +
       `${state.readonly ? "READ-ONLY DEMO — " : ""}` +
-      `LAST SCAN ${utcNow()} — MOCK DATA — ` +
+      `LAST SCAN ${utcNow()} — ${dataBadge()} — ` +
       `AI ${state.provider === "gemini" ? "LIVE (GEMINI)" : "FAKE PROVIDER"}`;
     editionLine.classList.remove("down");
   } catch {
     if (sequence !== scanSequence) return;
-    editionLine.textContent = "RECONNECTING — MOCK DATA — SPRINT III";
+    editionLine.textContent = `RECONNECTING — ${dataBadge()} — SPRINT III`;
     editionLine.classList.add("down");
     anomalyList.innerHTML = `<p class="error-note">Reconnecting — the panels keep the last successful scan.</p>`;
     document.getElementById("anomaly-meta").textContent = "waiting to reconnect — the panels keep the last successful scan";
@@ -1945,26 +1963,33 @@ async function runAnalyst() {
   }
 }
 
-/* Deploy environment drives the LIVE banner: read it once, then re-render the
-   edition line on the next scan. Best-effort — the default stays "local". */
-fetchJson("/health")
-  .then((health) => {
-    state.env = health.env || "local";
-    state.readonly = Boolean(health.readonly);
-    state.provider = health.provider || "fake";
-    // The nav pill reads "live" only on the deployed link; on the local/mock
-    // demo it says "demo" so the green dot never implies live production data.
-    const liveLabel = document.getElementById("nav-live-label");
-    if (liveLabel) liveLabel.textContent = state.env === "render" ? "live" : "demo";
-    if (state.readonly) {
-      pulseButton.disabled = true;
-      pulseButton.title = "read-only demo — the pulse chain is disabled";
-      renderDecisions();
-    }
-  })
-  .catch(() => {
-    /* health unreachable — the banner stays in its local form */
-  });
+/* Deploy environment drives the LIVE banner: read it at load for a fast
+   first paint, then refresh on the scan cadence so the data badge heals if
+   the first fetch failed or a lane's source changes. Best-effort — the
+   default stays "local". */
+function refreshHealth() {
+  return fetchJson("/health")
+    .then((health) => {
+      state.env = health.env || "local";
+      state.readonly = Boolean(health.readonly);
+      state.provider = health.provider || "fake";
+      state.dataSources = health.data_sources || {};
+      // The nav pill reads "live" only on the deployed link; on the local/mock
+      // demo it says "demo" so the green dot never implies live production data.
+      const liveLabel = document.getElementById("nav-live-label");
+      if (liveLabel) liveLabel.textContent = state.env === "render" ? "live" : "demo";
+      if (state.readonly) {
+        pulseButton.disabled = true;
+        pulseButton.title = "read-only demo — the pulse chain is disabled";
+        renderDecisions();
+      }
+    })
+    .catch(() => {
+      /* health unreachable — the banner keeps its last known form */
+    });
+}
+refreshHealth();
+setInterval(refreshHealth, 60000);
 
 /* Operator identity: recorded with every decision (audit trail), persisted
    like the palette so a team demo keeps each hand attributable. */
@@ -2047,6 +2072,11 @@ function applyView(view) {
   main.classList.remove("room-enter");
   void main.offsetWidth; // restart the ease-in for the incoming room
   main.classList.add("room-enter");
+  // the backtest chart sizes its viewBox to the host's real width — a chart
+  // first drawn while its room was hidden (width 0) needs a redraw now.
+  // Deferred a tick: applyView also runs at boot, before the chart's
+  // module-level state below has initialized.
+  if (visible.includes("sec-brain")) setTimeout(drawBacktestChart, 0);
 }
 
 // Real page URLs without reloads: links push history, back/forward replay.
@@ -2425,19 +2455,47 @@ const BACKTEST_MODES = [
   { mode: "zscore+loo", cls: "loo" },
 ];
 
+let backtestSequence = 0; // last-writer-wins: a stale backtest must never overwrite a newer one
+let backtestGroups = null; // last successful groups, redrawn on host resize without a refetch
+
+/* Draw (or redraw) the cached groups with the viewBox matched 1:1 to the
+   host's real pixel width — the same pattern the trend chart uses; a fixed
+   460 box centered with gutters on desktop and letterboxed on phones. */
+function drawBacktestChart() {
+  const host = document.getElementById("backtest-table");
+  if (!host || !backtestGroups) return;
+  let svg = host.querySelector("svg.backtest-svg");
+  if (!svg) {
+    svg = svgEl("svg", {
+      class: "backtest-svg",
+      role: "img",
+      "aria-label": "Detection backtest — recall per scenario for z-score, MAD and leave-one-out",
+    });
+    host.textContent = "";
+    host.appendChild(svg);
+  }
+  const boxW = Math.max(320, Math.round(host.clientWidth || 460));
+  svg.setAttribute("viewBox", `0 0 ${boxW} 150`);
+  drawGroupedBars(svg, backtestGroups);
+}
+
 async function renderBacktest() {
   const host = document.getElementById("backtest-table");
   if (!host) return;
+  const sequence = ++backtestSequence;
   try {
     const threshold = parseFloat(thresholdInput?.value) || 2;
     const data = await fetchJson(`/metrics/backtest?threshold=${threshold}`);
+    if (sequence !== backtestSequence) return; // superseded by a newer slider move
     const rows = data.rows || [];
     const scenarios = [...new Set(rows.map((row) => row.scenario))];
-    const groups = scenarios.map((scenario) => ({
+    backtestGroups = scenarios.map((scenario) => ({
       label: scenario,
       bars: BACKTEST_MODES.flatMap(({ mode, cls }) => {
         const row = rows.find((r) => r.scenario === scenario && r.mode === mode);
         if (!row) return [];
+        // the note line carries only the FN count — anything longer collides
+        // with a neighboring caption at bar pitch; precision rides the tooltip
         return [{
           cls,
           value: row.recall,
@@ -2448,26 +2506,42 @@ async function renderBacktest() {
         }];
       }),
     }));
-    host.textContent = "";
-    const svg = svgEl("svg", {
-      class: "backtest-svg",
-      viewBox: "0 0 460 150",
-      role: "img",
-      "aria-label": "Detection backtest — recall per scenario for z-score, MAD and leave-one-out",
-    });
-    drawGroupedBars(svg, groups);
-    host.appendChild(svg);
+    drawBacktestChart();
     const legend = document.getElementById("backtest-legend");
     if (legend) legend.hidden = false;
     const note = document.getElementById("backtest-note");
     if (note) note.textContent = data.note ? `threshold ${data.threshold} — ${data.note}` : "";
   } catch {
-    /* quiet — the panel stays empty */
+    /* first load stays quiet (empty panel); a failed refetch marks the
+       previously drawn chart as no longer current instead of lying */
+    if (sequence !== backtestSequence) return;
+    const note = document.getElementById("backtest-note");
+    if (note && note.textContent && !note.textContent.startsWith("stale — ")) {
+      note.textContent = `stale — last measured at ${note.textContent}`;
+    }
   }
 }
 
 // the sensitivity slider drives the backtest too — the bars move with it
 thresholdInput?.addEventListener("change", renderBacktest);
+
+// redraw from cache when the host's box changes: the observer catches the
+// brain room becoming visible after first paint happened in another room
+// (no window resize fires then), the debounced listener mirrors the trend
+// chart's resize pattern. The observer is referenced so it cannot be GC'd.
+let backtestResizeObserver = null;
+if (typeof ResizeObserver !== "undefined") {
+  const backtestHost = document.getElementById("backtest-table");
+  if (backtestHost) {
+    backtestResizeObserver = new ResizeObserver(() => drawBacktestChart());
+    backtestResizeObserver.observe(backtestHost);
+  }
+}
+let backtestResizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(backtestResizeTimer);
+  backtestResizeTimer = setTimeout(drawBacktestChart, 150);
+});
 
 /* Identity: local sign-in so a decision carries a server-derived operator —
    the audit trail stops being free browser text. Token in localStorage;
@@ -2497,10 +2571,16 @@ async function refreshIdentity() {
   const form = document.getElementById("identity-form");
   const logout = document.getElementById("auth-logout");
   if (!status) return;
-  const signedOut = (copy) => {
-    status.innerHTML = `${copy} — <a class="row-action" href="/brain" data-room="brain">sign in</a>`;
+  const signedOut = (copy, noteCopy) => {
+    // the separator rides in its own span so print (which drops the link)
+    // never shows a dangling em dash after the copy
+    status.innerHTML =
+      `${copy}<span class="sep"> — </span><a class="row-action" href="/brain" data-room="brain">sign in</a>`;
     if (form) form.hidden = false;
     if (logout) logout.hidden = true;
+    setIdentityNote(
+      noteCopy || "sign in and every decision carries a server-derived identity — the state lives in the masthead"
+    );
   };
   if (!authToken) {
     signedOut("not signed in — decisions use the operator field");
@@ -2521,8 +2601,7 @@ async function refreshIdentity() {
     } catch {
       /* storage unavailable */
     }
-    signedOut("session expired");
-    setIdentityNote("session expired — sign in again");
+    signedOut("session expired", "session expired — sign in again");
   }
 }
 

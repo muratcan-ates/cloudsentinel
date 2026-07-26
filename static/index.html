@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CloudSentinel — Anomaly Watch</title>
-  <link rel="stylesheet" href="/static/style.css?v=s6.4" />
+  <link rel="stylesheet" href="/static/style.css?v=s6.5" />
   <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
   <meta name="description" content="CloudSentinel — cloud cost and security anomaly watch: detection, evidence-cited AI triage and human-approved remediation, execution simulated by design." />
   <meta property="og:title" content="CloudSentinel — Anomaly Watch" />
@@ -35,7 +35,7 @@
       <p class="kicker">the machine <span class="fraktur k-fr">watches</span> — the human <em class="k-em">decides</em></p>
       <h1 class="pixel-black">cloudsentinel<span class="period">.</span></h1>
       <p class="masthead-tag"><span class="fraktur">artificial vigilance</span></p>
-      <p class="edition" id="chip-system">SYSTEM ONLINE — MOCK DATA — SPRINT III</p>
+      <p class="edition" id="chip-system">SYSTEM ONLINE — SPRINT III</p>
       <p class="edition identity-line"><span id="identity-status">not signed in — decisions use the operator field</span><button class="row-action" type="button" id="auth-logout" hidden>sign out</button></p>
     </header>
 
@@ -243,9 +243,9 @@
           <p class="meta">recall on planted synthetic ground truth at the current sensitivity — z-score vs MAD vs leave-one-out; precision and misses ride each bar; measured, not narrated</p>
           <div class="backtest-table" id="backtest-table"></div>
           <p class="meta backtest-legend" id="backtest-legend" hidden>
-            <span class="swatch zscore" aria-hidden="true"></span> z-score
-            <span class="swatch mad" aria-hidden="true"></span> MAD
-            <span class="swatch loo" aria-hidden="true"></span> z-score + leave-one-out
+            <span class="legend-item"><span class="swatch zscore" aria-hidden="true"></span> z-score</span>
+            <span class="legend-item"><span class="swatch mad" aria-hidden="true"></span> MAD</span>
+            <span class="legend-item"><span class="swatch loo" aria-hidden="true"></span> z-score + leave-one-out</span>
           </p>
           <p class="meta" id="backtest-note"></p>
         </div>
@@ -304,6 +304,6 @@
     </div>
   </aside>
 
-  <script src="/static/app.js?v=s6.4"></script>
+  <script src="/static/app.js?v=s6.5"></script>
 </body>
 </html>

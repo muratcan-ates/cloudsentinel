@@ -46,6 +46,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
 
+from app import feeds
 from app.models import Anomaly, DailyServiceSeries, ServiceCostSummary
 
 DATA_FILE = Path(__file__).parent / "data" / "mock_costs.json"
@@ -121,6 +122,25 @@ def shift_iso(value: str, delta: timedelta) -> str:
 
 
 def load_dataset() -> dict:
+    """The cost lane's single seam: mock fixture, live feed or telemetry.
+
+    Live sources (SENTINEL_COSTS_SOURCE=self / SENTINEL_COSTS_FEED_URL)
+    are already current, so the demo date rebase applies only to the
+    bundled mock. A dead feed falls back to the mock so /ready, the boot
+    manifest and the panels never go dark over a remote hiccup.
+    """
+    source = feeds.costs_source()
+    if source == "self":
+        # Local import: telemetry needs the DB layer, and this module
+        # stays a dependency-light statistics core for the mock path.
+        from app import telemetry
+
+        return telemetry.usage_dataset()
+    if source == "feed":
+        try:
+            return feeds.fetch_costs_feed()
+        except feeds.FeedUnavailable:
+            feeds.record_fallback("costs")  # /health must not claim live data
     with DATA_FILE.open() as f:
         dataset = json.load(f)
     delta = demo_rebase_delta()

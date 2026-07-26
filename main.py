@@ -26,13 +26,14 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import Depends, FastAPI, Query, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 import sqlite3
 
-from app import db
+from app import db, feeds, telemetry
 from app.actions import router as actions_router
 from app.analyst import router as analyst_router
 from app.auth import router as auth_router
@@ -136,6 +137,7 @@ def _log_boot_manifest() -> None:
                 "env": os.environ.get("SENTINEL_ENV", "local"),
                 "provider": provider_mode(),
                 "readonly": readonly_enabled(),
+                "data_sources": feeds.data_sources(),
                 "services": services,
                 "period": span,
             },
@@ -182,6 +184,7 @@ app.include_router(runbooks_router)
 app.include_router(security_router)
 app.include_router(pulse_router)
 app.include_router(recommender_router)
+app.include_router(telemetry.router)
 
 # Explicit origins and headers by locked decision: allow_credentials=True
 # together with a wildcard origin is rejected by browsers, and the HITL
@@ -300,6 +303,21 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 
+@app.middleware("http")
+async def count_self_telemetry(request: Request, call_next):
+    """Count each served request — the live-data organ's raw material.
+
+    An in-memory increment per request (SENTINEL_SELF_TELEMETRY=0 turns
+    it off); telemetry.record never raises, so observability cannot take
+    down the request it observes. The periodic flush is blocking SQLite
+    I/O, so it runs in the threadpool, never on the event loop.
+    """
+    response = await call_next(request)
+    if telemetry.enabled() and telemetry.record(request.url.path):
+        await run_in_threadpool(telemetry.flush)
+    return response
+
+
 @app.get("/costs/summary")
 def get_cost_summary() -> CostSummaryReport:
     """Return per-service cost totals and their share of overall spend."""
@@ -338,6 +356,7 @@ def health_check() -> HealthStatus:
         version=app.version,
         provider=provider_mode(),
         readonly=readonly_enabled(),
+        data_sources=feeds.data_sources(),
     )
 
 
@@ -571,12 +590,16 @@ def get_anomalies(
     if anomalies:
         with db.writing(conn):
             for anomaly in anomalies:
+                # Same guard as the pulse writer: a live source can
+                # re-state a day's figures, and the dashboard's 60s
+                # polling must not pin an analysis to old numbers.
                 anomaly.id = db.upsert_event(
                     conn,
                     kind="cost_anomaly",
                     service=anomaly.service,
                     occurred_on=anomaly.date,
                     payload_json=anomaly.model_dump_json(exclude={"id"}),
+                    refresh_analysis_on_change=True,
                 )
     service_filter = service.strip().lower() if service else None
     if service_filter:
