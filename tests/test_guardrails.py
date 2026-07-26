@@ -207,3 +207,19 @@ def test_high_confidence_clears_even_the_raised_bar():
         escalation_trigger("REAL", 0.9, threshold=0.6, severity="critical", preferred="BOLD")
         is None
     )
+
+
+def test_repeat_offender_forces_the_debate_at_high_confidence():
+    reason = escalation_trigger("REAL", 0.9, threshold=0.6, repeat_count=3)
+    assert reason is not None
+    assert "repeated reflex" in reason
+
+
+def test_repeat_below_the_threshold_stays_quiet():
+    assert escalation_trigger("REAL", 0.9, threshold=0.6, repeat_count=2) is None
+
+
+def test_low_confidence_wording_keeps_precedence_over_the_repeat_rule():
+    reason = escalation_trigger("REAL", 0.4, threshold=0.6, repeat_count=5)
+    assert reason is not None
+    assert reason.startswith("low confidence")

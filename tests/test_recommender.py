@@ -667,3 +667,55 @@ def test_prompt_interface_reserves_the_decision_memory_slot():
     open_index = memory_segment.index(DATA_DELIMITER_OPEN)
     close_index = memory_segment.index(DATA_DELIMITER_CLOSE)
     assert open_index < memory_segment.index("operator approved before") < close_index
+
+
+# --- repeated-reflex escalation --------------------------------------------
+
+
+def test_third_anomaly_day_escalates_even_at_high_confidence(client, monkeypatch):
+    """The reflex knows its own limit: the same service on three anomaly
+    days inside the window forces the debate although the confidence score
+    clears every bar and the triage is REAL — the repeat rule alone fires."""
+    provider = SchemaAwareProvider(
+        {
+            "RecommenderReport": HIGH_CONF_REPORT,
+            "SkepticVerdict": {
+                "agree": True,
+                "preferred": "BOLD",
+                "rationale": "the history justifies sustained attention",
+            },
+        }
+    )
+    monkeypatch.setattr(recommender, "get_provider", lambda: provider)
+    seed_analyzed_event(service="compute", occurred_on="2026-07-09", analyzed=False)
+    seed_analyzed_event(service="compute", occurred_on="2026-07-10", analyzed=False)
+    event_id = seed_analyzed_event(service="compute", occurred_on="2026-07-11")
+    body = client.post(f"/anomalies/{event_id}/recommend").json()
+    assert body["escalation_reason"] is not None
+    assert "repeated reflex" in body["escalation_reason"]
+    assert body["transcript"] is not None
+    assert body["transcript"]["trigger"] == body["escalation_reason"]
+    assert provider.calls == ["RecommenderReport", "SkepticVerdict"]
+
+
+def test_two_anomaly_days_do_not_trip_the_repeat_rule(client, monkeypatch):
+    provider = SchemaAwareProvider({"RecommenderReport": HIGH_CONF_REPORT})
+    monkeypatch.setattr(recommender, "get_provider", lambda: provider)
+    seed_analyzed_event(service="compute", occurred_on="2026-07-10", analyzed=False)
+    event_id = seed_analyzed_event(service="compute", occurred_on="2026-07-11")
+    body = client.post(f"/anomalies/{event_id}/recommend").json()
+    assert body["escalation_reason"] is None
+    assert body["transcript"] is None
+    assert provider.calls == ["RecommenderReport"]
+
+
+def test_repeat_window_excludes_stale_anomaly_days(client, monkeypatch):
+    """Days older than the window do not count — the rule reacts to a
+    current pattern, not to ancient history."""
+    provider = SchemaAwareProvider({"RecommenderReport": HIGH_CONF_REPORT})
+    monkeypatch.setattr(recommender, "get_provider", lambda: provider)
+    seed_analyzed_event(service="compute", occurred_on="2026-06-01", analyzed=False)
+    seed_analyzed_event(service="compute", occurred_on="2026-06-02", analyzed=False)
+    event_id = seed_analyzed_event(service="compute", occurred_on="2026-07-11")
+    body = client.post(f"/anomalies/{event_id}/recommend").json()
+    assert body["escalation_reason"] is None

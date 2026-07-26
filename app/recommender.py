@@ -76,6 +76,14 @@ _warned_mission_fallback = False
 CRITICAL_BOLD_CONFIDENCE_MARGIN = 0.15
 MAX_EFFECTIVE_THRESHOLD = 0.95
 
+# Repeated-reflex escalation: a service whose anomalies keep tripping the
+# fast lane inside the window is escalated to the conscious loop even when
+# confidence is high — the reflex knows its own limit. Windowed on the
+# anomaly's OWN date (occurred_on), never wall-clock, so demo date rebases
+# and re-scans behave.
+REPEAT_SIGNAL_THRESHOLD = 3
+REPEAT_WINDOW_DAYS = 14
+
 # Hallucination post-check (S3-⑤): currency-looking figures in the LLM's
 # narrative are verified against the Python-computed figures within ±5%.
 # Plain small integers ("8 instances", "30 days") are not money claims and
@@ -377,13 +385,17 @@ def escalation_trigger(
     *,
     severity: str | None = None,
     preferred: str | None = None,
+    repeat_count: int | None = None,
 ) -> str | None:
-    """Debate-lite fires on low confidence OR analyst/recommender disagreement.
+    """Debate-lite fires on low confidence, disagreement, or a repeat offender.
 
     The confidence bar is stakes-aware and deterministic: a BOLD stance on
     a critical-severity signal raises the bar by a fixed margin, so the
     model's self-reported confidence alone can never wave a high-stakes
-    action past the skeptic.
+    action past the skeptic. The repeat rule is the reflex knowing its own
+    limit: a service that keeps tripping the fast lane inside the window is
+    escalated to deliberation even when confidence is high — checked LAST,
+    so the established reasons (and their pinned wording) keep precedence.
     """
     if threshold is None:
         threshold = debate_threshold()
@@ -401,6 +413,12 @@ def escalation_trigger(
         return (
             f"analyst-recommender disagreement (triage {analyst_triage} "
             "answered with an actionable proposal)"
+        )
+    if repeat_count is not None and repeat_count >= REPEAT_SIGNAL_THRESHOLD:
+        return (
+            f"repeated reflex — {repeat_count} anomaly days for this service "
+            f"in {REPEAT_WINDOW_DAYS} days; the fast lane keeps firing, so "
+            "the conscious loop takes over"
         )
     return None
 
@@ -426,6 +444,31 @@ def fetch_decision_memory(conn: sqlite3.Connection, service: str) -> str:
             line += f" — {row['rationale']}"
         lines.append(line)
     return "\n".join(lines)
+
+
+def count_recent_signals(
+    conn: sqlite3.Connection,
+    service: str,
+    *,
+    as_of: str,
+    window_days: int = REPEAT_WINDOW_DAYS,
+) -> int:
+    """Distinct anomaly days for a service in the trailing window.
+
+    Relative to the anomaly's own date (``as_of``), inclusive, so the
+    count is a property of the data — not of when the operator happened
+    to press Pulse. The natural key already makes (kind, service, day)
+    unique; DISTINCT self-documents the intent.
+    """
+    if not service:
+        return 0
+    row = conn.execute(
+        "SELECT COUNT(DISTINCT occurred_on) AS days FROM events "
+        "WHERE kind = 'cost_anomaly' AND service = ? COLLATE NOCASE "
+        "AND occurred_on > date(?, ?) AND occurred_on <= ?",
+        (service, as_of, f"-{window_days} days", as_of),
+    ).fetchone()
+    return int(row["days"]) if row else 0
 
 
 def _existing_open_action(conn: sqlite3.Connection, event_id: int) -> sqlite3.Row | None:
@@ -471,6 +514,14 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
     skeptic_prompt: str | None = None
 
     escalation_threshold = debate_threshold()
+    # The repeat count is data the prompt never sees, so it must partition
+    # the cache exactly like the threshold below: without the bucket, the
+    # third anomaly day could replay a no-escalation envelope minted on
+    # day one.
+    repeat_count = count_recent_signals(
+        conn, anomaly.get("service", ""), as_of=event["occurred_on"]
+    )
+    repeat_bucket = "hot" if repeat_count >= REPEAT_SIGNAL_THRESHOLD else "cold"
     # Cached envelopes replay their stored escalation decision, so the
     # threshold that produced it must partition the cache key: a mission
     # tuned to a new threshold gets fresh envelopes, not replays computed
@@ -479,6 +530,7 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
     cache_scope = (
         RECOMMENDER_SYSTEM_INSTRUCTION
         + f"\x00debate_threshold={escalation_threshold:.2f}"
+        + f"\x00repeat={repeat_bucket}"
     )
     # Live cost data (self telemetry or a feed) moves between pulses, so
     # the exact-prompt key would never repeat: every read misses and every
@@ -515,6 +567,7 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
             threshold=escalation_threshold,
             severity=anomaly.get("severity"),
             preferred=report.preferred,
+            repeat_count=repeat_count,
         )
         transcript = None
         skeptic_duration_ms = None
