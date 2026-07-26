@@ -122,6 +122,22 @@ def test_dashboard_ships_the_login_form():
     assert "authHeaders" in app_js
 
 
+def test_dashboard_ships_identity_in_the_masthead():
+    """The signed-in state lives in the masthead — visible from every room,
+    not just the brain room; the sign-in form stays in the brain room with
+    its own feedback line."""
+    page = client.get("/").text
+    masthead = page.split('<header class="masthead">')[1].split("</header>")[0]
+    assert 'id="identity-status"' in masthead
+    assert 'id="auth-logout"' in masthead
+    brain = page.split('id="sec-brain"')[1]
+    assert 'id="identity-form"' in brain
+    assert 'id="identity-note"' in brain
+    # each id appears exactly once — refreshIdentity resolves by getElementById
+    for element_id in ("identity-status", "auth-logout", "identity-form", "identity-note"):
+        assert page.count(f'id="{element_id}"') == 1
+
+
 def test_security_headers_present_on_dashboard():
     response = client.get("/")
     assert response.status_code == 200

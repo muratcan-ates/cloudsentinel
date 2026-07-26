@@ -2295,23 +2295,37 @@ function authHeaders() {
   return authToken ? { Authorization: `Bearer ${authToken}` } : {};
 }
 
+/* The status line lives in the masthead (visible from every room); the
+   sign-in form stays in the brain room with its own #identity-note for
+   form feedback. Signed-out copy is a static template with a fixed room
+   link, so the no-reload navigation the navbar uses works from here too. */
+function setIdentityNote(text) {
+  const note = document.getElementById("identity-note");
+  if (note) note.textContent = text;
+}
+
 async function refreshIdentity() {
   const status = document.getElementById("identity-status");
   const form = document.getElementById("identity-form");
   const logout = document.getElementById("auth-logout");
   if (!status) return;
-  if (!authToken) {
-    status.textContent = "not signed in — decisions use the operator field";
+  const signedOut = (copy) => {
+    status.innerHTML = `${copy} — <a class="row-action" href="/brain" data-room="brain">sign in</a>`;
     if (form) form.hidden = false;
     if (logout) logout.hidden = true;
+  };
+  if (!authToken) {
+    signedOut("not signed in — decisions use the operator field");
     return;
   }
   try {
     const me = await (await fetch("/auth/me", { headers: authHeaders() })).json();
     if (!me.username) throw new Error("bad token");
+    // username/role are user-derived: textContent only, never innerHTML
     status.textContent = `signed in as ${me.username} (${me.role}) — decisions carry this identity`;
     if (form) form.hidden = true;
     if (logout) logout.hidden = false;
+    setIdentityNote("signed in — sign out from the masthead");
   } catch {
     authToken = null;
     try {
@@ -2319,18 +2333,16 @@ async function refreshIdentity() {
     } catch {
       /* storage unavailable */
     }
-    status.textContent = "session expired — sign in again";
-    if (form) form.hidden = false;
-    if (logout) logout.hidden = true;
+    signedOut("session expired");
+    setIdentityNote("session expired — sign in again");
   }
 }
 
 async function authAction(kind) {
   const username = document.getElementById("auth-username")?.value.trim();
   const password = document.getElementById("auth-password")?.value || "";
-  const status = document.getElementById("identity-status");
   if (!username || !password) {
-    if (status) status.textContent = "enter a username and password (min 8 chars)";
+    setIdentityNote("enter a username and password (min 8 chars)");
     return;
   }
   try {
@@ -2341,7 +2353,7 @@ async function authAction(kind) {
         body: JSON.stringify({ username, password, role: "approver" }),
       });
       if (!reg.ok && reg.status !== 409) {
-        if (status) status.textContent = "registration failed (name taken or weak password)";
+        setIdentityNote("registration failed (name taken or weak password)");
         return;
       }
     }
@@ -2351,7 +2363,7 @@ async function authAction(kind) {
       body: JSON.stringify({ username, password }),
     });
     if (!login.ok) {
-      if (status) status.textContent = "invalid username or password";
+      setIdentityNote("invalid username or password");
       return;
     }
     authToken = (await login.json()).token;
@@ -2362,7 +2374,7 @@ async function authAction(kind) {
     }
     await refreshIdentity();
   } catch {
-    if (status) status.textContent = "auth request failed";
+    setIdentityNote("auth request failed");
   }
 }
 

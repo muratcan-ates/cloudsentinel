@@ -407,6 +407,14 @@ h1 .period { color: var(--accent); }
 .edition.down { color: var(--ink-dim); }
 .edition.down::before { background: var(--ink-dim); }
 
+/* Identity in the masthead — same typographic voice as the edition line,
+   but its marker stays neutral: the accent square belongs to the system
+   status alone (horizon budget — to add one, remove one). */
+.identity-line { margin-top: 2px; color: var(--ink-faint); }
+.identity-line::before { background: var(--ink-faint); }
+.identity-line .row-action { margin-left: 10px; }
+.identity-line a.row-action { color: var(--ink-dim); }
+
 /* ---------- summary strip (fused to the masthead) ---------- */
 
 .summary-strip {
