@@ -38,6 +38,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app import bus, db, feeds
 from app.detection import shift_iso, demo_rebase_delta
+from app.logstream import log_tag
 from app.missions import MissionError, get_mission
 from app.models import FraudRuleHit, FraudSignal, FraudSignalReport
 
@@ -211,18 +212,14 @@ def persist_flagged(conn: sqlite3.Connection, signals: list[FraudSignal]) -> Non
                 payload_json=signal.model_dump_json(),
             )
     for signal in signals:
-        logger.info(
-            "[SIGNAL] %s",
-            json.dumps(
-                {
-                    "kind": EVENT_KIND,
-                    "id": signal.id,
-                    "date": signal.date,
-                    "score": signal.score,
-                    "band": signal.band,
-                },
-                sort_keys=True,
-            ),
+        log_tag(
+            logger,
+            "[SIGNAL]",
+            kind=EVENT_KIND,
+            id=signal.id,
+            date=signal.date,
+            score=signal.score,
+            band=signal.band,
         )
 
 

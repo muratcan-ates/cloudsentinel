@@ -27,6 +27,7 @@ from app.llm import (
     register_fake_composer,
     wrap_untrusted,
 )
+from app.logstream import log_tag
 
 logger = logging.getLogger("cloudsentinel.chronicler")
 
@@ -151,12 +152,12 @@ def write_briefing(conn: sqlite3.Connection, facts: dict) -> dict:
                 system_instruction=CHRONICLER_SYSTEM_INSTRUCTION,
             )
 
-    logger.info(
-        "[BRIEFING] %s",
-        json.dumps(
-            {"headline": report.headline, "source": source, "from_cache": from_cache},
-            sort_keys=True,
-        ),
+    log_tag(
+        logger,
+        "[BRIEFING]",
+        headline=report.headline,
+        source=source,
+        from_cache=from_cache,
     )
     bus.emit(conn, "chronicler", "briefing", f"briefing filed — {report.headline}")
     return {

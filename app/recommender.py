@@ -68,6 +68,7 @@ from app.debate import (  # noqa: F401 — re-exports keep app.recommender's pub
     escalation_trigger,
     run_panel,
 )
+from app.logstream import log_tag
 from app.models import (
     ConfidenceReport,
     RecommendationResponse,
@@ -847,31 +848,23 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
         return _response_from_detail(event["id"], action_row, detail, reused=True)
 
     if transcript is not None:
-        logger.info(
-            "[DEBATE] %s",
-            json.dumps(
-                {
-                    "event_id": event["id"],
-                    "trigger": transcript["trigger"],
-                    "agreed": transcript["agreed"],
-                    "final_preferred": transcript["final_preferred"],
-                },
-                sort_keys=True,
-            ),
+        log_tag(
+            logger,
+            "[DEBATE]",
+            event_id=event["id"],
+            trigger=transcript["trigger"],
+            agreed=transcript["agreed"],
+            final_preferred=transcript["final_preferred"],
         )
-    logger.info(
-        "[RECOMMENDER] %s",
-        json.dumps(
-            {
-                "event_id": event["id"],
-                "action_id": action_row["id"],
-                "preferred": report.preferred,
-                "category": report.category,
-                "source": source,
-                "from_cache": from_cache,
-            },
-            sort_keys=True,
-        ),
+    log_tag(
+        logger,
+        "[RECOMMENDER]",
+        event_id=event["id"],
+        action_id=action_row["id"],
+        preferred=report.preferred,
+        category=report.category,
+        source=source,
+        from_cache=from_cache,
     )
     bus.emit(
         conn,

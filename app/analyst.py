@@ -43,6 +43,7 @@ from app.llm import (
     wrap_untrusted,
 )
 from app.detection import CRITICAL_Z_SCORE, load_daily_costs
+from app.logstream import log_tag
 from app.models import AnalysisResponse, ConfidenceReport
 
 logger = logging.getLogger("cloudsentinel.analyst")
@@ -335,19 +336,15 @@ def analyze_event(conn: sqlite3.Connection, event: sqlite3.Row) -> AnalysisRespo
             (envelope_json, event["id"]),
         )
 
-    logger.info(
-        "[ANALYST] %s",
-        json.dumps(
-            {
-                "event_id": event["id"],
-                "triage": report.triage,
-                "confidence": report.confidence.score,
-                "source": source,
-                "reflected": reflected,
-                "from_cache": from_cache,
-            },
-            sort_keys=True,
-        ),
+    log_tag(
+        logger,
+        "[ANALYST]",
+        event_id=event["id"],
+        triage=report.triage,
+        confidence=report.confidence.score,
+        source=source,
+        reflected=reflected,
+        from_cache=from_cache,
     )
     bus.emit(
         conn,

@@ -30,6 +30,7 @@ from app.recommender import recommend_for_event
 from app.detection import DEFAULT_THRESHOLD, load_daily_costs, run_detection
 from app.models import LastPulseReport, PulseBriefing, PulseChainLink, PulseReport
 from app.llm import llm_call_budget
+from app.logstream import log_tag
 from app.reflex import reflex_scan
 from app.security import persist_signals, scan_security
 
@@ -75,17 +76,13 @@ def _reflex_sweep(
         threshold = threshold if threshold is not None else DEFAULT_THRESHOLD
         run, mission_name, reflex_ms = run_detection(records, threshold), None, None
     anomalies = run.anomalies
-    logger.info(
-        "[REFLEX] %s",
-        json.dumps(
-            {
-                "mission": mission_name,
-                "latency_ms": reflex_ms,
-                "signals": len(anomalies),
-                "detector": run.detector,
-            },
-            sort_keys=True,
-        ),
+    log_tag(
+        logger,
+        "[REFLEX]",
+        mission=mission_name,
+        latency_ms=reflex_ms,
+        signals=len(anomalies),
+        detector=run.detector,
     )
 
     bus.prune(conn)
@@ -124,18 +121,14 @@ def _run_cost_lane(
                 payload_json=anomaly.model_dump_json(exclude={"id"}),
                 refresh_analysis_on_change=True,
             )
-        logger.info(
-            "[SIGNAL] %s",
-            json.dumps(
-                {
-                    "event_id": event_id,
-                    "service": anomaly.service,
-                    "date": anomaly.date,
-                    "z_score": anomaly.z_score,
-                    "severity": anomaly.severity,
-                },
-                sort_keys=True,
-            ),
+        log_tag(
+            logger,
+            "[SIGNAL]",
+            event_id=event_id,
+            service=anomaly.service,
+            date=anomaly.date,
+            z_score=anomaly.z_score,
+            severity=anomaly.severity,
         )
 
         event = conn.execute(

@@ -15,7 +15,6 @@ headers and the dashboard.
 
 import csv
 import io
-import json
 import logging
 import os
 import time
@@ -43,6 +42,7 @@ from app.bus import router as bus_router
 from app.decisions import router as decisions_router
 from app.insights import router as insights_router
 from app.llm import provider_mode
+from app.logstream import log_tag
 from app.missions import MissionError, get_mission
 from app.ops import router as ops_router
 from app.pulse import router as pulse_router
@@ -129,20 +129,16 @@ def _log_boot_manifest() -> None:
         span = f"{dataset['period']['start']}→{dataset['period']['end']}"
     except Exception:  # a broken dataset must not block boot
         services, span = [], "unknown"
-    logging.getLogger("cloudsentinel").info(
-        "[BOOT] %s",
-        json.dumps(
-            {
-                "version": app.version,
-                "env": os.environ.get("SENTINEL_ENV", "local"),
-                "provider": provider_mode(),
-                "readonly": readonly_enabled(),
-                "data_sources": feeds.data_sources(),
-                "services": services,
-                "period": span,
-            },
-            sort_keys=True,
-        ),
+    log_tag(
+        logging.getLogger("cloudsentinel"),
+        "[BOOT]",
+        version=app.version,
+        env=os.environ.get("SENTINEL_ENV", "local"),
+        provider=provider_mode(),
+        readonly=readonly_enabled(),
+        data_sources=feeds.data_sources(),
+        services=services,
+        period=span,
     )
 
 

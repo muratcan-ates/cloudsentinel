@@ -31,6 +31,7 @@ from app import bus, db
 from app.actions import TIMEOUT_ACTOR, expire_stale_proposals
 from app.benchmark import evaluate, standard_scenarios
 from app.detection import build_daily_series, load_dataset
+from app.logstream import log_tag
 from app.models import (
     AgentTelemetry,
     CostTrendReport,
@@ -793,16 +794,12 @@ def file_budget_risk_action(conn: sqlite3.Connection) -> int:
                 json.dumps(detail),
             ),
         )
-    logger.info(
-        "[BUDGET] %s",
-        json.dumps(
-            {
-                "month": forecast.month,
-                "projected": forecast.projected_month_total,
-                "budget": forecast.monthly_budget,
-            },
-            sort_keys=True,
-        ),
+    log_tag(
+        logger,
+        "[BUDGET]",
+        month=forecast.month,
+        projected=forecast.projected_month_total,
+        budget=forecast.monthly_budget,
     )
     bus.emit(
         conn,

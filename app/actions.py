@@ -33,6 +33,7 @@ from app.enrichment import (
     framework_reference,
     verification_plan,
 )
+from app.logstream import log_tag
 from app.runbooks import match_runbooks
 from app.models import ActionDecisionRequest, ActionListReport, ActionRecord, ActionState
 
@@ -253,13 +254,7 @@ def _decide(
             db.store_idempotency_response(conn, scoped_key, record.model_dump_json())
     # ids/enums only: the operator identity is PII on a log stream and is
     # already durably persisted in actions.decided_by for the audit trail.
-    logger.info(
-        "[HITL] %s",
-        json.dumps(
-            {"action_id": action_id, "transition": verdict},
-            sort_keys=True,
-        ),
-    )
+    log_tag(logger, "[HITL]", action_id=action_id, transition=verdict)
     return record
 
 
@@ -371,12 +366,8 @@ def execute_action(
         )
         if scoped_key is not None:
             db.store_idempotency_response(conn, scoped_key, record.model_dump_json())
-    logger.info(
-        "[HITL] %s",
-        json.dumps(
-            {"action_id": action_id, "transition": "executed", "mode": "SIMULATION"},
-            sort_keys=True,
-        ),
+    log_tag(
+        logger, "[HITL]", action_id=action_id, transition="executed", mode="SIMULATION"
     )
     return record
 

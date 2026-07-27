@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app import db, feeds
 from app.detection import DEFAULT_THRESHOLD, shift_iso, demo_rebase_delta, run_detection
+from app.logstream import log_tag
 from app.missions import MissionError, get_mission
 from app.models import SecuritySignal, SecuritySignalReport
 from app.reflex import reflex_scan
@@ -83,20 +84,16 @@ def persist_signals(conn: sqlite3.Connection, signals: list[SecuritySignal]) -> 
                 payload_json=signal.model_dump_json(exclude={"id"}),
             )
     for signal in signals:
-        logger.info(
-            "[SIGNAL] %s",
-            json.dumps(
-                {
-                    "kind": EVENT_KIND,
-                    "event_id": signal.id,
-                    "service": signal.service,
-                    "date": signal.date,
-                    "count": signal.count,
-                    "z_score": signal.z_score,
-                    "severity": signal.severity,
-                },
-                sort_keys=True,
-            ),
+        log_tag(
+            logger,
+            "[SIGNAL]",
+            kind=EVENT_KIND,
+            event_id=signal.id,
+            service=signal.service,
+            date=signal.date,
+            count=signal.count,
+            z_score=signal.z_score,
+            severity=signal.severity,
         )
 
 
