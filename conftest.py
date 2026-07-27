@@ -48,6 +48,9 @@ def _isolated_db(tmp_path, monkeypatch):
         "SENTINEL_SELF_TELEMETRY",
         "SENTINEL_MISSION",
         "SENTINEL_PANEL_MODELS",
+        "SENTINEL_LEAVE_ONE_OUT",
+        "SENTINEL_LOGIN_RATE_LIMIT_PER_MINUTE",
+        "SENTINEL_WATCH_INTERVAL_SECONDS",
     ):
         monkeypatch.delenv(env, raising=False)
     # live-data state is process-global; each test starts with a clean slate

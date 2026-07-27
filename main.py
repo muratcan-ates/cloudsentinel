@@ -32,7 +32,7 @@ from fastapi.staticfiles import StaticFiles
 
 import sqlite3
 
-from app import db, feeds, telemetry
+from app import db, feeds, telemetry, watchdog
 from app.actions import router as actions_router
 from app.analyst import router as analyst_router
 from app.auth import router as auth_router
@@ -113,11 +113,17 @@ SECURITY_HEADERS = {
 }
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(application: FastAPI):
     """Build the schema on every boot: the deploy target's disk is ephemeral."""
     db.init_db()
     _log_boot_manifest()
+    # Opt-in standing watch: SENTINEL_WATCH_INTERVAL_SECONDS > 0 starts a
+    # daemon thread that pulses the estate on a cadence — the sentinel
+    # monitors instead of waiting for a click. None when unconfigured.
+    application.state.watchdog = watchdog.start_from_env()
     yield
+    if application.state.watchdog is not None:
+        application.state.watchdog.stop()
 
 
 def _log_boot_manifest() -> None:

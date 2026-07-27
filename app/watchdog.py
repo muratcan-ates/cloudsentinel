@@ -1,0 +1,136 @@
+"""The sentinel's own heartbeat — an opt-in, stdlib-only watchdog.
+
+``SENTINEL_WATCH_INTERVAL_SECONDS`` > 0 starts one daemon thread from the
+app lifespan that runs the full pulse chain on that cadence: the sentinel
+MONITORS instead of waiting for a click. Off by default — the demo and
+the test suite keep their request-triggered behavior; the knob makes the
+deployment a standing watch.
+
+Design notes (from the concurrency audit):
+- one serial loop — a tick blocks until its pulse finishes, so overlap
+  is impossible by construction;
+- each tick opens its own connection (connections are per-use; WAL +
+  BEGIN IMMEDIATE + busy timeout serialize against request writers) and
+  closes it in ``finally``;
+- ``run_pulse`` is called directly with explicit ``None`` arguments (its
+  FastAPI ``Query`` defaults are sentinel objects, not values) and NEVER
+  with a mission — the tick must not fight the dashboard quick-switch;
+- read-only showcase mode skips ticks: direct calls bypass the HTTP
+  middleware, so the guard is re-checked here;
+- a failing tick logs and waits for the next beat — the watch survives
+  its own bad days.
+"""
+
+import logging
+import os
+import threading
+
+from app import db
+from app.logstream import log_tag
+
+logger = logging.getLogger("cloudsentinel.watchdog")
+
+WATCH_ENV = "SENTINEL_WATCH_INTERVAL_SECONDS"
+MIN_INTERVAL_SECONDS = 30.0  # a hot loop must not eat the LLM quota or the CPU
+
+
+def watch_interval() -> float | None:
+    """The configured cadence, or None when the watchdog stays off."""
+    raw = os.environ.get(WATCH_ENV, "").strip()
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError:
+        logger.warning("ignoring invalid %s=%r; watchdog stays off", WATCH_ENV, raw)
+        return None
+    if value <= 0:
+        return None
+    if value < MIN_INTERVAL_SECONDS:
+        logger.warning(
+            "%s=%s is under the %.0fs floor; clamping",
+            WATCH_ENV,
+            raw,
+            MIN_INTERVAL_SECONDS,
+        )
+        return MIN_INTERVAL_SECONDS
+    return value
+
+
+class Watchdog:
+    """One daemon thread beating the pulse on a fixed cadence."""
+
+    def __init__(self, interval: float):
+        self.interval = interval
+        self.ticks = 0
+        self.skipped_readonly = 0
+        self.last_error: str | None = None
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    @property
+    def running(self) -> bool:
+        return self._thread is not None and self._thread.is_alive()
+
+    def start(self) -> None:
+        self._thread = threading.Thread(
+            target=self._loop, name="sentinel-watchdog", daemon=True
+        )
+        self._thread.start()
+        log_tag(logger, "[WATCHDOG]", state="started", interval_seconds=self.interval)
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=5)
+        log_tag(logger, "[WATCHDOG]", state="stopped", ticks=self.ticks)
+
+    def _loop(self) -> None:
+        # wait-first: boot stays fast, the first beat lands one interval in
+        while not self._stop.wait(self.interval):
+            self.tick()
+
+    def tick(self) -> bool:
+        """One beat: a full pulse on a fresh connection. True if it ran."""
+        # Re-checked here because direct calls bypass the HTTP middleware
+        # that guards the read-only showcase deploy.
+        if os.environ.get("SENTINEL_READONLY", "").strip() == "1":
+            self.skipped_readonly += 1
+            return False
+        from app.pulse import run_pulse  # late import — pulse imports broadly
+
+        conn = None
+        try:
+            conn = db.connect_ready()
+            # Explicit Nones: the endpoint's Query defaults are FastAPI
+            # sentinel objects. mission stays None by design — the tick
+            # must never mutate the dashboard's quick-switch.
+            report = run_pulse(threshold=None, llm_budget=None, mission=None, conn=conn)
+            self.ticks += 1
+            self.last_error = None
+            log_tag(
+                logger,
+                "[WATCHDOG]",
+                tick=self.ticks,
+                signals=report.signals,
+                proposals_filed=report.proposals_filed,
+                llm_calls_used=report.llm_calls_used,
+            )
+            return True
+        except Exception as error:  # the watch survives its own bad days
+            self.last_error = str(error)
+            logger.warning("watchdog tick failed: %s", error, exc_info=True)
+            return False
+        finally:
+            if conn is not None:
+                conn.close()
+
+
+def start_from_env() -> Watchdog | None:
+    """Lifespan hook: a running watchdog when configured, else None."""
+    interval = watch_interval()
+    if interval is None:
+        return None
+    watchdog = Watchdog(interval)
+    watchdog.start()
+    return watchdog
