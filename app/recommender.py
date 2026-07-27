@@ -364,42 +364,14 @@ def _existing_open_action(conn: sqlite3.Connection, event_id: int) -> sqlite3.Ro
     ).fetchone()
 
 
-def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> RecommendationResponse:
-    anomaly = json.loads(event["payload_json"])
-    analysis_envelope = json.loads(event["analysis_json"])
-    analyst_report = analysis_envelope["report"]
-
-    # Idempotent re-recommend: an open proposal for this event is returned
-    # as-is instead of minting a competing card in the inbox.
-    existing = _existing_open_action(conn, event["id"])
-    if existing is not None:
-        detail = json.loads(existing["detail_json"])
-        return _response_from_detail(event["id"], existing, detail, reused=True)
-
-    provider = get_provider()
-    # Pre-call model id keys the cache; attribution uses the result's own
-    # model so a fallback stays honestly labeled "rule-based".
-    model = getattr(provider, "model", "unknown")
-    savings = estimated_savings(anomaly)
-    decision_memory = fetch_decision_memory(conn, anomaly.get("service", ""))
-    memory_count = len(decision_memory.splitlines()) if decision_memory else 0
-    bus.emit(
-        conn,
-        "recommender",
-        "draft",
-        f"signal #{event['id']}: drafting cautious/bold options — "
-        + (
-            f"recalling {memory_count} prior operator verdict"
-            f"{'' if memory_count == 1 else 's'} on this service"
-            if memory_count
-            else "no prior verdicts on this service"
-        ),
-    )
-    prompt = build_prompt(anomaly, analyst_report, savings, decision_memory)
-    skeptic_prompt: str | None = None
-    panel_prompts: list[str] = []
-    panel_reviewers: list[dict] = []
-
+def _resolve_cache_lane(
+    conn: sqlite3.Connection,
+    model: str,
+    prompt: str,
+    anomaly: dict,
+    event: sqlite3.Row,
+) -> tuple[float, int, str, bool, dict | None]:
+    """Cache partitioning — threshold, repeat bucket, and the mock-lane replay."""
     escalation_threshold = debate_threshold()
     # The repeat count is data the prompt never sees, so it must partition
     # the cache exactly like the threshold below: without the bucket, the
@@ -429,190 +401,171 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
     # row, and only the timeout-expiry lane pays a fresh call.
     cacheable = feeds.costs_source() == "mock"
     cached = db.cache_get(conn, model, prompt, cache_scope) if cacheable else None
+    cached_envelope = None
     if cached is not None and cached["response_json"]:
-        envelope = json.loads(cached["response_json"])
-        from_cache = True
-    else:
-        def deterministic_answer():
-            report = rule_based_report(anomaly)
-            return report.options[0].title, report
+        cached_envelope = json.loads(cached["response_json"])
+    return escalation_threshold, repeat_count, cache_scope, cacheable, cached_envelope
 
-        rec_started = time.perf_counter()
-        result = generate_with_fallback(
-            provider,
-            prompt,
-            fallback=deterministic_answer,
-            system_instruction=RECOMMENDER_SYSTEM_INSTRUCTION,
-            response_schema=RecommenderReport,
-        )
-        rec_duration_ms = round((time.perf_counter() - rec_started) * 1000, 1)
-        report = ensure_two_options(result.parsed, anomaly)
-        source = result.source
-        from_cache = False
-        model_used = result.model
 
-        escalation_reason = escalation_trigger(
-            analyst_report.get("triage", "REAL"),
-            report.confidence.score,
-            threshold=escalation_threshold,
-            severity=anomaly.get("severity"),
-            preferred=report.preferred,
-            repeat_count=repeat_count,
+def _climb_debate_ladder(
+    conn: sqlite3.Connection,
+    provider,
+    event_id: int,
+    report: RecommenderReport,
+    analyst_report: dict,
+    anomaly: dict,
+    savings: dict,
+    escalation_reason: str,
+) -> tuple[
+    str, dict | None, str | None, list[str], list[dict], float | None, float | None
+]:
+    """Contested drafts climb — one skeptic on WARNING, the full panel on CRITICAL."""
+    transcript = None
+    skeptic_prompt: str | None = None
+    panel_prompts: list[str] = []
+    panel_reviewers: list[dict] = []
+    skeptic_duration_ms = None
+    panel_duration_ms = None
+    # Debate ladder: a contested CRITICAL signal convenes the
+    # heterogeneous review panel; anything else keeps debate-lite's
+    # single skeptic (exactly one extra call, as before).
+    convene_panel = anomaly.get("severity") == "critical"
+    bus.emit(
+        conn,
+        "recommender",
+        "escalate",
+        f"signal #{event_id}: "
+        + (
+            f"convening the review panel — {escalation_reason}"
+            if convene_panel
+            else f"requesting skeptic review — {escalation_reason}"
+        ),
+    )
+    if convene_panel:
+        panel_started = time.perf_counter()
+        panel, panel_prompts = run_panel(
+            get_panel_providers(), report, analyst_report, anomaly, savings
         )
-        transcript = None
-        skeptic_duration_ms = None
-        panel_duration_ms = None
-        if escalation_reason is not None and source != "fallback":
-            # Debate ladder: a contested CRITICAL signal convenes the
-            # heterogeneous review panel; anything else keeps debate-lite's
-            # single skeptic (exactly one extra call, as before).
-            convene_panel = anomaly.get("severity") == "critical"
+        panel_duration_ms = round(
+            (time.perf_counter() - panel_started) * 1000, 1
+        )
+        panel_reviewers = panel["reviewers"]
+        if panel["answered"] == 0:
+            escalation_reason += " (panel unavailable — draft kept)"
+        else:
+            final = panel["final"]
+            agreed = final == report.preferred
+            if panel["answered"] < PANEL_QUORUM:
+                escalation_reason += " (panel below quorum — draft kept)"
+            dissent = sum(
+                1
+                for reviewer in panel_reviewers
+                if reviewer["agreed"] is False
+            )
+            transcript = {
+                "trigger": escalation_reason,
+                "mode": "panel",
+                "skeptic_rationale": (
+                    f"panel majority {max(panel['votes'].values())}/"
+                    f"{panel['answered']} on the {final} stance — "
+                    f"{dissent} dissent{'' if dissent == 1 else 's'} "
+                    "on the record"
+                ),
+                "agreed": agreed,
+                "original_preferred": report.preferred,
+                "final_preferred": final,
+                "reviewers": panel_reviewers,
+                "votes": panel["votes"],
+            }
             bus.emit(
                 conn,
-                "recommender",
-                "escalate",
-                f"signal #{event['id']}: "
+                "skeptic",
+                "verdict",
+                f"signal #{event_id}: panel of {len(panel_reviewers)} — "
                 + (
-                    f"convening the review panel — {escalation_reason}"
-                    if convene_panel
-                    else f"requesting skeptic review — {escalation_reason}"
+                    f"consensus — the {report.preferred} stance stands"
+                    if agreed
+                    else f"OVERRULED — stance revised "
+                    f"{report.preferred} → {final}"
+                )
+                + (
+                    f" ({dissent} dissent{'' if dissent == 1 else 's'} recorded)"
+                    if dissent
+                    else ""
                 ),
             )
-            if convene_panel:
-                panel_started = time.perf_counter()
-                panel, panel_prompts = run_panel(
-                    get_panel_providers(), report, analyst_report, anomaly, savings
-                )
-                panel_duration_ms = round(
-                    (time.perf_counter() - panel_started) * 1000, 1
-                )
-                panel_reviewers = panel["reviewers"]
-                if panel["answered"] == 0:
-                    escalation_reason += " (panel unavailable — draft kept)"
-                else:
-                    final = panel["final"]
-                    agreed = final == report.preferred
-                    if panel["answered"] < PANEL_QUORUM:
-                        escalation_reason += " (panel below quorum — draft kept)"
-                    dissent = sum(
-                        1
-                        for reviewer in panel_reviewers
-                        if reviewer["agreed"] is False
-                    )
-                    transcript = {
-                        "trigger": escalation_reason,
-                        "mode": "panel",
-                        "skeptic_rationale": (
-                            f"panel majority {max(panel['votes'].values())}/"
-                            f"{panel['answered']} on the {final} stance — "
-                            f"{dissent} dissent{'' if dissent == 1 else 's'} "
-                            "on the record"
-                        ),
-                        "agreed": agreed,
-                        "original_preferred": report.preferred,
-                        "final_preferred": final,
-                        "reviewers": panel_reviewers,
-                        "votes": panel["votes"],
-                    }
-                    bus.emit(
-                        conn,
-                        "skeptic",
-                        "verdict",
-                        f"signal #{event['id']}: panel of {len(panel_reviewers)} — "
-                        + (
-                            f"consensus — the {report.preferred} stance stands"
-                            if agreed
-                            else f"OVERRULED — stance revised "
-                            f"{report.preferred} → {final}"
-                        )
-                        + (
-                            f" ({dissent} dissent{'' if dissent == 1 else 's'} recorded)"
-                            if dissent
-                            else ""
-                        ),
-                    )
-                    if not agreed:
-                        report.preferred = final
-            else:
-                # The prompt is captured before any verdict can mutate the
-                # report: the ledger must hash what was actually sent.
-                skeptic_prompt = build_skeptic_prompt(report, analyst_report)
-                # Debate-lite: exactly one extra call; ANY skeptic failure
-                # keeps the draft — the recommender call already cost quota
-                # and must reach the ledger.
-                skeptic_started = time.perf_counter()
-                try:
-                    skeptic = provider.generate(
-                        skeptic_prompt,
-                        system_instruction=SKEPTIC_SYSTEM_INSTRUCTION,
-                        response_schema=SkepticVerdict,
-                    )
-                except Exception:
-                    logger.warning(
-                        "skeptic failed; keeping the draft recommendation",
-                        exc_info=True,
-                    )
-                    skeptic = None
-                skeptic_duration_ms = round(
-                    (time.perf_counter() - skeptic_started) * 1000, 1
-                )
-                if skeptic is not None and skeptic.parsed is not None:
-                    verdict: SkepticVerdict = skeptic.parsed
-                    transcript = {
-                        "trigger": escalation_reason,
-                        "skeptic_rationale": verdict.rationale,
-                        "agreed": verdict.agree,
-                        "original_preferred": report.preferred,
-                        "final_preferred": verdict.preferred if not verdict.agree else report.preferred,
-                    }
-                    bus.emit(
-                        conn,
-                        "skeptic",
-                        "verdict",
-                        f"signal #{event['id']}: "
-                        + (
-                            f"consensus — the {report.preferred} stance stands"
-                            if verdict.agree
-                            else f"OVERRULED — stance revised "
-                            f"{report.preferred} → {verdict.preferred}"
-                        ),
-                    )
-                    if not verdict.agree:
-                        report.preferred = verdict.preferred
-                else:
-                    escalation_reason += " (skeptic unavailable — draft kept)"
-        elif escalation_reason is not None:
-            escalation_reason += " (skeptic skipped on fallback)"
+            if not agreed:
+                report.preferred = final
+    else:
+        # The prompt is captured before any verdict can mutate the
+        # report: the ledger must hash what was actually sent.
+        skeptic_prompt = build_skeptic_prompt(report, analyst_report)
+        # Debate-lite: exactly one extra call; ANY skeptic failure
+        # keeps the draft — the recommender call already cost quota
+        # and must reach the ledger.
+        skeptic_started = time.perf_counter()
+        try:
+            skeptic = provider.generate(
+                skeptic_prompt,
+                system_instruction=SKEPTIC_SYSTEM_INSTRUCTION,
+                response_schema=SkepticVerdict,
+            )
+        except Exception:
+            logger.warning(
+                "skeptic failed; keeping the draft recommendation",
+                exc_info=True,
+            )
+            skeptic = None
+        skeptic_duration_ms = round(
+            (time.perf_counter() - skeptic_started) * 1000, 1
+        )
+        if skeptic is not None and skeptic.parsed is not None:
+            verdict: SkepticVerdict = skeptic.parsed
+            transcript = {
+                "trigger": escalation_reason,
+                "skeptic_rationale": verdict.rationale,
+                "agreed": verdict.agree,
+                "original_preferred": report.preferred,
+                "final_preferred": verdict.preferred if not verdict.agree else report.preferred,
+            }
+            bus.emit(
+                conn,
+                "skeptic",
+                "verdict",
+                f"signal #{event_id}: "
+                + (
+                    f"consensus — the {report.preferred} stance stands"
+                    if verdict.agree
+                    else f"OVERRULED — stance revised "
+                    f"{report.preferred} → {verdict.preferred}"
+                ),
+            )
+            if not verdict.agree:
+                report.preferred = verdict.preferred
+        else:
+            escalation_reason += " (skeptic unavailable — draft kept)"
+    return (
+        escalation_reason,
+        transcript,
+        skeptic_prompt,
+        panel_prompts,
+        panel_reviewers,
+        skeptic_duration_ms,
+        panel_duration_ms,
+    )
 
-        envelope = {
-            "report": report.model_dump(),
-            "source": source,
-            "model": model_used,
-            "escalation_reason": escalation_reason,
-            "transcript": transcript,
-            # Post-check runs on the FINAL narrative (after any skeptic
-            # revision) so what the operator reads is what was verified.
-            "numeric_check": verify_narrative_figures(report, savings, anomaly),
-            # Measured hop costs — replayed envelopes keep the figures the
-            # original work actually took.
-            "durations": {
-                "recommender": rec_duration_ms,
-                "skeptic": skeptic_duration_ms,
-                "panel": panel_duration_ms,
-            },
-        }
 
-    report = RecommenderReport.model_validate(envelope["report"])
-    source = envelope["source"]
-    escalation_reason = envelope["escalation_reason"]
-    transcript = envelope["transcript"]
-    model_used = envelope["model"]
-
+def _assemble_trace(
+    analysis_envelope: dict, envelope: dict, from_cache: bool, memory_entry_count: int
+) -> list[dict]:
+    """The chain as it actually ran — hop by hop, panel-or-skeptic aware."""
     # Orchestration trace — the chain as it actually ran, hop by hop.
     # Analyst figures come from its persisted envelope, recommender/skeptic
     # figures from this envelope; envelopes persisted before the trace
     # existed simply carry None durations.
-    memory_lines = decision_memory.splitlines() if decision_memory else []
+    source = envelope["source"]
+    model_used = envelope["model"]
+    transcript = envelope["transcript"]
     durations = envelope.get("durations") or {}
     trace = [
         {
@@ -622,7 +575,7 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
             "reflected": analysis_envelope.get("reflected", False),
             "duration_ms": analysis_envelope.get("duration_ms"),
         },
-        {"step": "memory", "entries": len(memory_lines)},
+        {"step": "memory", "entries": memory_entry_count},
         {
             "step": "recommender",
             "source": source,
@@ -654,27 +607,28 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
                 "duration_ms": durations.get("skeptic"),
             }
         )
+    return trace
 
-    preferred_option = next(
-        option for option in report.options if option.stance == report.preferred
-    )
-    detail = {
-        "category": report.category,
-        "preferred": report.preferred,
-        "options": [option.model_dump() for option in report.options],
-        "savings": savings,
-        "confidence": report.confidence.model_dump(),
-        "escalation_reason": escalation_reason,
-        "transcript": transcript,
-        "numeric_check": envelope.get("numeric_check"),
-        "trace": trace,
-        "memory": {"count": len(memory_lines), "entries": memory_lines},
-        "source": source,
-        "model": envelope["model"],
-        "analysis": analyst_report,
-        "anomaly": anomaly,
-    }
 
+def _persist_proposal(
+    conn: sqlite3.Connection,
+    event: sqlite3.Row,
+    detail: dict,
+    envelope: dict,
+    prompt: str,
+    model: str,
+    cache_scope: str,
+    cacheable: bool,
+    from_cache: bool,
+    skeptic_prompt: str | None,
+    panel_prompts: list[str],
+    panel_reviewers: list[dict],
+    preferred_title: str,
+) -> tuple[sqlite3.Row, dict, bool]:
+    """One write transaction — ledger rows, cache, the racing re-check, the card."""
+    source = envelope["source"]
+    model_used = envelope["model"]
+    transcript = envelope["transcript"]
     with db.writing(conn):
         db.record_ai_usage(
             conn,
@@ -711,22 +665,186 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
                 conn,
                 model,
                 prompt,
-                preferred_option.title,
+                preferred_title,
                 json.dumps(envelope),
                 system_instruction=cache_scope,
             )
         # Re-check under the write lock: a racing duplicate loses here.
         existing = _existing_open_action(conn, event["id"])
         if existing is not None:
-            detail = json.loads(existing["detail_json"])
-            return _response_from_detail(event["id"], existing, detail, reused=True)
+            return existing, json.loads(existing["detail_json"]), True
         cursor = conn.execute(
             "INSERT INTO actions (event_id, title, detail_json) VALUES (?, ?, ?)",
-            (event["id"], preferred_option.title, json.dumps(detail)),
+            (event["id"], preferred_title, json.dumps(detail)),
         )
         action_row = conn.execute(
             "SELECT * FROM actions WHERE id = ?", (cursor.lastrowid,)
         ).fetchone()
+    return action_row, detail, False
+
+
+def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> RecommendationResponse:
+    anomaly = json.loads(event["payload_json"])
+    analysis_envelope = json.loads(event["analysis_json"])
+    analyst_report = analysis_envelope["report"]
+
+    # Idempotent re-recommend: an open proposal for this event is returned
+    # as-is instead of minting a competing card in the inbox.
+    existing = _existing_open_action(conn, event["id"])
+    if existing is not None:
+        detail = json.loads(existing["detail_json"])
+        return _response_from_detail(event["id"], existing, detail, reused=True)
+
+    provider = get_provider()
+    # Pre-call model id keys the cache; attribution uses the result's own
+    # model so a fallback stays honestly labeled "rule-based".
+    model = getattr(provider, "model", "unknown")
+    savings = estimated_savings(anomaly)
+    decision_memory = fetch_decision_memory(conn, anomaly.get("service", ""))
+    memory_count = len(decision_memory.splitlines()) if decision_memory else 0
+    bus.emit(
+        conn,
+        "recommender",
+        "draft",
+        f"signal #{event['id']}: drafting cautious/bold options — "
+        + (
+            f"recalling {memory_count} prior operator verdict"
+            f"{'' if memory_count == 1 else 's'} on this service"
+            if memory_count
+            else "no prior verdicts on this service"
+        ),
+    )
+    prompt = build_prompt(anomaly, analyst_report, savings, decision_memory)
+    skeptic_prompt: str | None = None
+    panel_prompts: list[str] = []
+    panel_reviewers: list[dict] = []
+
+    (
+        escalation_threshold,
+        repeat_count,
+        cache_scope,
+        cacheable,
+        cached_envelope,
+    ) = _resolve_cache_lane(conn, model, prompt, anomaly, event)
+    if cached_envelope is not None:
+        envelope = cached_envelope
+        from_cache = True
+    else:
+        def deterministic_answer():
+            report = rule_based_report(anomaly)
+            return report.options[0].title, report
+
+        rec_started = time.perf_counter()
+        result = generate_with_fallback(
+            provider,
+            prompt,
+            fallback=deterministic_answer,
+            system_instruction=RECOMMENDER_SYSTEM_INSTRUCTION,
+            response_schema=RecommenderReport,
+        )
+        rec_duration_ms = round((time.perf_counter() - rec_started) * 1000, 1)
+        report = ensure_two_options(result.parsed, anomaly)
+        source = result.source
+        from_cache = False
+        model_used = result.model
+
+        escalation_reason = escalation_trigger(
+            analyst_report.get("triage", "REAL"),
+            report.confidence.score,
+            threshold=escalation_threshold,
+            severity=anomaly.get("severity"),
+            preferred=report.preferred,
+            repeat_count=repeat_count,
+        )
+        transcript = None
+        skeptic_duration_ms = None
+        panel_duration_ms = None
+        if escalation_reason is not None and source != "fallback":
+            (
+                escalation_reason,
+                transcript,
+                skeptic_prompt,
+                panel_prompts,
+                panel_reviewers,
+                skeptic_duration_ms,
+                panel_duration_ms,
+            ) = _climb_debate_ladder(
+                conn,
+                provider,
+                event["id"],
+                report,
+                analyst_report,
+                anomaly,
+                savings,
+                escalation_reason,
+            )
+        elif escalation_reason is not None:
+            escalation_reason += " (skeptic skipped on fallback)"
+
+        envelope = {
+            "report": report.model_dump(),
+            "source": source,
+            "model": model_used,
+            "escalation_reason": escalation_reason,
+            "transcript": transcript,
+            # Post-check runs on the FINAL narrative (after any skeptic
+            # revision) so what the operator reads is what was verified.
+            "numeric_check": verify_narrative_figures(report, savings, anomaly),
+            # Measured hop costs — replayed envelopes keep the figures the
+            # original work actually took.
+            "durations": {
+                "recommender": rec_duration_ms,
+                "skeptic": skeptic_duration_ms,
+                "panel": panel_duration_ms,
+            },
+        }
+
+    report = RecommenderReport.model_validate(envelope["report"])
+    source = envelope["source"]
+    escalation_reason = envelope["escalation_reason"]
+    transcript = envelope["transcript"]
+
+    memory_lines = decision_memory.splitlines() if decision_memory else []
+    trace = _assemble_trace(analysis_envelope, envelope, from_cache, len(memory_lines))
+
+    preferred_option = next(
+        option for option in report.options if option.stance == report.preferred
+    )
+    detail = {
+        "category": report.category,
+        "preferred": report.preferred,
+        "options": [option.model_dump() for option in report.options],
+        "savings": savings,
+        "confidence": report.confidence.model_dump(),
+        "escalation_reason": escalation_reason,
+        "transcript": transcript,
+        "numeric_check": envelope.get("numeric_check"),
+        "trace": trace,
+        "memory": {"count": len(memory_lines), "entries": memory_lines},
+        "source": source,
+        "model": envelope["model"],
+        "analysis": analyst_report,
+        "anomaly": anomaly,
+    }
+
+    action_row, detail, reused = _persist_proposal(
+        conn,
+        event,
+        detail,
+        envelope,
+        prompt,
+        model,
+        cache_scope,
+        cacheable,
+        from_cache,
+        skeptic_prompt,
+        panel_prompts,
+        panel_reviewers,
+        preferred_option.title,
+    )
+    if reused:
+        # A racing duplicate lost under the write lock — replay its card.
+        return _response_from_detail(event["id"], action_row, detail, reused=True)
 
     if transcript is not None:
         logger.info(
