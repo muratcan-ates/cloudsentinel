@@ -5,6 +5,35 @@
    keeps the audit trail. Nothing ever executes without an operator decision,
    and execution is simulated by design. */
 
+/* ======================================================================
+   CONTENTS
+   01 · config & state — themes, demo narratives, the app state
+   02 · dom lookups — the fixed elements every section shares
+   03 · small utils — escapeHtml, formatters, fetch/post, shared builders
+   04 · svg helpers — precise static ink shared by every chart
+   05 · charts — daily trend + the detection backtest bars
+   06 · radar — the pixel-radar centerpiece
+   07 · watch room — summary cards, anomalies, costs, unified watch (I–II)
+   08 · investigation — signal rail, evidence pack, agent verbs (III)
+   09 · decision desk — HITL inbox and the reflex/conscious split (IV)
+   10 · ledger & audit — the persisted decision trail (V)
+   11 · intelligence & handover — /analytics aggregates, print brief (VI)
+   12 · brain room — insights, routines, runbooks, identity
+   13 · agent feed — the live right rail
+   14 · scan, pulse & health — the app verbs that refresh everything
+   15 · tour & routing — guided tour, room navigation, permalinks
+   16 · events & boot — every listener and imperative step, in load order
+
+   Only definitions moved: top-level constants and function declarations
+   hoist safely, so they are grouped by feature. Every imperative
+   statement (listener registration, interval, immediate call) kept its
+   original relative execution order inside section 16.
+   ====================================================================== */
+
+/* ======================================================================
+   01 · CONFIG & STATE
+   ====================================================================== */
+
 /* Palette: ?theme=mission|paper|horizon|dawn still wins so review links keep
    working; otherwise the choice persisted from the colophon switch applies.
    The default identity stays horizon — the switch promotes night (mission)
@@ -13,74 +42,8 @@ const THEMES = ["horizon", "mission", "paper", "dawn"];
 
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
-  document.querySelectorAll("[data-theme-choice]").forEach((button) =>
-    button.setAttribute("aria-pressed", String(button.dataset.themeChoice === theme))
-  );
+  markPressed("[data-theme-choice]", "themeChoice", theme);
 }
-
-const themeParam = new URLSearchParams(location.search).get("theme");
-let storedTheme = null;
-try {
-  storedTheme = localStorage.getItem("sentinel-theme");
-} catch {
-  /* storage can be unavailable (private mode) — the default carries */
-}
-applyTheme(
-  THEMES.includes(themeParam) ? themeParam : THEMES.includes(storedTheme) ? storedTheme : "horizon"
-);
-
-const thresholdInput = document.getElementById("threshold");
-const thresholdValue = document.getElementById("threshold-value");
-const serviceFilter = document.getElementById("service-filter");
-const rescanButton = document.getElementById("rescan");
-const pulseButton = document.getElementById("pulse-run");
-const operatorInput = document.getElementById("operator-name");
-const pulseNote = document.getElementById("pulse-note");
-const editionLine = document.getElementById("chip-system");
-const anomalyList = document.getElementById("anomaly-list");
-const costBars = document.getElementById("cost-bars");
-const signalRail = document.getElementById("signal-rail");
-const invDetail = document.getElementById("inv-detail");
-const decisionList = document.getElementById("decision-list");
-const auditList = document.getElementById("audit-list");
-
-const state = {
-  anomalies: [],
-  allAnomalies: [], // unfiltered set — feeds the all-services trend marks
-  costs: null,
-  daily: null,
-  sortMode: "cost",
-  anomalySort: "z", // z | date | service — orders section I and the signal rail
-  lastScan: null, // last successful /anomalies report — re-renders on sort changes
-  selectedIndex: 0,
-  analyses: new Map(), // event id → Analyst agent report; survives re-renders
-  analystBusy: new Set(), // event ids with an analyze request in flight
-  recommendBusy: new Set(), // event ids with a recommend request in flight
-  hitlBusy: new Set(), // action ids with a decision request in flight
-  actions: [], // live HITL actions from GET /actions — feeds section IV
-  analytics: null, // GET /analytics/decisions — funnel, quality, telemetry (section VI)
-  trend: null, // GET /analytics/costs/trend — window-over-window comparison (section VI)
-  intelStale: false, // last intelligence fetch failed — section VI must say so
-  aiUsage: null, // GET /analytics/ai — self-FinOps quota strip (section VI)
-  forecast: null, // GET /analytics/costs/forecast — month-end line (section II)
-  security: null, // GET /security/signals — unified watch strip (section I)
-  fraud: null, // GET /fraud/signals — unified watch strip (section I)
-  watchStale: false, // last watch fetch failed on at least one lane
-  whatif: new Map(), // action id → /analytics/whatif — decision-moment numbers
-  calibration: null, // GET /analytics/calibration — confidence vs verdicts (VI)
-  headline: null, // GET /analytics/headline — one-line jury brief (copy button)
-  roi: null, // GET /analytics/roi — realized vs estimated savings (section VI)
-  detection: null, // GET /metrics/detection — detector precision from verdicts (VI)
-  reflexSuggestions: null, // GET /reflex/suggestions — learned reflex candidates (VI)
-  env: "local", // deploy environment from /health — drives the LIVE banner
-  provider: "fake", // GET /health provider — fake (dormant Gemini) vs live
-  readonly: false, // SENTINEL_READONLY showcase mode — writes are disabled
-  dataSources: {}, // GET /health data_sources — lane → mock | self | feed
-  auditExpanded: false, // section V shows the newest entries until asked
-  audit: [
-    { time: "ledger", title: "Loading the decision ledger…", copy: "Operator verdicts, persisted across restarts, appear here on load." },
-  ],
-};
 
 /* Pre-analysis placeholder for section III: shown only until the Analyst
    runs on a signal; live agent output replaces it. */
@@ -126,6 +89,72 @@ const detailsByService = {
     confidence: 72,
   },
 };
+
+const state = {
+  anomalies: [],
+  allAnomalies: [], // unfiltered set — feeds the all-services trend marks
+  costs: null,
+  daily: null,
+  sortMode: "cost",
+  anomalySort: "z", // z | date | service — orders section I and the signal rail
+  lastScan: null, // last successful /anomalies report — re-renders on sort changes
+  selectedIndex: 0,
+  analyses: new Map(), // event id → Analyst agent report; survives re-renders
+  analystBusy: new Set(), // event ids with an analyze request in flight
+  recommendBusy: new Set(), // event ids with a recommend request in flight
+  hitlBusy: new Set(), // action ids with a decision request in flight
+  actions: [], // live HITL actions from GET /actions — feeds section IV
+  analytics: null, // GET /analytics/decisions — funnel, quality, telemetry (section VI)
+  trend: null, // GET /analytics/costs/trend — window-over-window comparison (section VI)
+  intelStale: false, // last intelligence fetch failed — section VI must say so
+  aiUsage: null, // GET /analytics/ai — self-FinOps quota strip (section VI)
+  forecast: null, // GET /analytics/costs/forecast — month-end line (section II)
+  security: null, // GET /security/signals — unified watch strip (section I)
+  fraud: null, // GET /fraud/signals — unified watch strip (section I)
+  watchStale: false, // last watch fetch failed on at least one lane
+  whatif: new Map(), // action id → /analytics/whatif — decision-moment numbers
+  calibration: null, // GET /analytics/calibration — confidence vs verdicts (VI)
+  headline: null, // GET /analytics/headline — one-line jury brief (copy button)
+  roi: null, // GET /analytics/roi — realized vs estimated savings (section VI)
+  detection: null, // GET /metrics/detection — detector precision from verdicts (VI)
+  reflexSuggestions: null, // GET /reflex/suggestions — learned reflex candidates (VI)
+  env: "local", // deploy environment from /health — drives the LIVE banner
+  provider: "fake", // GET /health provider — fake (dormant Gemini) vs live
+  readonly: false, // SENTINEL_READONLY showcase mode — writes are disabled
+  dataSources: {}, // GET /health data_sources — lane → mock | self | feed
+  auditExpanded: false, // section V shows the newest entries until asked
+  audit: [
+    { time: "ledger", title: "Loading the decision ledger…", copy: "Operator verdicts, persisted across restarts, appear here on load." },
+  ],
+};
+
+/* ======================================================================
+   02 · DOM LOOKUPS
+   ====================================================================== */
+
+const thresholdInput = document.getElementById("threshold");
+const thresholdValue = document.getElementById("threshold-value");
+const serviceFilter = document.getElementById("service-filter");
+const rescanButton = document.getElementById("rescan");
+const pulseButton = document.getElementById("pulse-run");
+const operatorInput = document.getElementById("operator-name");
+const pulseNote = document.getElementById("pulse-note");
+const editionLine = document.getElementById("chip-system");
+const anomalyList = document.getElementById("anomaly-list");
+const costBars = document.getElementById("cost-bars");
+const signalRail = document.getElementById("signal-rail");
+const invDetail = document.getElementById("inv-detail");
+const decisionList = document.getElementById("decision-list");
+const auditList = document.getElementById("audit-list");
+const feedToggle = document.getElementById("feed-toggle");
+const feedBody = document.getElementById("feed-body");
+const feedList = document.getElementById("feed-list");
+const feedEmpty = document.getElementById("feed-empty");
+const runbookInput = document.getElementById("runbook-query");
+
+/* ======================================================================
+   03 · SMALL UTILS — formatters, fetch helpers, shared builders
+   ====================================================================== */
 
 const fmtNumber = (value) =>
   value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -184,6 +213,15 @@ async function fetchJson(url) {
   return response.json();
 }
 
+/* POST a JSON body and return the raw Response — callers keep their own
+   status handling (409 name conflicts, 403 read-only) exactly as before. */
+const postJson = (url, body) =>
+  fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
 function detailFor(service) {
   return detailsByService[String(service || "").trim().toLowerCase()] || detailsByService.network;
 }
@@ -200,297 +238,59 @@ function sortAnomalies() {
   state.anomalies.sort(anomalyComparators[state.anomalySort] || anomalyComparators.z);
 }
 
-let actionsSequence = 0; // last-writer-wins: a stale /actions response must never overwrite a newer one
-
-async function loadActions() {
-  const sequence = ++actionsSequence;
-  try {
-    const report = await fetchJson("/actions");
-    if (sequence !== actionsSequence) return; // superseded by a newer reload
-    state.actions = report.actions;
-    // Decision-moment numbers: the what-if projection for every card still
-    // awaiting a verdict (best-effort — a missing projection hides the line).
-    const proposed = report.actions.filter((action) => action.state === "proposed");
-    const projections = await Promise.all(
-      proposed.map((action) =>
-        fetchJson(`/analytics/whatif?action_id=${action.id}`).catch(() => null)
-      )
-    );
-    if (sequence !== actionsSequence) return;
-    state.whatif = new Map();
-    projections.forEach((projection) => {
-      if (projection) state.whatif.set(projection.action_id, projection);
-    });
-  } catch {
-    if (sequence !== actionsSequence) return;
-    state.actions = []; // the inbox degrades to its empty state
-  }
-}
-
-let intelSequence = 0; // last-writer-wins: stale analytics must never overwrite newer
-
-async function loadIntelligence() {
-  const sequence = ++intelSequence;
-  try {
-    const [analytics, trend, aiUsage, forecast, calibration, headline, roi, detection, reflexSuggestions] = await Promise.all([
-      fetchJson("/analytics/decisions"),
-      fetchJson("/analytics/costs/trend"),
-      fetchJson("/analytics/ai"),
-      fetchJson("/analytics/costs/forecast"),
-      fetchJson("/analytics/calibration").catch(() => null),
-      fetchJson("/analytics/headline").catch(() => null),
-      fetchJson("/analytics/roi").catch(() => null),
-      fetchJson("/metrics/detection").catch(() => null),
-      fetchJson("/reflex/suggestions").catch(() => null),
-    ]);
-    if (sequence !== intelSequence) return;
-    state.analytics = analytics;
-    state.trend = trend;
-    state.aiUsage = aiUsage;
-    state.forecast = forecast;
-    state.calibration = calibration;
-    state.headline = headline;
-    state.roi = roi;
-    state.detection = detection;
-    state.reflexSuggestions = reflexSuggestions;
-    state.intelStale = false;
-  } catch {
-    if (sequence !== intelSequence) return;
-    // keep the last successful figures; the render marks the feed stale
-    state.intelStale = true;
-  }
-}
-
-/* Section V is the persisted decision ledger (it survives restarts), not a
-   session scratchpad: seed it from the real operator verdicts on load so a
-   fresh visitor sees the actual audit trail, never placeholder copy. Live
-   in-session activity still layers on top via state.audit.unshift(). */
-async function loadDecisions() {
-  try {
-    const report = await fetchJson("/decisions");
-    const rows = report.decisions || [];
-    state.audit = rows.length
-      ? rows.map((decision) => ({
-          time: (decision.decided_at || "").slice(5, 10) || "decision",
-          title: `${decision.verdict === "approved" ? "Approved" : "Rejected"} · ${decision.service}`,
-          copy: decision.rationale || "(no rationale recorded)",
-        }))
-      : [
-          {
-            time: "ledger",
-            title: "No operator decisions recorded yet",
-            copy: "Approve or reject a proposal on the Decision desk to start the persisted audit trail.",
-          },
-        ];
-  } catch {
-    /* ledger unreachable — keep whatever section V already shows */
-  }
-}
-
-let watchSequence = 0; // last-writer-wins: stale watch responses never overwrite newer
-
-async function loadWatch() {
-  const sequence = ++watchSequence;
-  // Independent lanes: a fraud-only failure must not discard a security
-  // response that already succeeded (and vice versa).
-  const [security, fraud] = await Promise.all([
-    fetchJson("/security/signals").catch(() => null),
-    fetchJson("/fraud/signals").catch(() => null),
-  ]);
-  if (sequence !== watchSequence) return;
-  if (security) state.security = security;
-  if (fraud) state.fraud = fraud;
-  state.watchStale = !security || !fraud;
-}
-
-function renderWatch() {
-  const securityBox = document.getElementById("security-watch");
-  const fraudBox = document.getElementById("fraud-watch");
-  const staleLine = document.getElementById("watch-stale");
-  staleLine.textContent = state.watchStale
-    ? "watch feed unreachable — showing the last successful signals"
-    : "";
-
-  if (!state.security) {
-    securityBox.innerHTML = `<p class="meta watch-head">security — loads with the first scan</p>`;
-  } else {
-    const report = state.security;
-    // cross-lane correlation: a login storm on a spend-spike day is one
-    // story told by two lanes — the badge joins them by calendar date
-    const costSpikeDates = new Set(state.allAnomalies.map((anomaly) => anomaly.date));
-    securityBox.innerHTML =
-      `<p class="meta watch-head">security — ${report.signal_count} signal${report.signal_count === 1 ? "" : "s"} · ${escapeHtml(report.metric)} · mission ${escapeHtml(report.mission ?? "—")}</p>` +
-      report.signals
-        .map(
-          (signal) => `
-      <div class="watch-row ${signal.severity === "critical" ? "critical" : ""}">
-        <div class="watch-top">
-          <span><span class="watch-glyph" aria-hidden="true">▣</span><span class="watch-strong">${escapeHtml(signal.service)}</span></span>
-          <span class="watch-tag">${escapeHtml(signal.severity)}</span>
-        </div>
-        <p class="watch-detail">${escapeHtml(signal.date)} · ${fmtNumber(signal.count)} events vs ${fmtNumber(signal.baseline)} baseline · z ${signal.z_score.toFixed(2)}${costSpikeDates.has(signal.date) ? ` · <span class="watch-strong">⇄ cost spike same day</span>` : ""}</p>
-      </div>`
-        )
-        .join("");
-  }
-
-  if (!state.fraud) {
-    fraudBox.innerHTML = `<p class="meta watch-head">fraud — loads with the first scan</p>`;
-    return;
-  }
-  const fraud = state.fraud;
-  const flagged = fraud.signals.filter((signal) => signal.band !== "clear");
-  const bands = fraud.bands || {};
-  const bandLine =
-    bands.hold_suggested != null
-      ? ` · ${bands.hold_suggested} hold / ${bands.review} review / ${bands.clear} clear`
-      : ` · ${fraud.count} flagged of ${fraud.signals.length} events`;
-  fraudBox.innerHTML =
-    `<p class="meta watch-head">fraud <span class="hint">(experimental lane)</span> — published rules${bandLine} · mission ${escapeHtml(fraud.mission ?? "—")} · suggestions only, the operator decides</p>` +
-    flagged
-      .map(
-        (signal) => `
-    <div class="watch-row ${signal.band === "hold_suggested" ? "critical" : ""}" title="${escapeHtml(signal.reasons.join(" · "))}">
-      <div class="watch-top">
-        <span><span class="watch-glyph" aria-hidden="true">▣</span><span class="watch-strong">${escapeHtml(signal.id)}</span> · ${fmtNumber(signal.amount)} USD</span>
-        <span class="watch-tag">score ${signal.score} · ${escapeHtml(signal.band === "hold_suggested" ? "hold suggested" : signal.band)}</span>
-      </div>
-      <p class="watch-detail">${
-        signal.rule_hits && signal.rule_hits.length
-          ? escapeHtml(signal.rule_hits.map((hit) => `${hit.rule.replace("_", " ")} +${hit.points}`).join(" · "))
-          : escapeHtml(signal.reasons.join(" · "))
-      }</p>
-    </div>`
-      )
-      .join("");
-}
-
-function actionForEvent(eventId) {
-  if (eventId == null) return undefined;
-  // the newest non-rejected action mirrors the backend's reuse lane
-  return [...state.actions]
-    .reverse()
-    .find((action) => action.event_id === eventId && action.state !== "rejected");
-}
-
-/* ---------- renderers ---------- */
-
-function renderSummary() {
-  const pending = state.actions.filter((a) => a.state === "proposed").length;
-  rollFigure(document.getElementById("sum-signals"), state.anomalies.length, (v) =>
-    String(Math.round(v))
+/* aria-pressed radio behavior for a row of toggle buttons — the theme
+   switch, the anomaly sort row and the cost sort row share the idiom. */
+function markPressed(selector, datasetKey, value) {
+  document.querySelectorAll(selector).forEach((button) =>
+    button.setAttribute("aria-pressed", String(button.dataset[datasetKey] === value))
   );
-  rollFigure(document.getElementById("sum-pending"), pending, (v) =>
-    String(Math.round(v))
-  );
-  if (state.costs) {
-    const currency = escapeHtml(state.costs.currency);
-    rollFigure(
-      document.getElementById("sum-total"),
-      state.costs.total_cost,
-      (v) => `${fmtNumber(v)} <small>${currency}</small>`
-    );
-    document.getElementById("sum-total-sub").textContent =
-      `${state.costs.period.start} → ${state.costs.period.end}`;
-  }
-  if (state.analytics) {
-    const currency = escapeHtml(state.costs ? state.costs.currency : "USD");
-    rollFigure(
-      document.getElementById("sum-value"),
-      state.analytics.quality.approved_estimated_monthly_savings,
-      (v) => `${fmtNumber(v)} <small>${currency} / mo</small>`
-    );
-  }
 }
 
-function renderAnomalies(report) {
-  // scannable facts, not a sentence: each figure is its own chip
-  const chips = [
-    `<span class="chip-strong">${report.records_analyzed}</span> records`,
-    `threshold <span class="chip-strong">${report.threshold.toFixed(2)}</span>`,
-    `<span class="chip-strong">${report.anomaly_count}</span> cost`,
-    state.security ? `<span class="chip-strong">${state.security.signal_count}</span> security` : null,
-    state.fraud ? `<span class="chip-strong">${state.fraud.count}</span> fraud` : null,
-    typeof report.reflex_ms === "number"
-      ? `reflex <span class="chip-strong">${report.reflex_ms.toFixed(1)}</span> ms`
-      : null,
-    serviceFilter.value ? `service ${escapeHtml(serviceFilter.value)}` : null,
-  ].filter(Boolean);
-  document.getElementById("anomaly-meta").innerHTML = chips
-    .map((chip) => `<span class="stat-chip">${chip}</span>`)
-    .join("");
+/* Scannable stat chips — one builder for the anomaly meta row, the cost
+   meta row and the decision-split strip. */
+const statChip = (html) => `<span class="stat-chip">${html}</span>`;
+const chipStrong = (value) => `<span class="chip-strong">${value}</span>`;
 
-  anomalyList.innerHTML = "";
-  if (report.anomalies.length === 0) {
-    anomalyList.innerHTML = `<p class="all-quiet">All quiet.</p>`;
-    return new Set();
+/* The shared <details class="transcript"> fold: one scaffold for the
+   skeptic transcript, the orchestration trace and the decision memory. */
+const buildFold = (summary, innerHtml) =>
+  `<details class="transcript"><summary>${summary}</summary>${innerHtml}</details>`;
+
+/* Empty-state line for the brain-room lists — one `<li class="meta">` note. */
+function listPlaceholder(list, text) {
+  const li = document.createElement("li");
+  li.className = "meta";
+  li.textContent = text;
+  list.appendChild(li);
+}
+
+/* One list row for the routine panels: a text label followed by small
+   head-action verbs — the shape the suggestion and saved lists share. */
+function listRow(list, labelText, actions) {
+  const li = document.createElement("li");
+  const label = document.createElement("span");
+  label.textContent = labelText;
+  li.appendChild(label);
+  for (const action of actions) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "head-action";
+    button.textContent = action.label;
+    if (action.title) button.title = action.title;
+    button.addEventListener("click", action.onClick);
+    li.appendChild(button);
   }
-
-  report.anomalies.forEach((anomaly, index) => {
-    const entry = document.createElement("article");
-    entry.className = `entry ${anomaly.severity}`;
-    entry.innerHTML = `
-      <span class="sq" aria-hidden="true"></span>
-      <div>
-        <p class="service">${escapeHtml(anomaly.service)}</p>
-        <p class="date">${escapeHtml(anomaly.date)}${daysAgo(anomaly.date) ? ` · ${daysAgo(anomaly.date)}` : ""}</p>
-        <p class="figures">${fmtNumber(anomaly.cost)} <span class="dim">vs baseline ${fmtNumber(anomaly.service_mean)}</span></p>
-        ${anomaly.service_mean > 0
-          ? `<p class="ratio-note">${(anomaly.cost / anomaly.service_mean).toFixed(1)}× the usual daily spend</p>`
-          : ""}
-      </div>
-      <div class="entry-rail">
-        <p class="z">${anomaly.z_score.toFixed(2)}</p>
-        <p class="sev-word">${escapeHtml(anomaly.severity)}</p>
-        <button class="row-action" type="button" data-investigate="${index}" aria-label="investigate ${escapeHtml(anomaly.service)} anomaly of ${escapeHtml(anomaly.date)}">investigate →</button>
-      </div>`;
-    anomalyList.appendChild(entry);
-  });
-  return new Set(report.anomalies.map((a) => a.service));
+  list.appendChild(li);
 }
 
-function renderCosts(report, flaggedServices) {
-  document.getElementById("cost-meta").innerHTML =
-    `<span class="stat-chip">${escapeHtml(report.period.start)} → ${escapeHtml(report.period.end)}</span>` +
-    `<span class="stat-chip"><span class="chip-strong">${report.services.length}</span> services</span>`;
-
-  document.getElementById("total-cost").innerHTML =
-    `${fmtNumber(report.total_cost)} <small>${escapeHtml(report.currency)}</small>`;
-
-  costBars.innerHTML = "";
-  const ordered =
-    state.sortMode === "az"
-      ? [...report.services].sort((a, b) => a.service.localeCompare(b.service))
-      : [...report.services].sort((a, b) => b.total_cost - a.total_cost);
-  const biggestSpend = Math.max(...report.services.map((s) => s.total_cost));
-  ordered.forEach((service, index) => {
-    const flagged = flaggedServices.has(service.service);
-    const share = (service.share_of_total * 100).toFixed(1);
-    const row = document.createElement("div");
-    row.className = `cost-row${service.total_cost === biggestSpend ? " top-spender" : ""}`;
-    row.innerHTML = `
-      <div class="cost-line">
-        <span class="idx">${String(index + 1).padStart(2, "0")}</span>
-        <button class="service service-btn" type="button" data-filter-service="${escapeHtml(service.service)}"
-          aria-pressed="${String(serviceFilter.value === service.service)}"
-          title="focus the signal panels on ${escapeHtml(service.service)} — click again to clear">${escapeHtml(service.service)}${
-          flagged
-            ? '<span class="phantom-sq" aria-hidden="true"></span><span class="phantom-note">phantom traced</span>'
-            : ""
-        }</button>
-        <span class="amount">${fmtNumber(service.total_cost)} <small>${escapeHtml(report.currency)}</small> <span class="share">· ${share}%</span></span>
-      </div>
-      <div class="bar"><div class="bar-fill" style="width:0%"></div></div>`;
-    costBars.appendChild(row);
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
-        row.querySelector(".bar-fill").style.width = `${share}%`;
-      })
-    );
-  });
+/* Every ledger entry lands the same way: newest first, stamped now. */
+function auditNote(title, copy) {
+  state.audit.unshift({ time: utcNow(), title, copy });
 }
 
-/* ---------- SVG helpers (precise static ink) ---------- */
+/* ======================================================================
+   04 · SVG HELPERS (precise static ink)
+   ====================================================================== */
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -722,6 +522,10 @@ function drawGroupedBars(svg, groups) {
   svg.append(...captions);
 }
 
+/* ======================================================================
+   05 · CHARTS — daily trend + detection backtest
+   ====================================================================== */
+
 function renderTrend() {
   const svg = document.getElementById("cost-trend");
   const readout = document.getElementById("trend-readout");
@@ -814,14 +618,359 @@ function renderTrend() {
   };
 }
 
-// Redraw the trend chart on resize so its 1:1 viewBox tracks the panel width.
-let trendResizeTimer = null;
-window.addEventListener("resize", () => {
-  clearTimeout(trendResizeTimer);
-  trendResizeTimer = setTimeout(() => {
-    if (state.daily && state.daily.totals.length) renderTrend();
-  }, 150);
-});
+/* Detection backtest: recall on planted ground truth, drawn as grouped bars —
+   one group per scenario, one bar per detector mode, at the sensitivity the
+   slider currently holds. Precision and FN ride each bar's tooltip, and the
+   server's own caveat note (why MAD wins the contaminated baseline) is
+   surfaced verbatim instead of being dropped. */
+const BACKTEST_MODES = [
+  { mode: "zscore", cls: "zscore" },
+  { mode: "mad", cls: "mad" },
+  { mode: "zscore+loo", cls: "loo" },
+];
+
+let backtestSequence = 0; // last-writer-wins: a stale backtest must never overwrite a newer one
+let backtestGroups = null; // last successful groups, redrawn on host resize without a refetch
+
+/* Draw (or redraw) the cached groups with the viewBox matched 1:1 to the
+   host's real pixel width — the same pattern the trend chart uses; a fixed
+   460 box centered with gutters on desktop and letterboxed on phones. */
+function drawBacktestChart() {
+  const host = document.getElementById("backtest-table");
+  if (!host || !backtestGroups) return;
+  let svg = host.querySelector("svg.backtest-svg");
+  if (!svg) {
+    svg = svgEl("svg", {
+      class: "backtest-svg",
+      role: "img",
+      "aria-label": "Detection backtest — recall per scenario for z-score, MAD and leave-one-out",
+    });
+    host.textContent = "";
+    host.appendChild(svg);
+  }
+  const boxW = Math.max(320, Math.round(host.clientWidth || 460));
+  svg.setAttribute("viewBox", `0 0 ${boxW} 150`);
+  drawGroupedBars(svg, backtestGroups);
+}
+
+async function renderBacktest() {
+  const host = document.getElementById("backtest-table");
+  if (!host) return;
+  const sequence = ++backtestSequence;
+  try {
+    const threshold = parseFloat(thresholdInput?.value) || 2;
+    const data = await fetchJson(`/metrics/backtest?threshold=${threshold}`);
+    if (sequence !== backtestSequence) return; // superseded by a newer slider move
+    const rows = data.rows || [];
+    const scenarios = [...new Set(rows.map((row) => row.scenario))];
+    backtestGroups = scenarios.map((scenario) => ({
+      label: scenario,
+      bars: BACKTEST_MODES.flatMap(({ mode, cls }) => {
+        const row = rows.find((r) => r.scenario === scenario && r.mode === mode);
+        if (!row) return [];
+        // the note line carries only the FN count — anything longer collides
+        // with a neighboring caption at bar pitch; precision rides the tooltip
+        return [{
+          cls,
+          value: row.recall,
+          note: row.false_negatives > 0 ? `FN ${row.false_negatives}` : "",
+          title:
+            `${scenario} · ${mode} — precision ${row.precision ?? "—"}, ` +
+            `recall ${row.recall ?? "—"}, false negatives ${row.false_negatives}`,
+        }];
+      }),
+    }));
+    drawBacktestChart();
+    const legend = document.getElementById("backtest-legend");
+    if (legend) legend.hidden = false;
+    const note = document.getElementById("backtest-note");
+    if (note) note.textContent = data.note ? `threshold ${data.threshold} — ${data.note}` : "";
+  } catch {
+    /* first load stays quiet (empty panel); a failed refetch marks the
+       previously drawn chart as no longer current instead of lying */
+    if (sequence !== backtestSequence) return;
+    const note = document.getElementById("backtest-note");
+    if (note && note.textContent && !note.textContent.startsWith("stale — ")) {
+      note.textContent = `stale — last measured at ${note.textContent}`;
+    }
+  }
+}
+
+/* ======================================================================
+   06 · SENTINEL RADAR
+   The moving centerpiece: a pixel radar whose blips ARE the current
+   signals — cost anomalies in accent/alert, security in sky. One CSS
+   rotation for the sweep; everything else is static SVG.
+   ====================================================================== */
+
+function radarAngle(name) {
+  // deterministic angle per service/date so blips hold their post
+  let hash = 0;
+  for (const ch of String(name)) hash = (hash * 31 + ch.charCodeAt(0)) % 360;
+  return (hash * Math.PI) / 180;
+}
+
+function renderRadar() {
+  const svg = document.getElementById("sentinel-radar");
+  if (!svg) return;
+  const blip = (angle, radius, cls) => {
+    const x = 100 + Math.cos(angle) * radius - 3;
+    const y = 100 + Math.sin(angle) * radius - 3;
+    return `<rect class="radar-blip ${cls}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="6" height="6"/>`;
+  };
+  const blips = [
+    ...state.anomalies.map((anomaly) =>
+      blip(
+        radarAngle(anomaly.service + anomaly.date),
+        anomaly.severity === "critical" ? 44 : 72,
+        anomaly.severity
+      )
+    ),
+    ...(state.security ? state.security.signals : []).map((signal) =>
+      blip(radarAngle(signal.service + signal.date), 86, "security")
+    ),
+  ].join("");
+  // The rings, cross-hair, sweep and core are static — build them ONCE. A
+  // 60s auto-scan calls this each minute; reassigning the whole SVG would
+  // re-create the .radar-sweep element and restart its CSS spin from angle
+  // 0, a visible once-a-minute jump. Only the blip layer re-renders.
+  let blipLayer = svg.querySelector("#radar-blips");
+  if (!blipLayer) {
+    const rings = [30, 58, 86]
+      .map((r) => `<circle class="ring" cx="100" cy="100" r="${r}"/>`)
+      .join("");
+    const cross =
+      `<line class="cross" x1="100" y1="10" x2="100" y2="190"/>` +
+      `<line class="cross" x1="10" y1="100" x2="190" y2="100"/>`;
+    const sweep =
+      `<defs><linearGradient id="sweep-grad" x1="0" y1="0" x2="1" y2="0">` +
+      `<stop offset="0" stop-color="currentColor" stop-opacity="0.35"/>` +
+      `<stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>` +
+      `<g class="radar-sweep" style="color: var(--accent)">` +
+      `<path d="M100,100 L100,12 A88,88 0 0 1 152,29 Z" fill="url(#sweep-grad)"/></g>`;
+    svg.innerHTML =
+      rings + cross + sweep +
+      `<g id="radar-blips"></g>` +
+      `<rect class="radar-core" x="97" y="97" width="6" height="6"/>`;
+    blipLayer = svg.querySelector("#radar-blips");
+  }
+  blipLayer.innerHTML = blips;
+}
+
+/* ======================================================================
+   07 · WATCH ROOM — summary cards, anomalies, costs, unified watch
+   ====================================================================== */
+
+let watchSequence = 0; // last-writer-wins: stale watch responses never overwrite newer
+
+async function loadWatch() {
+  const sequence = ++watchSequence;
+  // Independent lanes: a fraud-only failure must not discard a security
+  // response that already succeeded (and vice versa).
+  const [security, fraud] = await Promise.all([
+    fetchJson("/security/signals").catch(() => null),
+    fetchJson("/fraud/signals").catch(() => null),
+  ]);
+  if (sequence !== watchSequence) return;
+  if (security) state.security = security;
+  if (fraud) state.fraud = fraud;
+  state.watchStale = !security || !fraud;
+}
+
+function renderWatch() {
+  const securityBox = document.getElementById("security-watch");
+  const fraudBox = document.getElementById("fraud-watch");
+  const staleLine = document.getElementById("watch-stale");
+  staleLine.textContent = state.watchStale
+    ? "watch feed unreachable — showing the last successful signals"
+    : "";
+
+  if (!state.security) {
+    securityBox.innerHTML = `<p class="meta watch-head">security — loads with the first scan</p>`;
+  } else {
+    const report = state.security;
+    // cross-lane correlation: a login storm on a spend-spike day is one
+    // story told by two lanes — the badge joins them by calendar date
+    const costSpikeDates = new Set(state.allAnomalies.map((anomaly) => anomaly.date));
+    securityBox.innerHTML =
+      `<p class="meta watch-head">security — ${report.signal_count} signal${report.signal_count === 1 ? "" : "s"} · ${escapeHtml(report.metric)} · mission ${escapeHtml(report.mission ?? "—")}</p>` +
+      report.signals
+        .map(
+          (signal) => `
+      <div class="watch-row ${signal.severity === "critical" ? "critical" : ""}">
+        <div class="watch-top">
+          <span><span class="watch-glyph" aria-hidden="true">▣</span><span class="watch-strong">${escapeHtml(signal.service)}</span></span>
+          <span class="watch-tag">${escapeHtml(signal.severity)}</span>
+        </div>
+        <p class="watch-detail">${escapeHtml(signal.date)} · ${fmtNumber(signal.count)} events vs ${fmtNumber(signal.baseline)} baseline · z ${signal.z_score.toFixed(2)}${costSpikeDates.has(signal.date) ? ` · <span class="watch-strong">⇄ cost spike same day</span>` : ""}</p>
+      </div>`
+        )
+        .join("");
+  }
+
+  if (!state.fraud) {
+    fraudBox.innerHTML = `<p class="meta watch-head">fraud — loads with the first scan</p>`;
+    return;
+  }
+  const fraud = state.fraud;
+  const flagged = fraud.signals.filter((signal) => signal.band !== "clear");
+  const bands = fraud.bands || {};
+  const bandLine =
+    bands.hold_suggested != null
+      ? ` · ${bands.hold_suggested} hold / ${bands.review} review / ${bands.clear} clear`
+      : ` · ${fraud.count} flagged of ${fraud.signals.length} events`;
+  fraudBox.innerHTML =
+    `<p class="meta watch-head">fraud <span class="hint">(experimental lane)</span> — published rules${bandLine} · mission ${escapeHtml(fraud.mission ?? "—")} · suggestions only, the operator decides</p>` +
+    flagged
+      .map(
+        (signal) => `
+    <div class="watch-row ${signal.band === "hold_suggested" ? "critical" : ""}" title="${escapeHtml(signal.reasons.join(" · "))}">
+      <div class="watch-top">
+        <span><span class="watch-glyph" aria-hidden="true">▣</span><span class="watch-strong">${escapeHtml(signal.id)}</span> · ${fmtNumber(signal.amount)} USD</span>
+        <span class="watch-tag">score ${signal.score} · ${escapeHtml(signal.band === "hold_suggested" ? "hold suggested" : signal.band)}</span>
+      </div>
+      <p class="watch-detail">${
+        signal.rule_hits && signal.rule_hits.length
+          ? escapeHtml(signal.rule_hits.map((hit) => `${hit.rule.replace("_", " ")} +${hit.points}`).join(" · "))
+          : escapeHtml(signal.reasons.join(" · "))
+      }</p>
+    </div>`
+      )
+      .join("");
+}
+
+function renderSummary() {
+  const pending = state.actions.filter((a) => a.state === "proposed").length;
+  rollFigure(document.getElementById("sum-signals"), state.anomalies.length, (v) =>
+    String(Math.round(v))
+  );
+  rollFigure(document.getElementById("sum-pending"), pending, (v) =>
+    String(Math.round(v))
+  );
+  if (state.costs) {
+    const currency = escapeHtml(state.costs.currency);
+    rollFigure(
+      document.getElementById("sum-total"),
+      state.costs.total_cost,
+      (v) => `${fmtNumber(v)} <small>${currency}</small>`
+    );
+    document.getElementById("sum-total-sub").textContent =
+      `${state.costs.period.start} → ${state.costs.period.end}`;
+  }
+  if (state.analytics) {
+    const currency = escapeHtml(state.costs ? state.costs.currency : "USD");
+    rollFigure(
+      document.getElementById("sum-value"),
+      state.analytics.quality.approved_estimated_monthly_savings,
+      (v) => `${fmtNumber(v)} <small>${currency} / mo</small>`
+    );
+  }
+}
+
+function renderAnomalies(report) {
+  // scannable facts, not a sentence: each figure is its own chip
+  const chips = [
+    `${chipStrong(report.records_analyzed)} records`,
+    `threshold ${chipStrong(report.threshold.toFixed(2))}`,
+    `${chipStrong(report.anomaly_count)} cost`,
+    state.security ? `${chipStrong(state.security.signal_count)} security` : null,
+    state.fraud ? `${chipStrong(state.fraud.count)} fraud` : null,
+    typeof report.reflex_ms === "number"
+      ? `reflex ${chipStrong(report.reflex_ms.toFixed(1))} ms`
+      : null,
+    serviceFilter.value ? `service ${escapeHtml(serviceFilter.value)}` : null,
+  ].filter(Boolean);
+  document.getElementById("anomaly-meta").innerHTML = chips.map(statChip).join("");
+
+  anomalyList.innerHTML = "";
+  if (report.anomalies.length === 0) {
+    anomalyList.innerHTML = `<p class="all-quiet">All quiet.</p>`;
+    return new Set();
+  }
+
+  report.anomalies.forEach((anomaly, index) => {
+    const entry = document.createElement("article");
+    entry.className = `entry ${anomaly.severity}`;
+    entry.innerHTML = `
+      <span class="sq" aria-hidden="true"></span>
+      <div>
+        <p class="service">${escapeHtml(anomaly.service)}</p>
+        <p class="date">${escapeHtml(anomaly.date)}${daysAgo(anomaly.date) ? ` · ${daysAgo(anomaly.date)}` : ""}</p>
+        <p class="figures">${fmtNumber(anomaly.cost)} <span class="dim">vs baseline ${fmtNumber(anomaly.service_mean)}</span></p>
+        ${anomaly.service_mean > 0
+          ? `<p class="ratio-note">${(anomaly.cost / anomaly.service_mean).toFixed(1)}× the usual daily spend</p>`
+          : ""}
+      </div>
+      <div class="entry-rail">
+        <p class="z">${anomaly.z_score.toFixed(2)}</p>
+        <p class="sev-word">${escapeHtml(anomaly.severity)}</p>
+        <button class="row-action" type="button" data-investigate="${index}" aria-label="investigate ${escapeHtml(anomaly.service)} anomaly of ${escapeHtml(anomaly.date)}">investigate →</button>
+      </div>`;
+    anomalyList.appendChild(entry);
+  });
+  return new Set(report.anomalies.map((a) => a.service));
+}
+
+function renderCosts(report, flaggedServices) {
+  document.getElementById("cost-meta").innerHTML =
+    statChip(`${escapeHtml(report.period.start)} → ${escapeHtml(report.period.end)}`) +
+    statChip(`${chipStrong(report.services.length)} services`);
+
+  document.getElementById("total-cost").innerHTML =
+    `${fmtNumber(report.total_cost)} <small>${escapeHtml(report.currency)}</small>`;
+
+  costBars.innerHTML = "";
+  const ordered =
+    state.sortMode === "az"
+      ? [...report.services].sort((a, b) => a.service.localeCompare(b.service))
+      : [...report.services].sort((a, b) => b.total_cost - a.total_cost);
+  const biggestSpend = Math.max(...report.services.map((s) => s.total_cost));
+  ordered.forEach((service, index) => {
+    const flagged = flaggedServices.has(service.service);
+    const share = (service.share_of_total * 100).toFixed(1);
+    const row = document.createElement("div");
+    row.className = `cost-row${service.total_cost === biggestSpend ? " top-spender" : ""}`;
+    row.innerHTML = `
+      <div class="cost-line">
+        <span class="idx">${String(index + 1).padStart(2, "0")}</span>
+        <button class="service service-btn" type="button" data-filter-service="${escapeHtml(service.service)}"
+          aria-pressed="${String(serviceFilter.value === service.service)}"
+          title="focus the signal panels on ${escapeHtml(service.service)} — click again to clear">${escapeHtml(service.service)}${
+          flagged
+            ? '<span class="phantom-sq" aria-hidden="true"></span><span class="phantom-note">phantom traced</span>'
+            : ""
+        }</button>
+        <span class="amount">${fmtNumber(service.total_cost)} <small>${escapeHtml(report.currency)}</small> <span class="share">· ${share}%</span></span>
+      </div>
+      <div class="bar"><div class="bar-fill" style="width:0%"></div></div>`;
+    costBars.appendChild(row);
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        row.querySelector(".bar-fill").style.width = `${share}%`;
+      })
+    );
+  });
+}
+
+function populateServiceFilter() {
+  if (!state.costs || serviceFilter.options.length > 1) return;
+  for (const service of state.costs.services) {
+    const option = document.createElement("option");
+    option.value = service.service;
+    option.textContent = service.service;
+    serviceFilter.appendChild(option);
+  }
+  // apply a ?service= permalink once the options exist (one-shot)
+  if (pendingServiceFilter) {
+    const match = [...serviceFilter.options].some((o) => o.value === pendingServiceFilter);
+    if (match) serviceFilter.value = pendingServiceFilter;
+    pendingServiceFilter = null;
+  }
+}
+
+/* ======================================================================
+   08 · INVESTIGATION — signal rail, evidence pack, agent verbs
+   ====================================================================== */
 
 function renderInvestigation() {
   signalRail.innerHTML = "";
@@ -976,25 +1125,27 @@ function transcriptFold(detail) {
         )}</p>`;
       })
       .join("");
-    return `<details class="transcript"><summary>review panel convened — ${transcript.agreed ? "consensus" : "stance revised"}</summary>
-       <p class="meta">trigger — ${escapeHtml(transcript.trigger || "")}</p>
-       ${rows}
-       <p class="meta">${
-         transcript.agreed
-           ? `the majority backed the ${escapeHtml(transcript.original_preferred || "draft")} stance`
-           : `the majority revised the stance ${escapeHtml(transcript.original_preferred || "")} → ${escapeHtml(transcript.final_preferred || "")}`
-       }</p>
-     </details>`;
+    return buildFold(
+      `review panel convened — ${transcript.agreed ? "consensus" : "stance revised"}`,
+      `<p class="meta">trigger — ${escapeHtml(transcript.trigger || "")}</p>` +
+        rows +
+        `<p class="meta">${
+          transcript.agreed
+            ? `the majority backed the ${escapeHtml(transcript.original_preferred || "draft")} stance`
+            : `the majority revised the stance ${escapeHtml(transcript.original_preferred || "")} → ${escapeHtml(transcript.final_preferred || "")}`
+        }</p>`
+    );
   }
-  return `<details class="transcript"><summary>skeptic reviewed this — ${transcript.agreed ? "consensus" : "stance revised"}</summary>
-       <p class="meta">trigger — ${escapeHtml(transcript.trigger || "")}</p>
-       <p class="body">${escapeHtml(transcript.skeptic_rationale || "")}</p>
-       <p class="meta">${
-         transcript.agreed
-           ? `agreed with the ${escapeHtml(transcript.original_preferred || "draft")} stance`
-           : `revised the stance ${escapeHtml(transcript.original_preferred || "")} → ${escapeHtml(transcript.final_preferred || "")}`
-       }</p>
-     </details>`;
+  return buildFold(
+    `skeptic reviewed this — ${transcript.agreed ? "consensus" : "stance revised"}`,
+    `<p class="meta">trigger — ${escapeHtml(transcript.trigger || "")}</p>` +
+      `<p class="body">${escapeHtml(transcript.skeptic_rationale || "")}</p>` +
+      `<p class="meta">${
+        transcript.agreed
+          ? `agreed with the ${escapeHtml(transcript.original_preferred || "draft")} stance`
+          : `revised the stance ${escapeHtml(transcript.original_preferred || "")} → ${escapeHtml(transcript.final_preferred || "")}`
+      }</p>`
+  );
 }
 
 function numericCheckLine(detail) {
@@ -1026,19 +1177,19 @@ function traceFold(detail) {
     if (typeof entry.duration_ms === "number") bits.push(`${entry.duration_ms.toFixed(0)} ms`);
     return bits.join(" · ");
   };
-  return `<details class="transcript"><summary>agent chain — ${trace.length} hop${trace.length === 1 ? "" : "s"}, traced</summary>${trace
-    .map((entry) => `<p class="meta">${escapeHtml(label(entry))}</p>`)
-    .join("")}</details>`;
+  return buildFold(
+    `agent chain — ${trace.length} hop${trace.length === 1 ? "" : "s"}, traced`,
+    trace.map((entry) => `<p class="meta">${escapeHtml(label(entry))}</p>`).join("")
+  );
 }
 
 function memoryFold(detail) {
   const memory = detail.memory;
   if (!memory || !memory.count) return "";
-  return `<details class="transcript"><summary>decision memory — ${memory.count} prior verdict${
-    memory.count === 1 ? "" : "s"
-  } shaped this proposal</summary>${memory.entries
-    .map((line) => `<p class="meta">${escapeHtml(line)}</p>`)
-    .join("")}</details>`;
+  return buildFold(
+    `decision memory — ${memory.count} prior verdict${memory.count === 1 ? "" : "s"} shaped this proposal`,
+    memory.entries.map((line) => `<p class="meta">${escapeHtml(line)}</p>`).join("")
+  );
 }
 
 function renderRecommendationBlock(anomaly, action, analysis) {
@@ -1073,6 +1224,100 @@ function renderRecommendationBlock(anomaly, action, analysis) {
         <p class="rec-title">${escapeHtml(demo.proposal)}</p>
         <p class="rec-facts">saving ${escapeHtml(demo.savings)} · risk ${escapeHtml(demo.risk)} · rollback ${escapeHtml(demo.rollback)}</p>
       </div>`;
+}
+
+async function runAnalyst() {
+  const anomaly = state.anomalies[state.selectedIndex];
+  // The busy set is the single source of truth: re-renders keep the button
+  // disabled, and a second click (or re-rendered twin) cannot double-fire.
+  if (!anomaly || anomaly.id == null || state.analystBusy.has(anomaly.id)) return;
+  state.analystBusy.add(anomaly.id);
+  renderInvestigation();
+  try {
+    const response = await fetch(`/anomalies/${anomaly.id}/analyze`, { method: "POST" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const analysis = await response.json();
+    state.analyses.set(anomaly.id, analysis);
+    auditNote(
+      `Analyst agent triaged the ${anomaly.service} signal — ${analysis.triage}`,
+      `Confidence ${analysis.confidence.score.toFixed(2)}` +
+        `${analysis.reflected ? " · reflection pass applied" : ""}` +
+        `${analysis.source === "fallback" ? " · rule-based fallback (LLM unavailable)" : ""}` +
+        `${analysis.from_cache ? " · served from cache" : ""}.`
+    );
+  } catch (error) {
+    auditNote("Analyst agent request failed", `${error.message} — the panel keeps its previous narrative.`);
+  } finally {
+    state.analystBusy.delete(anomaly.id);
+    // analyzing mutates exactly what section VI aggregates (analyzed count,
+    // triage mix, confidence, ledger) — refresh it like the other verbs do
+    await loadIntelligence();
+    renderInvestigation();
+    renderAudit();
+    renderIntelligence();
+  }
+}
+
+async function fileRecommendation() {
+  const anomaly = state.anomalies[state.selectedIndex];
+  if (!anomaly || anomaly.id == null || state.recommendBusy.has(anomaly.id)) return;
+  state.recommendBusy.add(anomaly.id);
+  renderInvestigation();
+  try {
+    const response = await fetch(`/anomalies/${anomaly.id}/recommend`, { method: "POST" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const recommendation = await response.json();
+    auditNote(
+      `Recommender filed a ${recommendation.preferred} proposal for ${anomaly.service}`,
+      `Category ${recommendation.category} · est. saving ${preferredMonthlySaving(recommendation)} / month` +
+        `${recommendation.escalation_reason ? " · debate-lite: " + recommendation.escalation_reason : ""}` +
+        `${recommendation.source === "fallback" ? " · rule-based fallback (LLM unavailable)" : ""}.`
+    );
+  } catch (error) {
+    auditNote("Recommender request failed", `${error.message} — no proposal was filed.`);
+  } finally {
+    state.recommendBusy.delete(anomaly.id);
+    await refreshDecisionSurfaces();
+  }
+}
+
+/* ======================================================================
+   09 · DECISION DESK — HITL inbox and the reflex/conscious split
+   ====================================================================== */
+
+function actionForEvent(eventId) {
+  if (eventId == null) return undefined;
+  // the newest non-rejected action mirrors the backend's reuse lane
+  return [...state.actions]
+    .reverse()
+    .find((action) => action.event_id === eventId && action.state !== "rejected");
+}
+
+let actionsSequence = 0; // last-writer-wins: a stale /actions response must never overwrite a newer one
+
+async function loadActions() {
+  const sequence = ++actionsSequence;
+  try {
+    const report = await fetchJson("/actions");
+    if (sequence !== actionsSequence) return; // superseded by a newer reload
+    state.actions = report.actions;
+    // Decision-moment numbers: the what-if projection for every card still
+    // awaiting a verdict (best-effort — a missing projection hides the line).
+    const proposed = report.actions.filter((action) => action.state === "proposed");
+    const projections = await Promise.all(
+      proposed.map((action) =>
+        fetchJson(`/analytics/whatif?action_id=${action.id}`).catch(() => null)
+      )
+    );
+    if (sequence !== actionsSequence) return;
+    state.whatif = new Map();
+    projections.forEach((projection) => {
+      if (projection) state.whatif.set(projection.action_id, projection);
+    });
+  } catch {
+    if (sequence !== actionsSequence) return;
+    state.actions = []; // the inbox degrades to its empty state
+  }
 }
 
 function actionStatusLine(action) {
@@ -1122,7 +1367,7 @@ function renderDecisionSplit() {
   }
   const chips = [];
   if (reflex)
-    chips.push(`<span class="stat-chip"><span class="chip-strong">${reflex}</span> sailed through — no skeptic call</span>`);
+    chips.push(statChip(`${chipStrong(reflex)} sailed through — no skeptic call`));
   if (escalated) {
     const why = [
       lowConfidence ? `${lowConfidence}× low confidence` : "",
@@ -1131,12 +1376,12 @@ function renderDecisionSplit() {
     ]
       .filter(Boolean)
       .join(", ");
-    chips.push(`<span class="stat-chip"><span class="chip-strong">${escalated}</span> escalated${why ? ` — ${why}` : ""}</span>`);
+    chips.push(statChip(`${chipStrong(escalated)} escalated${why ? ` — ${why}` : ""}`));
   }
   if (overruled)
-    chips.push(`<span class="stat-chip"><span class="chip-strong">${overruled}</span> overruled by review</span>`);
+    chips.push(statChip(`${chipStrong(overruled)} overruled by review`));
   if (ruleLane)
-    chips.push(`<span class="stat-chip"><span class="chip-strong">${ruleLane}</span> rule-lane — no LLM</span>`);
+    chips.push(statChip(`${chipStrong(ruleLane)} rule-lane — no LLM`));
   host.innerHTML = chips.length ? `these cards, measured — ${chips.join(" ")}` : "";
 }
 
@@ -1230,6 +1475,150 @@ function renderDecisions() {
       </div>`;
     decisionList.appendChild(card);
   });
+}
+
+async function decideAction(actionId, verb) {
+  if (state.hitlBusy.has(actionId)) return;
+  // capture the rationale BEFORE the busy re-render replaces the input
+  const rationale =
+    document.querySelector(`[data-rationale-for="${actionId}"]`)?.value.trim() || null;
+  const actor = (operatorInput?.value || "").trim() || "operator";
+  state.hitlBusy.add(actionId);
+  renderDecisions();
+  try {
+    const response = await fetch(`/actions/${actionId}/${verb}`, {
+      method: "POST",
+      headers: {
+        "Idempotency-Key": crypto.randomUUID(),
+        "Content-Type": "application/json",
+        ...authHeaders(),
+      },
+      body: JSON.stringify({ actor, rationale }),
+    });
+    if (response.status === 409) {
+      // idempotency guard: the state machine already recorded a verdict
+      const conflict = await response.json().catch(() => ({}));
+      auditNote(
+        "Decision already recorded — guard held",
+        `${conflict.detail || "the action is no longer decidable"}; the inbox reloads the authoritative state.`
+      );
+      return;
+    }
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const record = await response.json();
+    const service = record.detail?.anomaly?.service || "the flagged service";
+    const titles = {
+      approve: `Operator approved the ${service} proposal`,
+      reject: `Operator rejected the ${service} proposal`,
+      execute: `Simulated execution completed for ${service}`,
+    };
+    const copies = {
+      approve: "The action is approved and ready for simulated execution — nothing runs on real infrastructure.",
+      reject: "The proposal was closed with no infrastructure action.",
+      execute: "SIMULATION only: the state machine recorded the execution; no real resource was touched.",
+    };
+    auditNote(titles[verb], copies[verb] + (rationale ? ` Rationale: ${rationale}` : ""));
+  } catch (error) {
+    auditNote("Decision request failed", `${error.message} — the inbox reloads with the authoritative state.`);
+  } finally {
+    state.hitlBusy.delete(actionId);
+    await refreshDecisionSurfaces();
+  }
+}
+
+/* ======================================================================
+   10 · LEDGER & AUDIT — the persisted decision trail
+   ====================================================================== */
+
+/* Section V is the persisted decision ledger (it survives restarts), not a
+   session scratchpad: seed it from the real operator verdicts on load so a
+   fresh visitor sees the actual audit trail, never placeholder copy. Live
+   in-session activity still layers on top via state.audit.unshift(). */
+async function loadDecisions() {
+  try {
+    const report = await fetchJson("/decisions");
+    const rows = report.decisions || [];
+    state.audit = rows.length
+      ? rows.map((decision) => ({
+          time: (decision.decided_at || "").slice(5, 10) || "decision",
+          title: `${decision.verdict === "approved" ? "Approved" : "Rejected"} · ${decision.service}`,
+          copy: decision.rationale || "(no rationale recorded)",
+        }))
+      : [
+          {
+            time: "ledger",
+            title: "No operator decisions recorded yet",
+            copy: "Approve or reject a proposal on the Decision desk to start the persisted audit trail.",
+          },
+        ];
+  } catch {
+    /* ledger unreachable — keep whatever section V already shows */
+  }
+}
+
+const AUDIT_VISIBLE_LIMIT = 8;
+
+function renderAudit() {
+  const visible = state.auditExpanded ? state.audit : state.audit.slice(0, AUDIT_VISIBLE_LIMIT);
+  auditList.innerHTML = visible
+    .map(
+      (item) => `
+    <li class="audit-item">
+      <span class="audit-time">${escapeHtml(item.time)}</span>
+      <span class="sq" aria-hidden="true"></span>
+      <div>
+        <p class="audit-title">${escapeHtml(item.title)}</p>
+        <p class="audit-copy">${escapeHtml(item.copy)}</p>
+      </div>
+    </li>`
+    )
+    .join("");
+  if (state.audit.length > AUDIT_VISIBLE_LIMIT) {
+    auditList.insertAdjacentHTML(
+      "beforeend",
+      `<li class="audit-more"><button class="row-action" type="button" data-audit-toggle>${
+        state.auditExpanded ? "show recent only ↑" : `show all ${state.audit.length} entries ↓`
+      }</button></li>`
+    );
+  }
+}
+
+/* ======================================================================
+   11 · INTELLIGENCE & HANDOVER — /analytics aggregates, print brief
+   ====================================================================== */
+
+let intelSequence = 0; // last-writer-wins: stale analytics must never overwrite newer
+
+async function loadIntelligence() {
+  const sequence = ++intelSequence;
+  try {
+    const [analytics, trend, aiUsage, forecast, calibration, headline, roi, detection, reflexSuggestions] = await Promise.all([
+      fetchJson("/analytics/decisions"),
+      fetchJson("/analytics/costs/trend"),
+      fetchJson("/analytics/ai"),
+      fetchJson("/analytics/costs/forecast"),
+      fetchJson("/analytics/calibration").catch(() => null),
+      fetchJson("/analytics/headline").catch(() => null),
+      fetchJson("/analytics/roi").catch(() => null),
+      fetchJson("/metrics/detection").catch(() => null),
+      fetchJson("/reflex/suggestions").catch(() => null),
+    ]);
+    if (sequence !== intelSequence) return;
+    state.analytics = analytics;
+    state.trend = trend;
+    state.aiUsage = aiUsage;
+    state.forecast = forecast;
+    state.calibration = calibration;
+    state.headline = headline;
+    state.roi = roi;
+    state.detection = detection;
+    state.reflexSuggestions = reflexSuggestions;
+    state.intelStale = false;
+  } catch {
+    if (sequence !== intelSequence) return;
+    // keep the last successful figures; the render marks the feed stale
+    state.intelStale = true;
+  }
 }
 
 /* Section VI — every figure is persisted arithmetic from /analytics; the
@@ -1388,84 +1777,6 @@ function renderIntelligence() {
   }
 }
 
-const AUDIT_VISIBLE_LIMIT = 8;
-
-function renderAudit() {
-  const visible = state.auditExpanded ? state.audit : state.audit.slice(0, AUDIT_VISIBLE_LIMIT);
-  auditList.innerHTML = visible
-    .map(
-      (item) => `
-    <li class="audit-item">
-      <span class="audit-time">${escapeHtml(item.time)}</span>
-      <span class="sq" aria-hidden="true"></span>
-      <div>
-        <p class="audit-title">${escapeHtml(item.title)}</p>
-        <p class="audit-copy">${escapeHtml(item.copy)}</p>
-      </div>
-    </li>`
-    )
-    .join("");
-  if (state.audit.length > AUDIT_VISIBLE_LIMIT) {
-    auditList.insertAdjacentHTML(
-      "beforeend",
-      `<li class="audit-more"><button class="row-action" type="button" data-audit-toggle>${
-        state.auditExpanded ? "show recent only ↑" : `show all ${state.audit.length} entries ↓`
-      }</button></li>`
-    );
-  }
-}
-
-/* ---------- guided jury tour (?tour=1) ----------
-   A walk through the rooms — one stop each — so a first-time viewer reads
-   the product in the right order. Vanilla DOM, no inline handlers, and it
-   respects the same no-reload navigation the navbar uses. Stop numbering
-   is derived from the list, so adding a room here is the whole change. */
-const TOUR_STOPS = [
-  { view: "watch", title: "Watch", body: "Cost, security and fraud anomalies surface here through one detection line. The radar sweeps the live signal field; drag sensitivity and a borderline signal appears." },
-  { view: "investigate", title: "Investigation", body: "Pick a signal for its 14-day evidence, the Analyst's cited triage and the Recommender's two options — cautious and bold — with savings computed in Python." },
-  { view: "decide", title: "Decision desk", body: "Every critical action waits for a human. Approve or reject with a rationale; nothing executes unapproved, and execution is always simulated." },
-  { view: "intel", title: "Intelligence", body: "The funnel, approved value, forecast, calibration and the self-FinOps ledger — pure arithmetic over what the pipeline persisted. Print a shift handover from here." },
-  { view: "brain", title: "The brain", body: "What the system concludes from its own history: insights, a HITL-safe self-review, saved routines, runbook retrieval and a measured detection backtest. Every suggestion still waits for a human." },
-  { view: "all", title: "The whole broadsheet", body: "Open the agent feed (bottom right) and hit Pulse: watch six agents reason in the open, hop by hop, in real time." },
-];
-
-function startTour() {
-  if (document.getElementById("tour-card")) return;
-  let step = 0;
-  const card = document.createElement("aside");
-  card.id = "tour-card";
-  card.setAttribute("role", "dialog");
-  card.setAttribute("aria-label", "Guided tour");
-  document.body.appendChild(card);
-  const render = () => {
-    const s = TOUR_STOPS[step];
-    applyView(s.view);
-    window.scrollTo({ top: 0 });
-    card.innerHTML =
-      `<p class="tour-title microcap">${escapeHtml(`${step + 1} / ${TOUR_STOPS.length} · ${s.title}`)}</p>` +
-      `<p class="tour-body">${escapeHtml(s.body)}</p>` +
-      `<div class="tour-actions">` +
-      `<button class="row-action" type="button" data-tour="skip">skip</button>` +
-      `<button class="row-action" type="button" data-tour="next">${step === TOUR_STOPS.length - 1 ? "done ✓" : "next →"}</button>` +
-      `</div>`;
-  };
-  card.addEventListener("click", (event) => {
-    const action = event.target.closest("[data-tour]")?.dataset.tour;
-    if (!action) return;
-    if (action === "skip" || step === TOUR_STOPS.length - 1) {
-      card.remove();
-      return;
-    }
-    step += 1;
-    render();
-  });
-  render();
-}
-
-if (new URLSearchParams(location.search).get("tour") === "1") {
-  setTimeout(startTour, 400);
-}
-
 /* Shift handover: fetch the brief, typeset it into the print-only block and
    print. Reuses the ledger print stylesheet — one page, ink on paper. */
 async function printHandover() {
@@ -1506,73 +1817,352 @@ async function printHandover() {
     setTimeout(cleanup, 1000); // safety net if afterprint never fires
   } catch {
     box.innerHTML = "";
-    state.audit.unshift({
-      time: utcNow(),
-      title: "Handover brief unavailable",
-      copy: "the analytics feed did not answer — try again after the next scan.",
-    });
+    auditNote(
+      "Handover brief unavailable",
+      "the analytics feed did not answer — try again after the next scan."
+    );
     renderAudit();
   }
 }
 
-/* ---------- sentinel radar ----------
-   The moving centerpiece: a pixel radar whose blips ARE the current
-   signals — cost anomalies in accent/alert, security in sky. One CSS
-   rotation for the sweep; everything else is static SVG. */
+/* ======================================================================
+   12 · BRAIN ROOM — insights, routines, runbooks, identity
+   ====================================================================== */
 
-function radarAngle(name) {
-  // deterministic angle per service/date so blips hold their post
-  let hash = 0;
-  for (const ch of String(name)) hash = (hash * 31 + ch.charCodeAt(0)) % 360;
-  return (hash * Math.PI) / 180;
-}
-
-function renderRadar() {
-  const svg = document.getElementById("sentinel-radar");
-  if (!svg) return;
-  const blip = (angle, radius, cls) => {
-    const x = 100 + Math.cos(angle) * radius - 3;
-    const y = 100 + Math.sin(angle) * radius - 3;
-    return `<rect class="radar-blip ${cls}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="6" height="6"/>`;
+/* The brain room: history synthesis (GET /insights) plus a HITL-safe
+   self-review cycle. Read-only; every proposal is still a human decision. */
+async function renderBrain() {
+  const setList = (id, items, empty) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = "";
+    if (!items.length) {
+      listPlaceholder(el, empty);
+      return;
+    }
+    items.forEach((value) => {
+      const li = document.createElement("li");
+      li.textContent = value;
+      el.appendChild(li);
+    });
   };
-  const blips = [
-    ...state.anomalies.map((anomaly) =>
-      blip(
-        radarAngle(anomaly.service + anomaly.date),
-        anomaly.severity === "critical" ? 44 : 72,
-        anomaly.severity
-      )
-    ),
-    ...(state.security ? state.security.signals : []).map((signal) =>
-      blip(radarAngle(signal.service + signal.date), 86, "security")
-    ),
-  ].join("");
-  // The rings, cross-hair, sweep and core are static — build them ONCE. A
-  // 60s auto-scan calls this each minute; reassigning the whole SVG would
-  // re-create the .radar-sweep element and restart its CSS spin from angle
-  // 0, a visible once-a-minute jump. Only the blip layer re-renders.
-  let blipLayer = svg.querySelector("#radar-blips");
-  if (!blipLayer) {
-    const rings = [30, 58, 86]
-      .map((r) => `<circle class="ring" cx="100" cy="100" r="${r}"/>`)
-      .join("");
-    const cross =
-      `<line class="cross" x1="100" y1="10" x2="100" y2="190"/>` +
-      `<line class="cross" x1="10" y1="100" x2="190" y2="100"/>`;
-    const sweep =
-      `<defs><linearGradient id="sweep-grad" x1="0" y1="0" x2="1" y2="0">` +
-      `<stop offset="0" stop-color="currentColor" stop-opacity="0.35"/>` +
-      `<stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>` +
-      `<g class="radar-sweep" style="color: var(--accent)">` +
-      `<path d="M100,100 L100,12 A88,88 0 0 1 152,29 Z" fill="url(#sweep-grad)"/></g>`;
-    svg.innerHTML =
-      rings + cross + sweep +
-      `<g id="radar-blips"></g>` +
-      `<rect class="radar-core" x="97" y="97" width="6" height="6"/>`;
-    blipLayer = svg.querySelector("#radar-blips");
+  try {
+    const data = await fetchJson("/insights");
+    setList("brain-observations", data.observations || [], "no observations yet");
+    setList(
+      "brain-predictions",
+      (data.predictions || []).map((p) => p.statement),
+      "not enough history to project a run rate"
+    );
+    setList(
+      "brain-recommendations",
+      (data.recommendations || []).map((r) => `${r.focus}: ${r.action}`),
+      "nothing to recommend right now"
+    );
+  } catch {
+    /* leave the placeholders; the panel simply stays quiet */
   }
-  blipLayer.innerHTML = blips;
 }
+
+/* Routines: rituals suggested from the current state; running one is read-only
+   (insights + pending + cost). Saving is explicit now — a suggestion can be
+   persisted without running it, and the saved list runs or retires stored
+   rows. A save reuses a stored routine of the same name so repeated clicks
+   do not clutter the store (the server allows duplicates by design). */
+async function renderRoutines() {
+  const list = document.getElementById("routine-suggestions");
+  if (!list) return;
+  try {
+    const data = await fetchJson("/routines/suggestions");
+    list.textContent = "";
+    const suggestions = data.suggestions || [];
+    if (!suggestions.length) {
+      listPlaceholder(list, "no routine suggestions");
+      return;
+    }
+    suggestions.forEach((suggestion) => {
+      listRow(list, `${suggestion.name} — ${suggestion.rationale} `, [
+        { label: "run ▸", onClick: () => runRoutine(suggestion) },
+        {
+          label: "save ★",
+          title: "persist this ritual without running it",
+          onClick: () => saveRoutine(suggestion),
+        },
+      ]);
+    });
+  } catch {
+    /* quiet — the panel keeps its placeholder */
+  }
+}
+
+function routineFailureNote(error) {
+  return error?.message === "HTTP 403"
+    ? "read-only demo — the routine store cannot be changed here"
+    : null;
+}
+
+async function ensureRoutine(suggestion) {
+  const existing = await fetchJson("/routines");
+  const found = (existing.routines || []).find((r) => r.name === suggestion.name);
+  if (found) return found;
+  const created = await postJson("/routines", {
+    name: suggestion.name,
+    description: suggestion.rationale || "",
+    steps: suggestion.steps,
+  });
+  if (!created.ok) throw new Error(`HTTP ${created.status}`);
+  return created.json();
+}
+
+function showRoutineMessage(text) {
+  const out = document.getElementById("routine-output");
+  if (!out) return;
+  out.hidden = false;
+  out.textContent = text;
+}
+
+async function renderSavedRoutines() {
+  const list = document.getElementById("routine-saved");
+  if (!list) return;
+  try {
+    const data = await fetchJson("/routines");
+    list.textContent = "";
+    const routines = data.routines || [];
+    if (!routines.length) {
+      listPlaceholder(list, "nothing saved yet — save a suggestion above");
+      return;
+    }
+    routines.forEach((routine) => {
+      const description = routine.description ? ` · ${routine.description}` : "";
+      listRow(list, `${routine.name} — ${(routine.steps || []).join(" + ")}${description} `, [
+        { label: "run ▸", onClick: () => runRoutineById(routine.id) },
+        {
+          label: "retire ✕",
+          title: "delete this saved routine",
+          onClick: () => deleteRoutine(routine),
+        },
+      ]);
+    });
+  } catch {
+    /* quiet — the panel keeps its placeholder */
+  }
+}
+
+async function saveRoutine(suggestion) {
+  try {
+    await ensureRoutine(suggestion);
+    await renderSavedRoutines();
+  } catch (error) {
+    showRoutineMessage(routineFailureNote(error) || "saving the routine failed");
+  }
+}
+
+async function deleteRoutine(routine) {
+  try {
+    const response = await fetch(`/routines/${routine.id}`, { method: "DELETE" });
+    if (!response.ok && response.status !== 404) throw new Error(`HTTP ${response.status}`);
+    await renderSavedRoutines();
+  } catch (error) {
+    showRoutineMessage(routineFailureNote(error) || "retiring the routine failed");
+  }
+}
+
+async function runRoutineById(routineId) {
+  showRoutineMessage("running…");
+  const out = document.getElementById("routine-output");
+  if (!out) return;
+  try {
+    const response = await fetch(`/routines/${routineId}/run`, { method: "POST" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const run = await response.json();
+    out.textContent = (run.steps || [])
+      .map((step) => `${step.step}: ${JSON.stringify(step.summary)}`)
+      .join("\n\n");
+  } catch (error) {
+    out.textContent = routineFailureNote(error) || "routine run failed";
+  }
+}
+
+async function runRoutine(suggestion) {
+  showRoutineMessage("running…");
+  try {
+    const routine = await ensureRoutine(suggestion);
+    renderSavedRoutines(); // the run may have just persisted the routine
+    await runRoutineById(routine.id);
+  } catch (error) {
+    showRoutineMessage(routineFailureNote(error) || "routine run failed");
+  }
+}
+
+/* Runbook retrieval: curated, keyword-matched remediation playbooks. */
+async function searchRunbooks(query) {
+  const list = document.getElementById("runbook-results");
+  if (!list) return;
+  list.textContent = "";
+  const trimmed = (query || "").trim();
+  if (!trimmed) return;
+  try {
+    const data = await fetchJson(`/runbooks/match?query=${encodeURIComponent(trimmed)}`);
+    const matches = data.matches || [];
+    if (!matches.length) {
+      listPlaceholder(list, "no matching runbook");
+      return;
+    }
+    matches.forEach((match) => {
+      const li = document.createElement("li");
+      const title = document.createElement("strong");
+      title.textContent = match.runbook.title;
+      const steps = document.createElement("span");
+      steps.className = "meta";
+      steps.textContent = ` — ${match.runbook.steps.join(" · ")}`;
+      li.appendChild(title);
+      li.appendChild(steps);
+      list.appendChild(li);
+    });
+  } catch {
+    /* quiet — the panel stays empty */
+  }
+}
+
+/* Identity: local sign-in so a decision carries a server-derived operator —
+   the audit trail stops being free browser text. Token in localStorage;
+   decideAction attaches it and the server derives the actor from the session. */
+let authToken = null;
+try {
+  authToken = localStorage.getItem("sentinel-token") || null;
+} catch {
+  authToken = null;
+}
+
+function authHeaders() {
+  return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+}
+
+/* The status line lives in the masthead (visible from every room); the
+   sign-in form stays in the brain room with its own #identity-note for
+   form feedback. Signed-out copy is a static template with a fixed room
+   link, so the no-reload navigation the navbar uses works from here too. */
+function setIdentityNote(text) {
+  const note = document.getElementById("identity-note");
+  if (note) note.textContent = text;
+}
+
+async function refreshIdentity() {
+  const status = document.getElementById("identity-status");
+  const form = document.getElementById("identity-form");
+  const logout = document.getElementById("auth-logout");
+  if (!status) return;
+  const signedOut = (copy, noteCopy) => {
+    // the separator rides in its own span so print (which drops the link)
+    // never shows a dangling em dash after the copy
+    status.innerHTML =
+      `${copy}<span class="sep"> — </span><a class="row-action" href="/brain" data-room="brain">sign in</a>`;
+    if (form) form.hidden = false;
+    if (logout) logout.hidden = true;
+    setIdentityNote(
+      noteCopy || "sign in and every decision carries a server-derived identity — the state lives in the masthead"
+    );
+  };
+  if (!authToken) {
+    signedOut("not signed in — decisions use the operator field");
+    return;
+  }
+  try {
+    const me = await (await fetch("/auth/me", { headers: authHeaders() })).json();
+    if (!me.username) throw new Error("bad token");
+    // username/role are user-derived: textContent only, never innerHTML
+    status.textContent = `signed in as ${me.username} (${me.role}) — decisions carry this identity`;
+    if (form) form.hidden = true;
+    if (logout) logout.hidden = false;
+    setIdentityNote("signed in — sign out from the masthead");
+  } catch {
+    authToken = null;
+    try {
+      localStorage.removeItem("sentinel-token");
+    } catch {
+      /* storage unavailable */
+    }
+    signedOut("session expired", "session expired — sign in again");
+  }
+}
+
+async function authAction(kind) {
+  const username = document.getElementById("auth-username")?.value.trim();
+  const password = document.getElementById("auth-password")?.value || "";
+  if (!username || !password) {
+    setIdentityNote("enter a username and password (min 8 chars)");
+    return;
+  }
+  try {
+    if (kind === "register") {
+      const reg = await postJson("/auth/register", { username, password, role: "approver" });
+      if (!reg.ok && reg.status !== 409) {
+        setIdentityNote("registration failed (name taken or weak password)");
+        return;
+      }
+    }
+    const login = await postJson("/auth/login", { username, password });
+    if (!login.ok) {
+      setIdentityNote("invalid username or password");
+      return;
+    }
+    authToken = (await login.json()).token;
+    try {
+      localStorage.setItem("sentinel-token", authToken);
+    } catch {
+      /* storage unavailable — token lives for this session only */
+    }
+    await refreshIdentity();
+  } catch {
+    setIdentityNote("auth request failed");
+  }
+}
+
+/* ======================================================================
+   13 · LIVE AGENT FEED (right rail)
+   The agent bus persists every inter-agent event as it happens; this panel
+   polls the cursor endpoint (plain polling, no sockets) so a running pulse
+   streams its conversation into the rail in near-real time.
+   ====================================================================== */
+
+const FEED_POLL_MS = 2500;
+const FEED_MAX_ROWS = 80;
+const feedState = { lastId: 0, open: false, timer: null, seen: 0 };
+
+function feedEntryHtml(event) {
+  const time = (event.at || "").slice(11, 19);
+  return `<li class="feed-item agent-${escapeHtml(event.agent)}">
+    <span class="feed-time">${escapeHtml(time)}</span>
+    <span class="feed-agent">${escapeHtml(event.agent)}</span>
+    <span class="feed-msg">${escapeHtml(event.message)}</span>
+  </li>`;
+}
+
+async function pollFeed() {
+  if (document.hidden) return;
+  try {
+    const report = await fetchJson(`/agents/feed?after=${feedState.lastId}`);
+    if (!report.count) return;
+    feedState.lastId = report.last_id;
+    feedState.seen += report.count;
+    feedEmpty.hidden = true;
+    feedList.insertAdjacentHTML(
+      "beforeend",
+      report.events.map(feedEntryHtml).join("")
+    );
+    while (feedList.children.length > FEED_MAX_ROWS) {
+      feedList.removeChild(feedList.firstChild);
+    }
+    if (feedState.open) feedList.lastElementChild?.scrollIntoView({ block: "nearest" });
+    feedToggle.classList.add("has-traffic");
+  } catch {
+    /* feed unreachable — the panel simply stays quiet until the next poll */
+  }
+}
+
+/* ======================================================================
+   14 · SCAN, PULSE & HEALTH — the app verbs that refresh everything
+   ====================================================================== */
 
 function renderAll(report) {
   renderCosts(state.costs, renderAnomalies(report));
@@ -1586,8 +2176,6 @@ function renderAll(report) {
   renderRadar();
 }
 
-/* ---------- actions ---------- */
-
 /* One refresh for every decision-adjacent surface — the verbs (decide,
    recommend, analyze) all mutate the same aggregates. */
 async function refreshDecisionSurfaces() {
@@ -1600,128 +2188,6 @@ async function refreshDecisionSurfaces() {
   renderBrain();
   renderRoutines();
   renderSavedRoutines();
-}
-
-async function decideAction(actionId, verb) {
-  if (state.hitlBusy.has(actionId)) return;
-  // capture the rationale BEFORE the busy re-render replaces the input
-  const rationale =
-    document.querySelector(`[data-rationale-for="${actionId}"]`)?.value.trim() || null;
-  const actor = (operatorInput?.value || "").trim() || "operator";
-  state.hitlBusy.add(actionId);
-  renderDecisions();
-  try {
-    const response = await fetch(`/actions/${actionId}/${verb}`, {
-      method: "POST",
-      headers: {
-        "Idempotency-Key": crypto.randomUUID(),
-        "Content-Type": "application/json",
-        ...authHeaders(),
-      },
-      body: JSON.stringify({ actor, rationale }),
-    });
-    if (response.status === 409) {
-      // idempotency guard: the state machine already recorded a verdict
-      const conflict = await response.json().catch(() => ({}));
-      state.audit.unshift({
-        time: utcNow(),
-        title: "Decision already recorded — guard held",
-        copy: `${conflict.detail || "the action is no longer decidable"}; the inbox reloads the authoritative state.`,
-      });
-      return;
-    }
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const record = await response.json();
-    const service = record.detail?.anomaly?.service || "the flagged service";
-    const titles = {
-      approve: `Operator approved the ${service} proposal`,
-      reject: `Operator rejected the ${service} proposal`,
-      execute: `Simulated execution completed for ${service}`,
-    };
-    const copies = {
-      approve: "The action is approved and ready for simulated execution — nothing runs on real infrastructure.",
-      reject: "The proposal was closed with no infrastructure action.",
-      execute: "SIMULATION only: the state machine recorded the execution; no real resource was touched.",
-    };
-    state.audit.unshift({
-      time: utcNow(),
-      title: titles[verb],
-      copy: copies[verb] + (rationale ? ` Rationale: ${rationale}` : ""),
-    });
-  } catch (error) {
-    state.audit.unshift({
-      time: utcNow(),
-      title: "Decision request failed",
-      copy: `${error.message} — the inbox reloads with the authoritative state.`,
-    });
-  } finally {
-    state.hitlBusy.delete(actionId);
-    await refreshDecisionSurfaces();
-  }
-}
-
-async function fileRecommendation() {
-  const anomaly = state.anomalies[state.selectedIndex];
-  if (!anomaly || anomaly.id == null || state.recommendBusy.has(anomaly.id)) return;
-  state.recommendBusy.add(anomaly.id);
-  renderInvestigation();
-  try {
-    const response = await fetch(`/anomalies/${anomaly.id}/recommend`, { method: "POST" });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const recommendation = await response.json();
-    state.audit.unshift({
-      time: utcNow(),
-      title: `Recommender filed a ${recommendation.preferred} proposal for ${anomaly.service}`,
-      copy:
-        `Category ${recommendation.category} · est. saving ${preferredMonthlySaving(recommendation)} / month` +
-        `${recommendation.escalation_reason ? " · debate-lite: " + recommendation.escalation_reason : ""}` +
-        `${recommendation.source === "fallback" ? " · rule-based fallback (LLM unavailable)" : ""}.`,
-    });
-  } catch (error) {
-    state.audit.unshift({
-      time: utcNow(),
-      title: "Recommender request failed",
-      copy: `${error.message} — no proposal was filed.`,
-    });
-  } finally {
-    state.recommendBusy.delete(anomaly.id);
-    await refreshDecisionSurfaces();
-  }
-}
-
-function populateServiceFilter() {
-  if (!state.costs || serviceFilter.options.length > 1) return;
-  for (const service of state.costs.services) {
-    const option = document.createElement("option");
-    option.value = service.service;
-    option.textContent = service.service;
-    serviceFilter.appendChild(option);
-  }
-  // apply a ?service= permalink once the options exist (one-shot)
-  if (pendingServiceFilter) {
-    const match = [...serviceFilter.options].some((o) => o.value === pendingServiceFilter);
-    if (match) serviceFilter.value = pendingServiceFilter;
-    pendingServiceFilter = null;
-  }
-}
-
-/* Shareable deep links: the sensitivity and service filter live in the URL
-   (?threshold=&service=), so a link sent to the jury opens on the exact
-   scene. The view stays in the path; theme and other params are preserved. */
-const initialParams = new URLSearchParams(location.search);
-let pendingServiceFilter = initialParams.get("service");
-const initialThreshold = parseFloat(initialParams.get("threshold"));
-if (Number.isFinite(initialThreshold) && initialThreshold >= 0.5 && initialThreshold <= 4) {
-  thresholdInput.value = String(initialThreshold);
-  thresholdValue.textContent = initialThreshold.toFixed(2);
-}
-
-function syncUrlParams() {
-  const params = new URLSearchParams(location.search);
-  params.set("threshold", parseFloat(thresholdInput.value).toFixed(2));
-  if (serviceFilter.value) params.set("service", serviceFilter.value);
-  else params.delete("service");
-  history.replaceState({}, "", `${location.pathname}?${params}`);
 }
 
 let scanSequence = 0; // last-writer-wins guard: a stale response must never overwrite a newer one
@@ -1783,8 +2249,6 @@ async function scan() {
   }
 }
 
-/* ---------- events ---------- */
-
 let pulseBusy = false;
 
 async function runPulse() {
@@ -1806,42 +2270,33 @@ async function runPulse() {
     const report = await response.json();
     // run ledger: each chain hop lands in section V under the summary
     [...report.chain].reverse().forEach((link) => {
-      state.audit.unshift({
-        time: utcNow(),
-        title: `Pulse chain: ${link.service} → ${link.triage} → action #${link.action_id}`,
-        copy: `severity ${link.severity} · preferred ${link.preferred} · ${
+      auditNote(
+        `Pulse chain: ${link.service} → ${link.triage} → action #${link.action_id}`,
+        `severity ${link.severity} · preferred ${link.preferred} · ${
           link.reused ? "existing proposal reused" : "new proposal filed"
-        } — state ${link.action_state}.`,
-      });
+        } — state ${link.action_state}.`
+      );
     });
-    state.audit.unshift({
-      time: utcNow(),
-      title: `Pulse swept the estate — ${report.signals} cost + ${report.security_signals} security + ${report.fraud_signals ?? 0} fraud signals`,
-      copy:
-        `mission ${report.mission ?? "—"} · REFLEX ${report.reflex_ms ?? "—"} ms · ` +
+    auditNote(
+      `Pulse swept the estate — ${report.signals} cost + ${report.security_signals} security + ${report.fraud_signals ?? 0} fraud signals`,
+      `mission ${report.mission ?? "—"} · REFLEX ${report.reflex_ms ?? "—"} ms · ` +
         `${report.analyzed} analyzed · ${report.proposals_filed} filed · ${report.proposals_reused} reused · ` +
         `${(report.fraud_holds_filed ?? 0) + (report.budget_cards_filed ?? 0) ? `${report.fraud_holds_filed ?? 0} fraud hold(s) + ${report.budget_cards_filed ?? 0} budget card(s) filed · ` : ""}` +
         `LLM ${report.llm_calls_used}/${report.llm_budget}${
           report.budget_exhausted ? " — budget exhausted, fallbacks answered" : ""
-        }.`,
-    });
+        }.`
+    );
     // the chronicler narrates the run — its briefing tops the ledger
     if (report.briefing) {
-      state.audit.unshift({
-        time: utcNow(),
-        title: `Chronicler briefing — ${report.briefing.headline}`,
-        copy:
-          `${report.briefing.summary} Watch next: ${report.briefing.watch_next}` +
-          `${report.briefing.source === "fallback" ? " · rule-based fallback (LLM unavailable)" : ""}`,
-      });
+      auditNote(
+        `Chronicler briefing — ${report.briefing.headline}`,
+        `${report.briefing.summary} Watch next: ${report.briefing.watch_next}` +
+          `${report.briefing.source === "fallback" ? " · rule-based fallback (LLM unavailable)" : ""}`
+      );
     }
     pulseNote.textContent = pulseNoteLine(report, utcNow());
   } catch (error) {
-    state.audit.unshift({
-      time: utcNow(),
-      title: "Pulse request failed",
-      copy: `${error.message} — the panels keep their last state.`,
-    });
+    auditNote("Pulse request failed", `${error.message} — the panels keep their last state.`);
   } finally {
     pulseBusy = false;
     pulseButton.disabled = false;
@@ -1851,6 +2306,209 @@ async function runPulse() {
     renderAudit();
     await scan(); // full refresh: signals, inbox, intelligence, watch
   }
+}
+
+function pulseNoteLine(report, when) {
+  // the briefing headline already narrates the lane counts — no repetition
+  const story = report.briefing
+    ? report.briefing.headline
+    : `${report.signals} cost + ${report.security_signals} security + ${report.fraud_signals ?? 0} fraud signals`;
+  return `last pulse ${when} — ${story} · LLM ${report.llm_calls_used}/${report.llm_budget}`;
+}
+
+/* Deploy environment drives the LIVE banner: read it at load for a fast
+   first paint, then refresh on the scan cadence so the data badge heals if
+   the first fetch failed or a lane's source changes. Best-effort — the
+   default stays "local". */
+function refreshHealth() {
+  return fetchJson("/health")
+    .then((health) => {
+      state.env = health.env || "local";
+      state.readonly = Boolean(health.readonly);
+      state.provider = health.provider || "fake";
+      state.dataSources = health.data_sources || {};
+      // The nav pill reads "live" only on the deployed link; on the local/mock
+      // demo it says "demo" so the green dot never implies live production data.
+      const liveLabel = document.getElementById("nav-live-label");
+      if (liveLabel) liveLabel.textContent = state.env === "render" ? "live" : "demo";
+      if (state.readonly) {
+        pulseButton.disabled = true;
+        pulseButton.title = "read-only demo — the pulse chain is disabled";
+        renderDecisions();
+      }
+    })
+    .catch(() => {
+      /* health unreachable — the banner keeps its last known form */
+    });
+}
+
+/* The watchroom never sleeps: a quiet background re-scan keeps every
+   figure current (and rolling) without a hand on the controls. */
+const AUTO_SCAN_MS = 60000;
+
+/* A background scan rebuilds the decision cards, so it must never fire
+   while the operator is entering a rationale — mid-typing (the input is
+   focused) OR typed-but-not-yet-submitted (a box holds text after a blur).
+   Either way the value lives only in the DOM until the verdict click reads
+   it, so a silent re-render would drop it. */
+function operatorIsMidRationale() {
+  const active = document.activeElement;
+  if (active && active.classList && active.classList.contains("rationale-input")) {
+    return true;
+  }
+  return Array.from(document.querySelectorAll(".rationale-input")).some(
+    (input) => input.value.trim() !== ""
+  );
+}
+
+/* ======================================================================
+   15 · TOUR & ROUTING — guided tour, room navigation, permalinks
+   ====================================================================== */
+
+/* Guided jury tour (?tour=1): a walk through the rooms — one stop each —
+   so a first-time viewer reads the product in the right order. Vanilla
+   DOM, no inline handlers, and it respects the same no-reload navigation
+   the navbar uses. Stop numbering is derived from the list, so adding a
+   room here is the whole change. */
+const TOUR_STOPS = [
+  { view: "watch", title: "Watch", body: "Cost, security and fraud anomalies surface here through one detection line. The radar sweeps the live signal field; drag sensitivity and a borderline signal appears." },
+  { view: "investigate", title: "Investigation", body: "Pick a signal for its 14-day evidence, the Analyst's cited triage and the Recommender's two options — cautious and bold — with savings computed in Python." },
+  { view: "decide", title: "Decision desk", body: "Every critical action waits for a human. Approve or reject with a rationale; nothing executes unapproved, and execution is always simulated." },
+  { view: "intel", title: "Intelligence", body: "The funnel, approved value, forecast, calibration and the self-FinOps ledger — pure arithmetic over what the pipeline persisted. Print a shift handover from here." },
+  { view: "brain", title: "The brain", body: "What the system concludes from its own history: insights, a HITL-safe self-review, saved routines, runbook retrieval and a measured detection backtest. Every suggestion still waits for a human." },
+  { view: "all", title: "The whole broadsheet", body: "Open the agent feed (bottom right) and hit Pulse: watch six agents reason in the open, hop by hop, in real time." },
+];
+
+function startTour() {
+  if (document.getElementById("tour-card")) return;
+  let step = 0;
+  const card = document.createElement("aside");
+  card.id = "tour-card";
+  card.setAttribute("role", "dialog");
+  card.setAttribute("aria-label", "Guided tour");
+  document.body.appendChild(card);
+  const render = () => {
+    const s = TOUR_STOPS[step];
+    applyView(s.view);
+    window.scrollTo({ top: 0 });
+    card.innerHTML =
+      `<p class="tour-title microcap">${escapeHtml(`${step + 1} / ${TOUR_STOPS.length} · ${s.title}`)}</p>` +
+      `<p class="tour-body">${escapeHtml(s.body)}</p>` +
+      `<div class="tour-actions">` +
+      `<button class="row-action" type="button" data-tour="skip">skip</button>` +
+      `<button class="row-action" type="button" data-tour="next">${step === TOUR_STOPS.length - 1 ? "done ✓" : "next →"}</button>` +
+      `</div>`;
+  };
+  card.addEventListener("click", (event) => {
+    const action = event.target.closest("[data-tour]")?.dataset.tour;
+    if (!action) return;
+    if (action === "skip" || step === TOUR_STOPS.length - 1) {
+      card.remove();
+      return;
+    }
+    step += 1;
+    render();
+  });
+  render();
+}
+
+/* View navigation (rooms of the broadsheet): hash-tab views over ONE page —
+   no routes, no reload — sections toggle, the print view always shows the
+   whole broadsheet. */
+const VIEW_SECTIONS = {
+  watch: ["sec-anomalies", "sec-costs"],
+  investigate: ["sec-investigation"],
+  decide: ["sec-decisions", "sec-ledger"],
+  intel: ["sec-intelligence"],
+  brain: ["sec-brain"],
+};
+const ALL_SECTIONS = [...new Set(Object.values(VIEW_SECTIONS).flat())];
+const VIEW_TITLES = {
+  watch: "Watch",
+  investigate: "Investigation",
+  decide: "Decision Desk",
+  intel: "Intelligence",
+  brain: "Brain",
+  all: "Broadsheet",
+};
+
+function viewFromPath(pathname) {
+  const view = (pathname || "/").replace(/^\//, "").split("/")[0];
+  if (view === "broadsheet") return "all";
+  return VIEW_SECTIONS[view] ? view : "watch"; // the home room
+}
+
+function applyView(view) {
+  const visible = view === "all" ? ALL_SECTIONS : VIEW_SECTIONS[view] || ALL_SECTIONS;
+  ALL_SECTIONS.forEach((id) =>
+    document.getElementById(id).classList.toggle("view-hidden", !visible.includes(id))
+  );
+  document.querySelectorAll(".view-tab, .nav-brand").forEach((tab) =>
+    tab.setAttribute("aria-pressed", String(tab.dataset.view === view))
+  );
+  document.title = `CloudSentinel — ${VIEW_TITLES[view] || "Anomaly Watch"}`;
+  const main = document.querySelector("main");
+  main.classList.remove("room-enter");
+  void main.offsetWidth; // restart the ease-in for the incoming room
+  main.classList.add("room-enter");
+  // the backtest chart sizes its viewBox to the host's real width — a chart
+  // first drawn while its room was hidden (width 0) needs a redraw now.
+  // Deferred a tick: applyView also runs at boot, before the chart's
+  // module-level state has initialized.
+  if (visible.includes("sec-brain")) setTimeout(drawBacktestChart, 0);
+}
+
+/* Shareable deep links: the sensitivity and service filter live in the URL
+   (?threshold=&service=), so a link sent to the jury opens on the exact
+   scene. The view stays in the path; theme and other params are preserved. */
+function syncUrlParams() {
+  const params = new URLSearchParams(location.search);
+  params.set("threshold", parseFloat(thresholdInput.value).toFixed(2));
+  if (serviceFilter.value) params.set("service", serviceFilter.value);
+  else params.delete("service");
+  history.replaceState({}, "", `${location.pathname}?${params}`);
+}
+
+/* ======================================================================
+   16 · EVENTS & BOOT
+   Every top-level imperative statement, in its original relative
+   execution order: hydrations first, then listener registrations,
+   intervals, view boot and the first paint + scan.
+   ====================================================================== */
+
+/* palette boot: ?theme= wins, then the persisted colophon choice */
+const themeParam = new URLSearchParams(location.search).get("theme");
+let storedTheme = null;
+try {
+  storedTheme = localStorage.getItem("sentinel-theme");
+} catch {
+  /* storage can be unavailable (private mode) — the default carries */
+}
+applyTheme(
+  THEMES.includes(themeParam) ? themeParam : THEMES.includes(storedTheme) ? storedTheme : "horizon"
+);
+
+// Redraw the trend chart on resize so its 1:1 viewBox tracks the panel width.
+let trendResizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(trendResizeTimer);
+  trendResizeTimer = setTimeout(() => {
+    if (state.daily && state.daily.totals.length) renderTrend();
+  }, 150);
+});
+
+/* ?tour=1 opens the guided tour once the page settles */
+if (new URLSearchParams(location.search).get("tour") === "1") {
+  setTimeout(startTour, 400);
+}
+
+/* permalink hydrate: ?threshold= applies now; ?service= waits for options */
+const initialParams = new URLSearchParams(location.search);
+let pendingServiceFilter = initialParams.get("service");
+const initialThreshold = parseFloat(initialParams.get("threshold"));
+if (Number.isFinite(initialThreshold) && initialThreshold >= 0.5 && initialThreshold <= 4) {
+  thresholdInput.value = String(initialThreshold);
+  thresholdValue.textContent = initialThreshold.toFixed(2);
 }
 
 thresholdInput.addEventListener("input", () => {
@@ -1879,9 +2537,7 @@ document.addEventListener("click", (event) => {
   const anomalySortButton = event.target.closest("[data-anomaly-sort]");
   if (anomalySortButton) {
     state.anomalySort = anomalySortButton.dataset.anomalySort;
-    document.querySelectorAll("[data-anomaly-sort]").forEach((button) =>
-      button.setAttribute("aria-pressed", String(button.dataset.anomalySort === state.anomalySort))
-    );
+    markPressed("[data-anomaly-sort]", "anomalySort", state.anomalySort);
     const selectedId = state.anomalies[state.selectedIndex]?.id;
     sortAnomalies();
     if (selectedId != null) {
@@ -1958,11 +2614,7 @@ document.addEventListener("click", (event) => {
     navigator.clipboard
       .writeText(state.headline.headline)
       .then(() => {
-        state.audit.unshift({
-          time: utcNow(),
-          title: "Jury brief copied to the clipboard",
-          copy: state.headline.headline,
-        });
+        auditNote("Jury brief copied to the clipboard", state.headline.headline);
         renderAudit();
       })
       .catch(() => {
@@ -1993,9 +2645,7 @@ document.addEventListener("click", (event) => {
   const sortButton = event.target.closest("[data-sort]");
   if (sortButton) {
     state.sortMode = sortButton.dataset.sort;
-    document.querySelectorAll("[data-sort]").forEach((button) =>
-      button.setAttribute("aria-pressed", String(button.dataset.sort === state.sortMode))
-    );
+    markPressed("[data-sort]", "sort", state.sortMode);
     if (state.costs) renderCosts(state.costs, new Set(state.anomalies.map((a) => a.service)));
     return;
   }
@@ -2025,69 +2675,6 @@ signalRail.addEventListener("keydown", (event) => {
   signalRail.querySelector(".signal-option.is-selected")?.focus();
 });
 
-async function runAnalyst() {
-  const anomaly = state.anomalies[state.selectedIndex];
-  // The busy set is the single source of truth: re-renders keep the button
-  // disabled, and a second click (or re-rendered twin) cannot double-fire.
-  if (!anomaly || anomaly.id == null || state.analystBusy.has(anomaly.id)) return;
-  state.analystBusy.add(anomaly.id);
-  renderInvestigation();
-  try {
-    const response = await fetch(`/anomalies/${anomaly.id}/analyze`, { method: "POST" });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const analysis = await response.json();
-    state.analyses.set(anomaly.id, analysis);
-    state.audit.unshift({
-      time: utcNow(),
-      title: `Analyst agent triaged the ${anomaly.service} signal — ${analysis.triage}`,
-      copy:
-        `Confidence ${analysis.confidence.score.toFixed(2)}` +
-        `${analysis.reflected ? " · reflection pass applied" : ""}` +
-        `${analysis.source === "fallback" ? " · rule-based fallback (LLM unavailable)" : ""}` +
-        `${analysis.from_cache ? " · served from cache" : ""}.`,
-    });
-  } catch (error) {
-    state.audit.unshift({
-      time: utcNow(),
-      title: "Analyst agent request failed",
-      copy: `${error.message} — the panel keeps its previous narrative.`,
-    });
-  } finally {
-    state.analystBusy.delete(anomaly.id);
-    // analyzing mutates exactly what section VI aggregates (analyzed count,
-    // triage mix, confidence, ledger) — refresh it like the other verbs do
-    await loadIntelligence();
-    renderInvestigation();
-    renderAudit();
-    renderIntelligence();
-  }
-}
-
-/* Deploy environment drives the LIVE banner: read it at load for a fast
-   first paint, then refresh on the scan cadence so the data badge heals if
-   the first fetch failed or a lane's source changes. Best-effort — the
-   default stays "local". */
-function refreshHealth() {
-  return fetchJson("/health")
-    .then((health) => {
-      state.env = health.env || "local";
-      state.readonly = Boolean(health.readonly);
-      state.provider = health.provider || "fake";
-      state.dataSources = health.data_sources || {};
-      // The nav pill reads "live" only on the deployed link; on the local/mock
-      // demo it says "demo" so the green dot never implies live production data.
-      const liveLabel = document.getElementById("nav-live-label");
-      if (liveLabel) liveLabel.textContent = state.env === "render" ? "live" : "demo";
-      if (state.readonly) {
-        pulseButton.disabled = true;
-        pulseButton.title = "read-only demo — the pulse chain is disabled";
-        renderDecisions();
-      }
-    })
-    .catch(() => {
-      /* health unreachable — the banner keeps its last known form */
-    });
-}
 refreshHealth();
 setInterval(refreshHealth, 60000);
 
@@ -2105,14 +2692,6 @@ operatorInput.addEventListener("change", () => {
     /* best effort */
   }
 });
-
-function pulseNoteLine(report, when) {
-  // the briefing headline already narrates the lane counts — no repetition
-  const story = report.briefing
-    ? report.briefing.headline
-    : `${report.signals} cost + ${report.security_signals} security + ${report.fraud_signals ?? 0} fraud signals`;
-  return `last pulse ${when} — ${story} · LLM ${report.llm_calls_used}/${report.llm_budget}`;
-}
 
 /* The last pulse survives reloads: hydrate the colophon note (and the
    briefing story) from the persisted run instead of starting silent. */
@@ -2132,53 +2711,6 @@ if (printStamp) {
   printStamp.textContent = `CloudSentinel — decision ledger · produced ${today}`;
 }
 
-/* ---------- view navigation (rooms of the broadsheet) ----------
-   Hash-tab views over ONE page: no routes, no reload — sections toggle,
-   the print view always shows the whole broadsheet. */
-
-const VIEW_SECTIONS = {
-  watch: ["sec-anomalies", "sec-costs"],
-  investigate: ["sec-investigation"],
-  decide: ["sec-decisions", "sec-ledger"],
-  intel: ["sec-intelligence"],
-  brain: ["sec-brain"],
-};
-const ALL_SECTIONS = [...new Set(Object.values(VIEW_SECTIONS).flat())];
-const VIEW_TITLES = {
-  watch: "Watch",
-  investigate: "Investigation",
-  decide: "Decision Desk",
-  intel: "Intelligence",
-  brain: "Brain",
-  all: "Broadsheet",
-};
-
-function viewFromPath(pathname) {
-  const view = (pathname || "/").replace(/^\//, "").split("/")[0];
-  if (view === "broadsheet") return "all";
-  return VIEW_SECTIONS[view] ? view : "watch"; // the home room
-}
-
-function applyView(view) {
-  const visible = view === "all" ? ALL_SECTIONS : VIEW_SECTIONS[view] || ALL_SECTIONS;
-  ALL_SECTIONS.forEach((id) =>
-    document.getElementById(id).classList.toggle("view-hidden", !visible.includes(id))
-  );
-  document.querySelectorAll(".view-tab, .nav-brand").forEach((tab) =>
-    tab.setAttribute("aria-pressed", String(tab.dataset.view === view))
-  );
-  document.title = `CloudSentinel — ${VIEW_TITLES[view] || "Anomaly Watch"}`;
-  const main = document.querySelector("main");
-  main.classList.remove("room-enter");
-  void main.offsetWidth; // restart the ease-in for the incoming room
-  main.classList.add("room-enter");
-  // the backtest chart sizes its viewBox to the host's real width — a chart
-  // first drawn while its room was hidden (width 0) needs a redraw now.
-  // Deferred a tick: applyView also runs at boot, before the chart's
-  // module-level state below has initialized.
-  if (visible.includes("sec-brain")) setTimeout(drawBacktestChart, 0);
-}
-
 // Real page URLs without reloads: links push history, back/forward replay.
 document.getElementById("view-nav").addEventListener("click", (event) => {
   const tab = event.target.closest("[data-view]");
@@ -2192,72 +2724,9 @@ document.getElementById("view-nav").addEventListener("click", (event) => {
 window.addEventListener("popstate", () => applyView(viewFromPath(location.pathname)));
 applyView(viewFromPath(location.pathname));
 
-/* The watchroom never sleeps: a quiet background re-scan keeps every
-   figure current (and rolling) without a hand on the controls. */
-const AUTO_SCAN_MS = 60000;
-
-/* A background scan rebuilds the decision cards, so it must never fire
-   while the operator is entering a rationale — mid-typing (the input is
-   focused) OR typed-but-not-yet-submitted (a box holds text after a blur).
-   Either way the value lives only in the DOM until the verdict click reads
-   it, so a silent re-render would drop it. */
-function operatorIsMidRationale() {
-  const active = document.activeElement;
-  if (active && active.classList && active.classList.contains("rationale-input")) {
-    return true;
-  }
-  return Array.from(document.querySelectorAll(".rationale-input")).some(
-    (input) => input.value.trim() !== ""
-  );
-}
-
 setInterval(() => {
   if (!document.hidden && !pulseBusy && !operatorIsMidRationale()) scan();
 }, AUTO_SCAN_MS);
-
-/* ---------- live agent feed (right rail) ----------
-   The agent bus persists every inter-agent event as it happens; this panel
-   polls the cursor endpoint (plain polling, no sockets) so a running pulse
-   streams its conversation into the rail in near-real time. */
-
-const feedToggle = document.getElementById("feed-toggle");
-const feedBody = document.getElementById("feed-body");
-const feedList = document.getElementById("feed-list");
-const feedEmpty = document.getElementById("feed-empty");
-const FEED_POLL_MS = 2500;
-const FEED_MAX_ROWS = 80;
-const feedState = { lastId: 0, open: false, timer: null, seen: 0 };
-
-function feedEntryHtml(event) {
-  const time = (event.at || "").slice(11, 19);
-  return `<li class="feed-item agent-${escapeHtml(event.agent)}">
-    <span class="feed-time">${escapeHtml(time)}</span>
-    <span class="feed-agent">${escapeHtml(event.agent)}</span>
-    <span class="feed-msg">${escapeHtml(event.message)}</span>
-  </li>`;
-}
-
-async function pollFeed() {
-  if (document.hidden) return;
-  try {
-    const report = await fetchJson(`/agents/feed?after=${feedState.lastId}`);
-    if (!report.count) return;
-    feedState.lastId = report.last_id;
-    feedState.seen += report.count;
-    feedEmpty.hidden = true;
-    feedList.insertAdjacentHTML(
-      "beforeend",
-      report.events.map(feedEntryHtml).join("")
-    );
-    while (feedList.children.length > FEED_MAX_ROWS) {
-      feedList.removeChild(feedList.firstChild);
-    }
-    if (feedState.open) feedList.lastElementChild?.scrollIntoView({ block: "nearest" });
-    feedToggle.classList.add("has-traffic");
-  } catch {
-    /* feed unreachable — the panel simply stays quiet until the next poll */
-  }
-}
 
 feedToggle.addEventListener("click", () => {
   feedState.open = !feedState.open;
@@ -2283,39 +2752,6 @@ try {
 feedState.timer = setInterval(pollFeed, FEED_POLL_MS);
 pollFeed();
 
-/* The brain room: history synthesis (GET /insights) plus a HITL-safe
-   self-review cycle. Read-only; every proposal is still a human decision. */
-async function renderBrain() {
-  const setList = (id, items, empty) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.textContent = "";
-    const values = items.length ? items : [empty];
-    values.forEach((value) => {
-      const li = document.createElement("li");
-      if (!items.length) li.className = "meta";
-      li.textContent = value;
-      el.appendChild(li);
-    });
-  };
-  try {
-    const data = await fetchJson("/insights");
-    setList("brain-observations", data.observations || [], "no observations yet");
-    setList(
-      "brain-predictions",
-      (data.predictions || []).map((p) => p.statement),
-      "not enough history to project a run rate"
-    );
-    setList(
-      "brain-recommendations",
-      (data.recommendations || []).map((r) => `${r.focus}: ${r.action}`),
-      "nothing to recommend right now"
-    );
-  } catch {
-    /* leave the placeholders; the panel simply stays quiet */
-  }
-}
-
 document.getElementById("brain-review")?.addEventListener("click", async () => {
   const out = document.getElementById("brain-proposals");
   if (!out) return;
@@ -2324,217 +2760,20 @@ document.getElementById("brain-review")?.addEventListener("click", async () => {
     const response = await fetch("/insights/self-review", { method: "POST" });
     const data = await response.json();
     const items = (data.proposals || []).map((p) => `[${p.area}] ${p.proposal}`);
-    const values = items.length
-      ? items
-      : ["no proposals — nothing to improve right now"];
-    values.forEach((value) => {
+    if (!items.length) {
+      listPlaceholder(out, "no proposals — nothing to improve right now");
+      return;
+    }
+    items.forEach((value) => {
       const li = document.createElement("li");
-      if (!items.length) li.className = "meta";
       li.textContent = value;
       out.appendChild(li);
     });
   } catch {
-    const li = document.createElement("li");
-    li.className = "meta";
-    li.textContent = "self-review unavailable";
-    out.appendChild(li);
+    listPlaceholder(out, "self-review unavailable");
   }
 });
 
-/* Routines: rituals suggested from the current state; running one is read-only
-   (insights + pending + cost). Saving is explicit now — a suggestion can be
-   persisted without running it, and the saved list runs or retires stored
-   rows. A save reuses a stored routine of the same name so repeated clicks
-   do not clutter the store (the server allows duplicates by design). */
-async function renderRoutines() {
-  const list = document.getElementById("routine-suggestions");
-  if (!list) return;
-  try {
-    const data = await fetchJson("/routines/suggestions");
-    list.textContent = "";
-    const suggestions = data.suggestions || [];
-    if (!suggestions.length) {
-      const li = document.createElement("li");
-      li.className = "meta";
-      li.textContent = "no routine suggestions";
-      list.appendChild(li);
-      return;
-    }
-    suggestions.forEach((suggestion) => {
-      const li = document.createElement("li");
-      const label = document.createElement("span");
-      label.textContent = `${suggestion.name} — ${suggestion.rationale} `;
-      const run = document.createElement("button");
-      run.type = "button";
-      run.className = "head-action";
-      run.textContent = "run ▸";
-      run.addEventListener("click", () => runRoutine(suggestion));
-      const save = document.createElement("button");
-      save.type = "button";
-      save.className = "head-action";
-      save.textContent = "save ★";
-      save.title = "persist this ritual without running it";
-      save.addEventListener("click", () => saveRoutine(suggestion));
-      li.appendChild(label);
-      li.appendChild(run);
-      li.appendChild(save);
-      list.appendChild(li);
-    });
-  } catch {
-    /* quiet — the panel keeps its placeholder */
-  }
-}
-
-function routineFailureNote(error) {
-  return error?.message === "HTTP 403"
-    ? "read-only demo — the routine store cannot be changed here"
-    : null;
-}
-
-async function ensureRoutine(suggestion) {
-  const existing = await fetchJson("/routines");
-  const found = (existing.routines || []).find((r) => r.name === suggestion.name);
-  if (found) return found;
-  const created = await fetch("/routines", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name: suggestion.name,
-      description: suggestion.rationale || "",
-      steps: suggestion.steps,
-    }),
-  });
-  if (!created.ok) throw new Error(`HTTP ${created.status}`);
-  return created.json();
-}
-
-function showRoutineMessage(text) {
-  const out = document.getElementById("routine-output");
-  if (!out) return;
-  out.hidden = false;
-  out.textContent = text;
-}
-
-async function renderSavedRoutines() {
-  const list = document.getElementById("routine-saved");
-  if (!list) return;
-  try {
-    const data = await fetchJson("/routines");
-    list.textContent = "";
-    const routines = data.routines || [];
-    if (!routines.length) {
-      const li = document.createElement("li");
-      li.className = "meta";
-      li.textContent = "nothing saved yet — save a suggestion above";
-      list.appendChild(li);
-      return;
-    }
-    routines.forEach((routine) => {
-      const li = document.createElement("li");
-      const label = document.createElement("span");
-      const description = routine.description ? ` · ${routine.description}` : "";
-      label.textContent = `${routine.name} — ${(routine.steps || []).join(" + ")}${description} `;
-      const run = document.createElement("button");
-      run.type = "button";
-      run.className = "head-action";
-      run.textContent = "run ▸";
-      run.addEventListener("click", () => runRoutineById(routine.id));
-      const retire = document.createElement("button");
-      retire.type = "button";
-      retire.className = "head-action";
-      retire.textContent = "retire ✕";
-      retire.title = "delete this saved routine";
-      retire.addEventListener("click", () => deleteRoutine(routine));
-      li.appendChild(label);
-      li.appendChild(run);
-      li.appendChild(retire);
-      list.appendChild(li);
-    });
-  } catch {
-    /* quiet — the panel keeps its placeholder */
-  }
-}
-
-async function saveRoutine(suggestion) {
-  try {
-    await ensureRoutine(suggestion);
-    await renderSavedRoutines();
-  } catch (error) {
-    showRoutineMessage(routineFailureNote(error) || "saving the routine failed");
-  }
-}
-
-async function deleteRoutine(routine) {
-  try {
-    const response = await fetch(`/routines/${routine.id}`, { method: "DELETE" });
-    if (!response.ok && response.status !== 404) throw new Error(`HTTP ${response.status}`);
-    await renderSavedRoutines();
-  } catch (error) {
-    showRoutineMessage(routineFailureNote(error) || "retiring the routine failed");
-  }
-}
-
-async function runRoutineById(routineId) {
-  showRoutineMessage("running…");
-  const out = document.getElementById("routine-output");
-  if (!out) return;
-  try {
-    const response = await fetch(`/routines/${routineId}/run`, { method: "POST" });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const run = await response.json();
-    out.textContent = (run.steps || [])
-      .map((step) => `${step.step}: ${JSON.stringify(step.summary)}`)
-      .join("\n\n");
-  } catch (error) {
-    out.textContent = routineFailureNote(error) || "routine run failed";
-  }
-}
-
-async function runRoutine(suggestion) {
-  showRoutineMessage("running…");
-  try {
-    const routine = await ensureRoutine(suggestion);
-    renderSavedRoutines(); // the run may have just persisted the routine
-    await runRoutineById(routine.id);
-  } catch (error) {
-    showRoutineMessage(routineFailureNote(error) || "routine run failed");
-  }
-}
-
-/* Runbook retrieval: curated, keyword-matched remediation playbooks. */
-async function searchRunbooks(query) {
-  const list = document.getElementById("runbook-results");
-  if (!list) return;
-  list.textContent = "";
-  const trimmed = (query || "").trim();
-  if (!trimmed) return;
-  try {
-    const data = await fetchJson(`/runbooks/match?query=${encodeURIComponent(trimmed)}`);
-    const matches = data.matches || [];
-    if (!matches.length) {
-      const li = document.createElement("li");
-      li.className = "meta";
-      li.textContent = "no matching runbook";
-      list.appendChild(li);
-      return;
-    }
-    matches.forEach((match) => {
-      const li = document.createElement("li");
-      const title = document.createElement("strong");
-      title.textContent = match.runbook.title;
-      const steps = document.createElement("span");
-      steps.className = "meta";
-      steps.textContent = ` — ${match.runbook.steps.join(" · ")}`;
-      li.appendChild(title);
-      li.appendChild(steps);
-      list.appendChild(li);
-    });
-  } catch {
-    /* quiet — the panel stays empty */
-  }
-}
-
-const runbookInput = document.getElementById("runbook-query");
 if (runbookInput) {
   let runbookTimer;
   runbookInput.addEventListener("input", (event) => {
@@ -2542,84 +2781,6 @@ if (runbookInput) {
     const value = event.target.value;
     runbookTimer = setTimeout(() => searchRunbooks(value), 250);
   });
-}
-
-/* Detection backtest: recall on planted ground truth, drawn as grouped bars —
-   one group per scenario, one bar per detector mode, at the sensitivity the
-   slider currently holds. Precision and FN ride each bar's tooltip, and the
-   server's own caveat note (why MAD wins the contaminated baseline) is
-   surfaced verbatim instead of being dropped. */
-const BACKTEST_MODES = [
-  { mode: "zscore", cls: "zscore" },
-  { mode: "mad", cls: "mad" },
-  { mode: "zscore+loo", cls: "loo" },
-];
-
-let backtestSequence = 0; // last-writer-wins: a stale backtest must never overwrite a newer one
-let backtestGroups = null; // last successful groups, redrawn on host resize without a refetch
-
-/* Draw (or redraw) the cached groups with the viewBox matched 1:1 to the
-   host's real pixel width — the same pattern the trend chart uses; a fixed
-   460 box centered with gutters on desktop and letterboxed on phones. */
-function drawBacktestChart() {
-  const host = document.getElementById("backtest-table");
-  if (!host || !backtestGroups) return;
-  let svg = host.querySelector("svg.backtest-svg");
-  if (!svg) {
-    svg = svgEl("svg", {
-      class: "backtest-svg",
-      role: "img",
-      "aria-label": "Detection backtest — recall per scenario for z-score, MAD and leave-one-out",
-    });
-    host.textContent = "";
-    host.appendChild(svg);
-  }
-  const boxW = Math.max(320, Math.round(host.clientWidth || 460));
-  svg.setAttribute("viewBox", `0 0 ${boxW} 150`);
-  drawGroupedBars(svg, backtestGroups);
-}
-
-async function renderBacktest() {
-  const host = document.getElementById("backtest-table");
-  if (!host) return;
-  const sequence = ++backtestSequence;
-  try {
-    const threshold = parseFloat(thresholdInput?.value) || 2;
-    const data = await fetchJson(`/metrics/backtest?threshold=${threshold}`);
-    if (sequence !== backtestSequence) return; // superseded by a newer slider move
-    const rows = data.rows || [];
-    const scenarios = [...new Set(rows.map((row) => row.scenario))];
-    backtestGroups = scenarios.map((scenario) => ({
-      label: scenario,
-      bars: BACKTEST_MODES.flatMap(({ mode, cls }) => {
-        const row = rows.find((r) => r.scenario === scenario && r.mode === mode);
-        if (!row) return [];
-        // the note line carries only the FN count — anything longer collides
-        // with a neighboring caption at bar pitch; precision rides the tooltip
-        return [{
-          cls,
-          value: row.recall,
-          note: row.false_negatives > 0 ? `FN ${row.false_negatives}` : "",
-          title:
-            `${scenario} · ${mode} — precision ${row.precision ?? "—"}, ` +
-            `recall ${row.recall ?? "—"}, false negatives ${row.false_negatives}`,
-        }];
-      }),
-    }));
-    drawBacktestChart();
-    const legend = document.getElementById("backtest-legend");
-    if (legend) legend.hidden = false;
-    const note = document.getElementById("backtest-note");
-    if (note) note.textContent = data.note ? `threshold ${data.threshold} — ${data.note}` : "";
-  } catch {
-    /* first load stays quiet (empty panel); a failed refetch marks the
-       previously drawn chart as no longer current instead of lying */
-    if (sequence !== backtestSequence) return;
-    const note = document.getElementById("backtest-note");
-    if (note && note.textContent && !note.textContent.startsWith("stale — ")) {
-      note.textContent = `stale — last measured at ${note.textContent}`;
-    }
-  }
 }
 
 // the sensitivity slider drives the backtest too — the bars move with it
@@ -2642,108 +2803,6 @@ window.addEventListener("resize", () => {
   clearTimeout(backtestResizeTimer);
   backtestResizeTimer = setTimeout(drawBacktestChart, 150);
 });
-
-/* Identity: local sign-in so a decision carries a server-derived operator —
-   the audit trail stops being free browser text. Token in localStorage;
-   decideAction attaches it and the server derives the actor from the session. */
-let authToken = null;
-try {
-  authToken = localStorage.getItem("sentinel-token") || null;
-} catch {
-  authToken = null;
-}
-
-function authHeaders() {
-  return authToken ? { Authorization: `Bearer ${authToken}` } : {};
-}
-
-/* The status line lives in the masthead (visible from every room); the
-   sign-in form stays in the brain room with its own #identity-note for
-   form feedback. Signed-out copy is a static template with a fixed room
-   link, so the no-reload navigation the navbar uses works from here too. */
-function setIdentityNote(text) {
-  const note = document.getElementById("identity-note");
-  if (note) note.textContent = text;
-}
-
-async function refreshIdentity() {
-  const status = document.getElementById("identity-status");
-  const form = document.getElementById("identity-form");
-  const logout = document.getElementById("auth-logout");
-  if (!status) return;
-  const signedOut = (copy, noteCopy) => {
-    // the separator rides in its own span so print (which drops the link)
-    // never shows a dangling em dash after the copy
-    status.innerHTML =
-      `${copy}<span class="sep"> — </span><a class="row-action" href="/brain" data-room="brain">sign in</a>`;
-    if (form) form.hidden = false;
-    if (logout) logout.hidden = true;
-    setIdentityNote(
-      noteCopy || "sign in and every decision carries a server-derived identity — the state lives in the masthead"
-    );
-  };
-  if (!authToken) {
-    signedOut("not signed in — decisions use the operator field");
-    return;
-  }
-  try {
-    const me = await (await fetch("/auth/me", { headers: authHeaders() })).json();
-    if (!me.username) throw new Error("bad token");
-    // username/role are user-derived: textContent only, never innerHTML
-    status.textContent = `signed in as ${me.username} (${me.role}) — decisions carry this identity`;
-    if (form) form.hidden = true;
-    if (logout) logout.hidden = false;
-    setIdentityNote("signed in — sign out from the masthead");
-  } catch {
-    authToken = null;
-    try {
-      localStorage.removeItem("sentinel-token");
-    } catch {
-      /* storage unavailable */
-    }
-    signedOut("session expired", "session expired — sign in again");
-  }
-}
-
-async function authAction(kind) {
-  const username = document.getElementById("auth-username")?.value.trim();
-  const password = document.getElementById("auth-password")?.value || "";
-  if (!username || !password) {
-    setIdentityNote("enter a username and password (min 8 chars)");
-    return;
-  }
-  try {
-    if (kind === "register") {
-      const reg = await fetch("/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, role: "approver" }),
-      });
-      if (!reg.ok && reg.status !== 409) {
-        setIdentityNote("registration failed (name taken or weak password)");
-        return;
-      }
-    }
-    const login = await fetch("/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
-    if (!login.ok) {
-      setIdentityNote("invalid username or password");
-      return;
-    }
-    authToken = (await login.json()).token;
-    try {
-      localStorage.setItem("sentinel-token", authToken);
-    } catch {
-      /* storage unavailable — token lives for this session only */
-    }
-    await refreshIdentity();
-  } catch {
-    setIdentityNote("auth request failed");
-  }
-}
 
 document
   .getElementById("auth-register")
