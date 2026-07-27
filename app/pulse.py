@@ -56,45 +56,10 @@ def pulse_llm_budget() -> int:
     return value if value >= 0 else DEFAULT_PULSE_LLM_BUDGET
 
 
-@router.post("/pulse")
-def run_pulse(
-    threshold: float | None = Query(
-        None,
-        gt=0,
-        allow_inf_nan=False,
-        description=(
-            "Z-score threshold for the detection pass; omitted, the "
-            "mission's detection threshold governs."
-        ),
-    ),
-    llm_budget: int | None = Query(
-        None,
-        ge=0,
-        le=100,
-        description=(
-            "Override the pulse LLM call cap for THIS run only — 0 "
-            "demonstrates the rule-based fallback lane live."
-        ),
-    ),
-    mission: str | None = Query(
-        None,
-        pattern="^[a-z][a-z0-9_-]{0,63}$",
-        description=(
-            "Quick-switch: flip the ACTIVE mission before this run — the "
-            "same engine re-reads its thresholds, detector and debate bar "
-            "from another YAML, and every mission-following surface "
-            "(/anomalies, /ready, the debate threshold) flips with it."
-        ),
-    ),
-    conn: sqlite3.Connection = Depends(db.get_db),
-) -> PulseReport:
-    """Run detect → analyze → recommend for every current signal."""
-    if mission is not None:
-        try:
-            set_active_mission(mission)
-        except MissionError as error:
-            # a typo must fail loudly, not fall into the silent defaults lane
-            raise HTTPException(status_code=400, detail=str(error)) from error
+def _reflex_sweep(
+    conn: sqlite3.Connection, threshold: float | None
+) -> tuple[list, str | None, float | None, float]:
+    """Deterministic opening pass — detect, prune, and put the scan on the bus."""
     records = load_daily_costs()
     # Reflex first: the deterministic pass carries the mission's settings
     # and its measured latency opens the tagged log chain.
@@ -134,114 +99,197 @@ def run_pulse(
         f"{len(anomalies)} cost signal{'' if len(anomalies) == 1 else 's'} "
         f"({run.detector} detector)",
     )
+    return anomalies, mission_name, reflex_ms, threshold
 
+
+def _run_cost_lane(
+    conn: sqlite3.Connection, anomalies: list
+) -> tuple[list[PulseChainLink], int, int, int]:
+    """Per-signal lane — persist, analyze-or-reuse, recommend, link the chain."""
     links: list[PulseChainLink] = []
     analyzed_count = 0
     filed_count = 0
     reused_count = 0
+    for anomaly in anomalies:
+        with db.writing(conn):
+            # A live source can re-state a day's figures; when the
+            # payload changes, the pinned analysis is dropped so the
+            # analyst re-triages the numbers actually on screen.
+            # Identical payloads (mock lane) keep their analysis.
+            event_id = db.upsert_event(
+                conn,
+                kind="cost_anomaly",
+                service=anomaly.service,
+                occurred_on=anomaly.date,
+                payload_json=anomaly.model_dump_json(exclude={"id"}),
+                refresh_analysis_on_change=True,
+            )
+        logger.info(
+            "[SIGNAL] %s",
+            json.dumps(
+                {
+                    "event_id": event_id,
+                    "service": anomaly.service,
+                    "date": anomaly.date,
+                    "z_score": anomaly.z_score,
+                    "severity": anomaly.severity,
+                },
+                sort_keys=True,
+            ),
+        )
+
+        event = conn.execute(
+            "SELECT * FROM events WHERE id = ?", (event_id,)
+        ).fetchone()
+        if event["analysis_json"]:
+            envelope = json.loads(event["analysis_json"])
+            triage = envelope["report"]["triage"]
+        else:
+            analysis = analyze_event(conn, event)
+            triage = analysis.triage
+            analyzed_count += 1
+            event = conn.execute(
+                "SELECT * FROM events WHERE id = ?", (event_id,)
+            ).fetchone()
+
+        recommendation = recommend_for_event(conn, event)
+        if recommendation.reused:
+            reused_count += 1
+        else:
+            filed_count += 1
+
+        links.append(
+            PulseChainLink(
+                event_id=event_id,
+                service=anomaly.service,
+                severity=anomaly.severity,
+                triage=triage,
+                action_id=recommendation.action_id,
+                action_state=recommendation.action_state,
+                preferred=recommendation.preferred,
+                reused=recommendation.reused,
+            )
+        )
+    return links, analyzed_count, filed_count, reused_count
+
+
+def _run_watch_lanes(conn: sqlite3.Connection) -> tuple:
+    """Security and fraud sweep — operator-facing lanes and their HITL cards."""
+    # Unified detection: the security and fraud lanes run in the same
+    # sweep and persist their own signals; neither feeds an LLM agent
+    # (operator-facing lanes by locked decision).
+    security_report = scan_security()
+    persist_signals(conn, security_report.signals)
+    _, fraud_flagged = fraud.scan_and_persist(conn)
+    bus.emit(
+        conn,
+        "reflex",
+        "watch",
+        f"unified watch swept — {security_report.signal_count} security "
+        f"signal{'' if security_report.signal_count == 1 else 's'}, "
+        f"{len(fraud_flagged)} fraud flag{'' if len(fraud_flagged) == 1 else 's'} "
+        "(operator-facing lanes, no LLM)",
+    )
+    # Three missions, one decision box: hold-suggested payments and a
+    # projected budget overrun file deterministic HITL cards (no LLM).
+    fraud_holds_filed = fraud.file_hold_actions(conn, fraud_flagged)
+    budget_cards_filed = file_budget_risk_action(conn)
+    return security_report, fraud_flagged, fraud_holds_filed, budget_cards_filed
+
+
+def _chronicle_run(
+    conn: sqlite3.Connection,
+    anomalies: list,
+    links: list[PulseChainLink],
+    security_report,
+    fraud_flagged: list,
+    cross_lane_cards: int,
+    analyzed_count: int,
+    filed_count: int,
+    reused_count: int,
+) -> PulseBriefing:
+    """One budgeted narration — the facts are Python's, the agent only restates."""
+    # Chronicler: one budgeted call narrates the run for the operator.
+    # The facts are computed HERE, in Python — the agent only restates
+    # them; a dry budget lands on its deterministic fallback narrative.
+    # LLM spend is deliberately NOT among the facts: the chronicler's own
+    # call is charged AFTER this dict is built, so any count here would be
+    # off by that call. The authoritative figure rides the PulseReport
+    # (llm_calls_used / llm_budget), which the dashboard renders.
+    top = max(anomalies, key=lambda a: abs(a.z_score), default=None)
+    facts = {
+        "cost_signals": len(links),
+        "security_signals": security_report.signal_count,
+        "fraud_flagged": len(fraud_flagged),
+        "cross_lane_cards": cross_lane_cards,
+        "analyzed": analyzed_count,
+        "proposals_filed": filed_count,
+        "proposals_reused": reused_count,
+        "top_service": top.service if top else None,
+    }
+    return PulseBriefing(**write_briefing(conn, facts))
+
+
+@router.post("/pulse")
+def run_pulse(
+    threshold: float | None = Query(
+        None,
+        gt=0,
+        allow_inf_nan=False,
+        description=(
+            "Z-score threshold for the detection pass; omitted, the "
+            "mission's detection threshold governs."
+        ),
+    ),
+    llm_budget: int | None = Query(
+        None,
+        ge=0,
+        le=100,
+        description=(
+            "Override the pulse LLM call cap for THIS run only — 0 "
+            "demonstrates the rule-based fallback lane live."
+        ),
+    ),
+    mission: str | None = Query(
+        None,
+        pattern="^[a-z][a-z0-9_-]{0,63}$",
+        description=(
+            "Quick-switch: flip the ACTIVE mission before this run — the "
+            "same engine re-reads its thresholds, detector and debate bar "
+            "from another YAML, and every mission-following surface "
+            "(/anomalies, /ready, the debate threshold) flips with it."
+        ),
+    ),
+    conn: sqlite3.Connection = Depends(db.get_db),
+) -> PulseReport:
+    """Run detect → analyze → recommend for every current signal."""
+    if mission is not None:
+        try:
+            set_active_mission(mission)
+        except MissionError as error:
+            # a typo must fail loudly, not fall into the silent defaults lane
+            raise HTTPException(status_code=400, detail=str(error)) from error
+    anomalies, mission_name, reflex_ms, threshold = _reflex_sweep(conn, threshold)
 
     budget_limit = llm_budget if llm_budget is not None else pulse_llm_budget()
     with llm_call_budget(budget_limit) as budget:
-        for anomaly in anomalies:
-                with db.writing(conn):
-                    # A live source can re-state a day's figures; when the
-                    # payload changes, the pinned analysis is dropped so the
-                    # analyst re-triages the numbers actually on screen.
-                    # Identical payloads (mock lane) keep their analysis.
-                    event_id = db.upsert_event(
-                        conn,
-                        kind="cost_anomaly",
-                        service=anomaly.service,
-                        occurred_on=anomaly.date,
-                        payload_json=anomaly.model_dump_json(exclude={"id"}),
-                        refresh_analysis_on_change=True,
-                    )
-                logger.info(
-                    "[SIGNAL] %s",
-                    json.dumps(
-                        {
-                            "event_id": event_id,
-                            "service": anomaly.service,
-                            "date": anomaly.date,
-                            "z_score": anomaly.z_score,
-                            "severity": anomaly.severity,
-                        },
-                        sort_keys=True,
-                    ),
-                )
-
-                event = conn.execute(
-                    "SELECT * FROM events WHERE id = ?", (event_id,)
-                ).fetchone()
-                if event["analysis_json"]:
-                    envelope = json.loads(event["analysis_json"])
-                    triage = envelope["report"]["triage"]
-                else:
-                    analysis = analyze_event(conn, event)
-                    triage = analysis.triage
-                    analyzed_count += 1
-                    event = conn.execute(
-                        "SELECT * FROM events WHERE id = ?", (event_id,)
-                    ).fetchone()
-
-                recommendation = recommend_for_event(conn, event)
-                if recommendation.reused:
-                    reused_count += 1
-                else:
-                    filed_count += 1
-
-                links.append(
-                    PulseChainLink(
-                        event_id=event_id,
-                        service=anomaly.service,
-                        severity=anomaly.severity,
-                        triage=triage,
-                        action_id=recommendation.action_id,
-                        action_state=recommendation.action_state,
-                        preferred=recommendation.preferred,
-                        reused=recommendation.reused,
-                    )
-                )
-
-        # Unified detection: the security and fraud lanes run in the same
-        # sweep and persist their own signals; neither feeds an LLM agent
-        # (operator-facing lanes by locked decision).
-        security_report = scan_security()
-        persist_signals(conn, security_report.signals)
-        _, fraud_flagged = fraud.scan_and_persist(conn)
-        bus.emit(
-            conn,
-            "reflex",
-            "watch",
-            f"unified watch swept — {security_report.signal_count} security "
-            f"signal{'' if security_report.signal_count == 1 else 's'}, "
-            f"{len(fraud_flagged)} fraud flag{'' if len(fraud_flagged) == 1 else 's'} "
-            "(operator-facing lanes, no LLM)",
+        links, analyzed_count, filed_count, reused_count = _run_cost_lane(
+            conn, anomalies
         )
-        # Three missions, one decision box: hold-suggested payments and a
-        # projected budget overrun file deterministic HITL cards (no LLM).
-        fraud_holds_filed = fraud.file_hold_actions(conn, fraud_flagged)
-        budget_cards_filed = file_budget_risk_action(conn)
-
-        # Chronicler: one budgeted call narrates the run for the operator.
-        # The facts are computed HERE, in Python — the agent only restates
-        # them; a dry budget lands on its deterministic fallback narrative.
-        # LLM spend is deliberately NOT among the facts: the chronicler's own
-        # call is charged AFTER this dict is built, so any count here would be
-        # off by that call. The authoritative figure rides the PulseReport
-        # (llm_calls_used / llm_budget), which the dashboard renders.
-        top = max(anomalies, key=lambda a: abs(a.z_score), default=None)
-        facts = {
-            "cost_signals": len(links),
-            "security_signals": security_report.signal_count,
-            "fraud_flagged": len(fraud_flagged),
-            "cross_lane_cards": fraud_holds_filed + budget_cards_filed,
-            "analyzed": analyzed_count,
-            "proposals_filed": filed_count,
-            "proposals_reused": reused_count,
-            "top_service": top.service if top else None,
-        }
-        briefing = PulseBriefing(**write_briefing(conn, facts))
+        security_report, fraud_flagged, fraud_holds_filed, budget_cards_filed = (
+            _run_watch_lanes(conn)
+        )
+        briefing = _chronicle_run(
+            conn,
+            anomalies,
+            links,
+            security_report,
+            fraud_flagged,
+            fraud_holds_filed + budget_cards_filed,
+            analyzed_count,
+            filed_count,
+            reused_count,
+        )
 
     if budget.exhausted:
         logger.warning(
