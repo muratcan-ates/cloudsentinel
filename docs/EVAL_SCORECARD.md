@@ -37,6 +37,8 @@ byte-identical fixtures).
 | Confidence stays a real probability [0, 1] | LLM schema + contract suite | `tests/test_contracts.py`, `tests/test_analyst.py` |
 | Every option states a rollback | required pydantic field | `tests/test_contracts.py` |
 | Execute requires prior approval (409 otherwise) | HITL state machine, `app/actions.py` | `tests/test_actions.py` |
+| Debate ladder — warning: single skeptic; critical: three-seat review panel, majority verdict, dead seats abstain | `app/recommender.py` `run_panel` | `tests/test_panel.py` |
+| Repeated-reflex escalation — 3+ anomaly days in 14 force the debate at any confidence | `escalation_trigger`, repeat bucket partitions the cache | `tests/test_guardrails.py`, `tests/test_recommender.py` |
 | Read-only demo blocks every write (403) | middleware, `main.py` | `tests/test_demo_ops.py`, `tests/test_llm_contracts.py` |
 | Per-pulse LLM call budget + hard per-call timeout | `app/llm.py` · budget observable on the fake lane too | `tests/test_guardrails.py`, `tests/test_llm_contracts.py` |
 | Budget exhaustion degrades to rule-based fallbacks, honestly labeled | `generate_with_fallback`, source=`fallback` | `tests/test_llm.py`, `tests/test_contracts.py` |

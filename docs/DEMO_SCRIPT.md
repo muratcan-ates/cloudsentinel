@@ -44,13 +44,16 @@ z-score baseline'ı canlı hesaplıyor."
 ## Scene 3 · Escalation — the signal that needs a brain (1:00–1:45 · 45s)
 
 **Show:** a signal that crosses the escalation bar: Analyst triage with
-**cited evidence** → the debate-lite **Skeptic** → the **Recommender**'s
-two options, cautious and bold.
+**cited evidence** → the **Recommender**'s two options, cautious and
+bold → and on this critical signal, the **review panel** — open the
+card's fold: three reviewer rows, one dissent marked on the record.
 
 **Say (TR):** "Aynı sinyal daha ağır olsaydı, refleks yetmez. Bilinçli
-döngü devreye giriyor: Analyst kanıtla triyaj yapıyor, Skeptic zayıf
-kararı çürütüyor, Recommender iki yol sunuyor — **temkinli** ve **cesur** —
-her biri risk ve rollback ile."
+döngü devreye giriyor: Analyst kanıtla triyaj yapıyor, Recommender iki
+yol sunuyor — **temkinli** ve **cesur** — her biri risk ve rollback ile.
+Kritik sinyalde tek şüpheci de yetmez: **üç ayrı hakem** aynı kararı
+kendi tüzüğünden tartışıyor, çoğunluk karar veriyor, muhalefet şerhi
+kayda geçiyor."
 
 **Key line:** "Model metni yazıyor; sayıyı kod yazıyor ve ±%5 post-check
 ile doğruluyor. Halüsinasyon rakamı geçemez."
@@ -91,9 +94,12 @@ grafiği, kirli baseline'da MAD'in neden kazandığını gösteriyor."
 
 ## Scene 6 · Close (2:50–3:00 · 10s)
 
-**Say (TR):** "Aynı motor, farklı YAML: mission dosyasını değiştir,
-davranış değişir — cost, security, fraud aynı hatta. Refleks hız için,
-bilinç ağırlık için, insan son söz için. CloudSentinel."
+**Show:** flip the **mission dropdown** to `security` — the same engine
+re-reads another YAML live, on camera.
+
+**Say (TR):** "Aynı motor, farklı YAML: mission'ı değiştir, davranış
+değişir — cost, security, fraud aynı hatta. Refleks hız için, bilinç
+ağırlık için, insan son söz için. CloudSentinel."
 
 ---
 

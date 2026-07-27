@@ -75,7 +75,8 @@ Analyst's critical-severity second pass, not a separate roster entry.
 | Analyst | Gemini / fake / rule-based fallback | Triage (REAL / SEASONAL / DATA_ERROR / KNOWN_CHANGE) with cited evidence rows and self-assessed confidence | per cost anomaly |
 | — Reflection | same | The Analyst's second self-review pass challenging the draft (a sub-pass, not a separate roster member) | critical-severity signals only |
 | Recommender | same | Exactly two options (cautious / bold) with risk + rollback; savings computed in Python | per analyzed anomaly |
-| Skeptic (debate-lite) | same | One adversarial review; verdict + transcript persisted | low confidence, disagreement, or a BOLD answer to a critical signal (stakes-raised bar) |
+| Skeptic (debate-lite) | same | One adversarial review; verdict + transcript persisted | contested WARNING signals — low confidence, disagreement, a repeated-reflex offender (3+ anomaly days / 14), or a BOLD answer under the stakes-raised bar |
+| — Review panel | three seats: Gemini variants live (`SENTINEL_PANEL_MODELS`), deterministic personas (stability / throughput / evidence) offline | Majority over answered seats decides the stance; dissent and abstentions persist in the transcript; a dead seat abstains, below-quorum keeps the draft | contested CRITICAL signals (the debate ladder's top rung; publishes on the bus as the skeptic voice) |
 | Chronicler | same | Narrates each pulse run (headline / summary / watch-next) from Python-computed facts | once per pulse, budget-charged |
 | Operator | human-in-the-loop | Approves / rejects / executes proposals; verdicts persist as decision memory | per proposed action |
 
