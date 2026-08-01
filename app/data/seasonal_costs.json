@@ -1,0 +1,1060 @@
+{
+  "description": "Ten weeks of synthetic daily cloud cost with a deliberate weekly rhythm: analytics-batch runs heavy on weekdays and idles at the weekend, checkout-api peaks at the weekend, storage-archive is flat. The planted 2026-06-20 Saturday on analytics-batch costs a full weekday's worth: ordinary for a Tuesday, impossible for a Saturday. A flat baseline misses it, a day-of-week baseline catches it. Generated deterministically by scripts/make_seasonal_fixture.py.",
+  "currency": "USD",
+  "period": {
+    "start": "2026-04-27",
+    "end": "2026-07-05"
+  },
+  "daily_costs": [
+    {
+      "date": "2026-04-27",
+      "service": "analytics-batch",
+      "cost": 197.0
+    },
+    {
+      "date": "2026-04-27",
+      "service": "checkout-api",
+      "cost": 62.0
+    },
+    {
+      "date": "2026-04-27",
+      "service": "storage-archive",
+      "cost": 73.5
+    },
+    {
+      "date": "2026-04-28",
+      "service": "analytics-batch",
+      "cost": 201.8
+    },
+    {
+      "date": "2026-04-28",
+      "service": "checkout-api",
+      "cost": 58.4
+    },
+    {
+      "date": "2026-04-28",
+      "service": "storage-archive",
+      "cost": 76.0
+    },
+    {
+      "date": "2026-04-29",
+      "service": "analytics-batch",
+      "cost": 198.8
+    },
+    {
+      "date": "2026-04-29",
+      "service": "checkout-api",
+      "cost": 60.4
+    },
+    {
+      "date": "2026-04-29",
+      "service": "storage-archive",
+      "cost": 74.5
+    },
+    {
+      "date": "2026-04-30",
+      "service": "analytics-batch",
+      "cost": 203.0
+    },
+    {
+      "date": "2026-04-30",
+      "service": "checkout-api",
+      "cost": 61.6
+    },
+    {
+      "date": "2026-04-30",
+      "service": "storage-archive",
+      "cost": 72.5
+    },
+    {
+      "date": "2026-05-01",
+      "service": "analytics-batch",
+      "cost": 197.6
+    },
+    {
+      "date": "2026-05-01",
+      "service": "checkout-api",
+      "cost": 58.8
+    },
+    {
+      "date": "2026-05-01",
+      "service": "storage-archive",
+      "cost": 76.5
+    },
+    {
+      "date": "2026-05-02",
+      "service": "analytics-batch",
+      "cost": 40.6
+    },
+    {
+      "date": "2026-05-02",
+      "service": "checkout-api",
+      "cost": 110.8
+    },
+    {
+      "date": "2026-05-02",
+      "service": "storage-archive",
+      "cost": 74.0
+    },
+    {
+      "date": "2026-05-03",
+      "service": "analytics-batch",
+      "cost": 42.4
+    },
+    {
+      "date": "2026-05-03",
+      "service": "checkout-api",
+      "cost": 109.6
+    },
+    {
+      "date": "2026-05-03",
+      "service": "storage-archive",
+      "cost": 77.5
+    },
+    {
+      "date": "2026-05-04",
+      "service": "analytics-batch",
+      "cost": 198.2
+    },
+    {
+      "date": "2026-05-04",
+      "service": "checkout-api",
+      "cost": 58.0
+    },
+    {
+      "date": "2026-05-04",
+      "service": "storage-archive",
+      "cost": 73.0
+    },
+    {
+      "date": "2026-05-05",
+      "service": "analytics-batch",
+      "cost": 201.2
+    },
+    {
+      "date": "2026-05-05",
+      "service": "checkout-api",
+      "cost": 61.2
+    },
+    {
+      "date": "2026-05-05",
+      "service": "storage-archive",
+      "cost": 75.5
+    },
+    {
+      "date": "2026-05-06",
+      "service": "analytics-batch",
+      "cost": 199.4
+    },
+    {
+      "date": "2026-05-06",
+      "service": "checkout-api",
+      "cost": 59.2
+    },
+    {
+      "date": "2026-05-06",
+      "service": "storage-archive",
+      "cost": 77.0
+    },
+    {
+      "date": "2026-05-07",
+      "service": "analytics-batch",
+      "cost": 197.0
+    },
+    {
+      "date": "2026-05-07",
+      "service": "checkout-api",
+      "cost": 62.0
+    },
+    {
+      "date": "2026-05-07",
+      "service": "storage-archive",
+      "cost": 73.5
+    },
+    {
+      "date": "2026-05-08",
+      "service": "analytics-batch",
+      "cost": 201.8
+    },
+    {
+      "date": "2026-05-08",
+      "service": "checkout-api",
+      "cost": 58.4
+    },
+    {
+      "date": "2026-05-08",
+      "service": "storage-archive",
+      "cost": 76.0
+    },
+    {
+      "date": "2026-05-09",
+      "service": "analytics-batch",
+      "cost": 38.8
+    },
+    {
+      "date": "2026-05-09",
+      "service": "checkout-api",
+      "cost": 110.4
+    },
+    {
+      "date": "2026-05-09",
+      "service": "storage-archive",
+      "cost": 74.5
+    },
+    {
+      "date": "2026-05-10",
+      "service": "analytics-batch",
+      "cost": 43.0
+    },
+    {
+      "date": "2026-05-10",
+      "service": "checkout-api",
+      "cost": 111.6
+    },
+    {
+      "date": "2026-05-10",
+      "service": "storage-archive",
+      "cost": 72.5
+    },
+    {
+      "date": "2026-05-11",
+      "service": "analytics-batch",
+      "cost": 197.6
+    },
+    {
+      "date": "2026-05-11",
+      "service": "checkout-api",
+      "cost": 58.8
+    },
+    {
+      "date": "2026-05-11",
+      "service": "storage-archive",
+      "cost": 76.5
+    },
+    {
+      "date": "2026-05-12",
+      "service": "analytics-batch",
+      "cost": 200.6
+    },
+    {
+      "date": "2026-05-12",
+      "service": "checkout-api",
+      "cost": 60.8
+    },
+    {
+      "date": "2026-05-12",
+      "service": "storage-archive",
+      "cost": 74.0
+    },
+    {
+      "date": "2026-05-13",
+      "service": "analytics-batch",
+      "cost": 202.4
+    },
+    {
+      "date": "2026-05-13",
+      "service": "checkout-api",
+      "cost": 59.6
+    },
+    {
+      "date": "2026-05-13",
+      "service": "storage-archive",
+      "cost": 77.5
+    },
+    {
+      "date": "2026-05-14",
+      "service": "analytics-batch",
+      "cost": 198.2
+    },
+    {
+      "date": "2026-05-14",
+      "service": "checkout-api",
+      "cost": 58.0
+    },
+    {
+      "date": "2026-05-14",
+      "service": "storage-archive",
+      "cost": 73.0
+    },
+    {
+      "date": "2026-05-15",
+      "service": "analytics-batch",
+      "cost": 201.2
+    },
+    {
+      "date": "2026-05-15",
+      "service": "checkout-api",
+      "cost": 61.2
+    },
+    {
+      "date": "2026-05-15",
+      "service": "storage-archive",
+      "cost": 75.5
+    },
+    {
+      "date": "2026-05-16",
+      "service": "analytics-batch",
+      "cost": 39.4
+    },
+    {
+      "date": "2026-05-16",
+      "service": "checkout-api",
+      "cost": 109.2
+    },
+    {
+      "date": "2026-05-16",
+      "service": "storage-archive",
+      "cost": 77.0
+    },
+    {
+      "date": "2026-05-17",
+      "service": "analytics-batch",
+      "cost": 37.0
+    },
+    {
+      "date": "2026-05-17",
+      "service": "checkout-api",
+      "cost": 112.0
+    },
+    {
+      "date": "2026-05-17",
+      "service": "storage-archive",
+      "cost": 73.5
+    },
+    {
+      "date": "2026-05-18",
+      "service": "analytics-batch",
+      "cost": 201.8
+    },
+    {
+      "date": "2026-05-18",
+      "service": "checkout-api",
+      "cost": 58.4
+    },
+    {
+      "date": "2026-05-18",
+      "service": "storage-archive",
+      "cost": 76.0
+    },
+    {
+      "date": "2026-05-19",
+      "service": "analytics-batch",
+      "cost": 198.8
+    },
+    {
+      "date": "2026-05-19",
+      "service": "checkout-api",
+      "cost": 60.4
+    },
+    {
+      "date": "2026-05-19",
+      "service": "storage-archive",
+      "cost": 74.5
+    },
+    {
+      "date": "2026-05-20",
+      "service": "analytics-batch",
+      "cost": 203.0
+    },
+    {
+      "date": "2026-05-20",
+      "service": "checkout-api",
+      "cost": 61.6
+    },
+    {
+      "date": "2026-05-20",
+      "service": "storage-archive",
+      "cost": 72.5
+    },
+    {
+      "date": "2026-05-21",
+      "service": "analytics-batch",
+      "cost": 197.6
+    },
+    {
+      "date": "2026-05-21",
+      "service": "checkout-api",
+      "cost": 58.8
+    },
+    {
+      "date": "2026-05-21",
+      "service": "storage-archive",
+      "cost": 76.5
+    },
+    {
+      "date": "2026-05-22",
+      "service": "analytics-batch",
+      "cost": 200.6
+    },
+    {
+      "date": "2026-05-22",
+      "service": "checkout-api",
+      "cost": 60.8
+    },
+    {
+      "date": "2026-05-22",
+      "service": "storage-archive",
+      "cost": 74.0
+    },
+    {
+      "date": "2026-05-23",
+      "service": "analytics-batch",
+      "cost": 42.4
+    },
+    {
+      "date": "2026-05-23",
+      "service": "checkout-api",
+      "cost": 109.6
+    },
+    {
+      "date": "2026-05-23",
+      "service": "storage-archive",
+      "cost": 77.5
+    },
+    {
+      "date": "2026-05-24",
+      "service": "analytics-batch",
+      "cost": 38.2
+    },
+    {
+      "date": "2026-05-24",
+      "service": "checkout-api",
+      "cost": 108.0
+    },
+    {
+      "date": "2026-05-24",
+      "service": "storage-archive",
+      "cost": 73.0
+    },
+    {
+      "date": "2026-05-25",
+      "service": "analytics-batch",
+      "cost": 201.2
+    },
+    {
+      "date": "2026-05-25",
+      "service": "checkout-api",
+      "cost": 61.2
+    },
+    {
+      "date": "2026-05-25",
+      "service": "storage-archive",
+      "cost": 75.5
+    },
+    {
+      "date": "2026-05-26",
+      "service": "analytics-batch",
+      "cost": 199.4
+    },
+    {
+      "date": "2026-05-26",
+      "service": "checkout-api",
+      "cost": 59.2
+    },
+    {
+      "date": "2026-05-26",
+      "service": "storage-archive",
+      "cost": 77.0
+    },
+    {
+      "date": "2026-05-27",
+      "service": "analytics-batch",
+      "cost": 197.0
+    },
+    {
+      "date": "2026-05-27",
+      "service": "checkout-api",
+      "cost": 62.0
+    },
+    {
+      "date": "2026-05-27",
+      "service": "storage-archive",
+      "cost": 73.5
+    },
+    {
+      "date": "2026-05-28",
+      "service": "analytics-batch",
+      "cost": 201.8
+    },
+    {
+      "date": "2026-05-28",
+      "service": "checkout-api",
+      "cost": 58.4
+    },
+    {
+      "date": "2026-05-28",
+      "service": "storage-archive",
+      "cost": 76.0
+    },
+    {
+      "date": "2026-05-29",
+      "service": "analytics-batch",
+      "cost": 198.8
+    },
+    {
+      "date": "2026-05-29",
+      "service": "checkout-api",
+      "cost": 60.4
+    },
+    {
+      "date": "2026-05-29",
+      "service": "storage-archive",
+      "cost": 74.5
+    },
+    {
+      "date": "2026-05-30",
+      "service": "analytics-batch",
+      "cost": 43.0
+    },
+    {
+      "date": "2026-05-30",
+      "service": "checkout-api",
+      "cost": 111.6
+    },
+    {
+      "date": "2026-05-30",
+      "service": "storage-archive",
+      "cost": 72.5
+    },
+    {
+      "date": "2026-05-31",
+      "service": "analytics-batch",
+      "cost": 37.6
+    },
+    {
+      "date": "2026-05-31",
+      "service": "checkout-api",
+      "cost": 108.8
+    },
+    {
+      "date": "2026-05-31",
+      "service": "storage-archive",
+      "cost": 76.5
+    },
+    {
+      "date": "2026-06-01",
+      "service": "analytics-batch",
+      "cost": 200.6
+    },
+    {
+      "date": "2026-06-01",
+      "service": "checkout-api",
+      "cost": 60.8
+    },
+    {
+      "date": "2026-06-01",
+      "service": "storage-archive",
+      "cost": 74.0
+    },
+    {
+      "date": "2026-06-02",
+      "service": "analytics-batch",
+      "cost": 202.4
+    },
+    {
+      "date": "2026-06-02",
+      "service": "checkout-api",
+      "cost": 59.6
+    },
+    {
+      "date": "2026-06-02",
+      "service": "storage-archive",
+      "cost": 77.5
+    },
+    {
+      "date": "2026-06-03",
+      "service": "analytics-batch",
+      "cost": 198.2
+    },
+    {
+      "date": "2026-06-03",
+      "service": "checkout-api",
+      "cost": 58.0
+    },
+    {
+      "date": "2026-06-03",
+      "service": "storage-archive",
+      "cost": 73.0
+    },
+    {
+      "date": "2026-06-04",
+      "service": "analytics-batch",
+      "cost": 201.2
+    },
+    {
+      "date": "2026-06-04",
+      "service": "checkout-api",
+      "cost": 61.2
+    },
+    {
+      "date": "2026-06-04",
+      "service": "storage-archive",
+      "cost": 75.5
+    },
+    {
+      "date": "2026-06-05",
+      "service": "analytics-batch",
+      "cost": 199.4
+    },
+    {
+      "date": "2026-06-05",
+      "service": "checkout-api",
+      "cost": 59.2
+    },
+    {
+      "date": "2026-06-05",
+      "service": "storage-archive",
+      "cost": 77.0
+    },
+    {
+      "date": "2026-06-06",
+      "service": "analytics-batch",
+      "cost": 37.0
+    },
+    {
+      "date": "2026-06-06",
+      "service": "checkout-api",
+      "cost": 112.0
+    },
+    {
+      "date": "2026-06-06",
+      "service": "storage-archive",
+      "cost": 73.5
+    },
+    {
+      "date": "2026-06-07",
+      "service": "analytics-batch",
+      "cost": 41.8
+    },
+    {
+      "date": "2026-06-07",
+      "service": "checkout-api",
+      "cost": 108.4
+    },
+    {
+      "date": "2026-06-07",
+      "service": "storage-archive",
+      "cost": 76.0
+    },
+    {
+      "date": "2026-06-08",
+      "service": "analytics-batch",
+      "cost": 198.8
+    },
+    {
+      "date": "2026-06-08",
+      "service": "checkout-api",
+      "cost": 60.4
+    },
+    {
+      "date": "2026-06-08",
+      "service": "storage-archive",
+      "cost": 74.5
+    },
+    {
+      "date": "2026-06-09",
+      "service": "analytics-batch",
+      "cost": 203.0
+    },
+    {
+      "date": "2026-06-09",
+      "service": "checkout-api",
+      "cost": 61.6
+    },
+    {
+      "date": "2026-06-09",
+      "service": "storage-archive",
+      "cost": 72.5
+    },
+    {
+      "date": "2026-06-10",
+      "service": "analytics-batch",
+      "cost": 197.6
+    },
+    {
+      "date": "2026-06-10",
+      "service": "checkout-api",
+      "cost": 58.8
+    },
+    {
+      "date": "2026-06-10",
+      "service": "storage-archive",
+      "cost": 76.5
+    },
+    {
+      "date": "2026-06-11",
+      "service": "analytics-batch",
+      "cost": 200.6
+    },
+    {
+      "date": "2026-06-11",
+      "service": "checkout-api",
+      "cost": 60.8
+    },
+    {
+      "date": "2026-06-11",
+      "service": "storage-archive",
+      "cost": 74.0
+    },
+    {
+      "date": "2026-06-12",
+      "service": "analytics-batch",
+      "cost": 202.4
+    },
+    {
+      "date": "2026-06-12",
+      "service": "checkout-api",
+      "cost": 59.6
+    },
+    {
+      "date": "2026-06-12",
+      "service": "storage-archive",
+      "cost": 77.5
+    },
+    {
+      "date": "2026-06-13",
+      "service": "analytics-batch",
+      "cost": 38.2
+    },
+    {
+      "date": "2026-06-13",
+      "service": "checkout-api",
+      "cost": 108.0
+    },
+    {
+      "date": "2026-06-13",
+      "service": "storage-archive",
+      "cost": 73.0
+    },
+    {
+      "date": "2026-06-14",
+      "service": "analytics-batch",
+      "cost": 41.2
+    },
+    {
+      "date": "2026-06-14",
+      "service": "checkout-api",
+      "cost": 111.2
+    },
+    {
+      "date": "2026-06-14",
+      "service": "storage-archive",
+      "cost": 75.5
+    },
+    {
+      "date": "2026-06-15",
+      "service": "analytics-batch",
+      "cost": 199.4
+    },
+    {
+      "date": "2026-06-15",
+      "service": "checkout-api",
+      "cost": 59.2
+    },
+    {
+      "date": "2026-06-15",
+      "service": "storage-archive",
+      "cost": 77.0
+    },
+    {
+      "date": "2026-06-16",
+      "service": "analytics-batch",
+      "cost": 197.0
+    },
+    {
+      "date": "2026-06-16",
+      "service": "checkout-api",
+      "cost": 62.0
+    },
+    {
+      "date": "2026-06-16",
+      "service": "storage-archive",
+      "cost": 73.5
+    },
+    {
+      "date": "2026-06-17",
+      "service": "analytics-batch",
+      "cost": 201.8
+    },
+    {
+      "date": "2026-06-17",
+      "service": "checkout-api",
+      "cost": 58.4
+    },
+    {
+      "date": "2026-06-17",
+      "service": "storage-archive",
+      "cost": 76.0
+    },
+    {
+      "date": "2026-06-18",
+      "service": "analytics-batch",
+      "cost": 198.8
+    },
+    {
+      "date": "2026-06-18",
+      "service": "checkout-api",
+      "cost": 60.4
+    },
+    {
+      "date": "2026-06-18",
+      "service": "storage-archive",
+      "cost": 74.5
+    },
+    {
+      "date": "2026-06-19",
+      "service": "analytics-batch",
+      "cost": 203.0
+    },
+    {
+      "date": "2026-06-19",
+      "service": "checkout-api",
+      "cost": 61.6
+    },
+    {
+      "date": "2026-06-19",
+      "service": "storage-archive",
+      "cost": 72.5
+    },
+    {
+      "date": "2026-06-20",
+      "service": "analytics-batch",
+      "cost": 199.4
+    },
+    {
+      "date": "2026-06-20",
+      "service": "checkout-api",
+      "cost": 108.8
+    },
+    {
+      "date": "2026-06-20",
+      "service": "storage-archive",
+      "cost": 76.5
+    },
+    {
+      "date": "2026-06-21",
+      "service": "analytics-batch",
+      "cost": 40.6
+    },
+    {
+      "date": "2026-06-21",
+      "service": "checkout-api",
+      "cost": 110.8
+    },
+    {
+      "date": "2026-06-21",
+      "service": "storage-archive",
+      "cost": 74.0
+    },
+    {
+      "date": "2026-06-22",
+      "service": "analytics-batch",
+      "cost": 202.4
+    },
+    {
+      "date": "2026-06-22",
+      "service": "checkout-api",
+      "cost": 59.6
+    },
+    {
+      "date": "2026-06-22",
+      "service": "storage-archive",
+      "cost": 77.5
+    },
+    {
+      "date": "2026-06-23",
+      "service": "analytics-batch",
+      "cost": 198.2
+    },
+    {
+      "date": "2026-06-23",
+      "service": "checkout-api",
+      "cost": 58.0
+    },
+    {
+      "date": "2026-06-23",
+      "service": "storage-archive",
+      "cost": 73.0
+    },
+    {
+      "date": "2026-06-24",
+      "service": "analytics-batch",
+      "cost": 201.2
+    },
+    {
+      "date": "2026-06-24",
+      "service": "checkout-api",
+      "cost": 61.2
+    },
+    {
+      "date": "2026-06-24",
+      "service": "storage-archive",
+      "cost": 75.5
+    },
+    {
+      "date": "2026-06-25",
+      "service": "analytics-batch",
+      "cost": 199.4
+    },
+    {
+      "date": "2026-06-25",
+      "service": "checkout-api",
+      "cost": 59.2
+    },
+    {
+      "date": "2026-06-25",
+      "service": "storage-archive",
+      "cost": 77.0
+    },
+    {
+      "date": "2026-06-26",
+      "service": "analytics-batch",
+      "cost": 197.0
+    },
+    {
+      "date": "2026-06-26",
+      "service": "checkout-api",
+      "cost": 62.0
+    },
+    {
+      "date": "2026-06-26",
+      "service": "storage-archive",
+      "cost": 73.5
+    },
+    {
+      "date": "2026-06-27",
+      "service": "analytics-batch",
+      "cost": 41.8
+    },
+    {
+      "date": "2026-06-27",
+      "service": "checkout-api",
+      "cost": 108.4
+    },
+    {
+      "date": "2026-06-27",
+      "service": "storage-archive",
+      "cost": 76.0
+    },
+    {
+      "date": "2026-06-28",
+      "service": "analytics-batch",
+      "cost": 38.8
+    },
+    {
+      "date": "2026-06-28",
+      "service": "checkout-api",
+      "cost": 110.4
+    },
+    {
+      "date": "2026-06-28",
+      "service": "storage-archive",
+      "cost": 74.5
+    },
+    {
+      "date": "2026-06-29",
+      "service": "analytics-batch",
+      "cost": 203.0
+    },
+    {
+      "date": "2026-06-29",
+      "service": "checkout-api",
+      "cost": 61.6
+    },
+    {
+      "date": "2026-06-29",
+      "service": "storage-archive",
+      "cost": 72.5
+    },
+    {
+      "date": "2026-06-30",
+      "service": "analytics-batch",
+      "cost": 197.6
+    },
+    {
+      "date": "2026-06-30",
+      "service": "checkout-api",
+      "cost": 58.8
+    },
+    {
+      "date": "2026-06-30",
+      "service": "storage-archive",
+      "cost": 76.5
+    },
+    {
+      "date": "2026-07-01",
+      "service": "analytics-batch",
+      "cost": 200.6
+    },
+    {
+      "date": "2026-07-01",
+      "service": "checkout-api",
+      "cost": 60.8
+    },
+    {
+      "date": "2026-07-01",
+      "service": "storage-archive",
+      "cost": 74.0
+    },
+    {
+      "date": "2026-07-02",
+      "service": "analytics-batch",
+      "cost": 202.4
+    },
+    {
+      "date": "2026-07-02",
+      "service": "checkout-api",
+      "cost": 59.6
+    },
+    {
+      "date": "2026-07-02",
+      "service": "storage-archive",
+      "cost": 77.5
+    },
+    {
+      "date": "2026-07-03",
+      "service": "analytics-batch",
+      "cost": 198.2
+    },
+    {
+      "date": "2026-07-03",
+      "service": "checkout-api",
+      "cost": 58.0
+    },
+    {
+      "date": "2026-07-03",
+      "service": "storage-archive",
+      "cost": 73.0
+    },
+    {
+      "date": "2026-07-04",
+      "service": "analytics-batch",
+      "cost": 41.2
+    },
+    {
+      "date": "2026-07-04",
+      "service": "checkout-api",
+      "cost": 111.2
+    },
+    {
+      "date": "2026-07-04",
+      "service": "storage-archive",
+      "cost": 75.5
+    },
+    {
+      "date": "2026-07-05",
+      "service": "analytics-batch",
+      "cost": 39.4
+    },
+    {
+      "date": "2026-07-05",
+      "service": "checkout-api",
+      "cost": 109.2
+    },
+    {
+      "date": "2026-07-05",
+      "service": "storage-archive",
+      "cost": 77.0
+    }
+  ]
+}
