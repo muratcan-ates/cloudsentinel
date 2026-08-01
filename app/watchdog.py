@@ -63,7 +63,6 @@ class Watchdog:
     def __init__(self, interval: float):
         self.interval = interval
         self.ticks = 0
-        self.skipped_readonly = 0
         self.last_error: str | None = None
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -91,12 +90,14 @@ class Watchdog:
             self.tick()
 
     def tick(self) -> bool:
-        """One beat: a full pulse on a fresh connection. True if it ran."""
-        # Re-checked here because direct calls bypass the HTTP middleware
-        # that guards the read-only showcase deploy.
-        if os.environ.get("SENTINEL_READONLY", "").strip() == "1":
-            self.skipped_readonly += 1
-            return False
+        """One beat: a full pulse on a fresh connection. True if it ran.
+
+        The read-only showcase guard does NOT apply here by design: that
+        middleware keeps STRANGERS' HTTP writes out, while the watchdog is
+        the system's own heartbeat — a live deploy stays read-only to
+        visitors yet keeps refreshing itself. An operator who wants a
+        frozen showcase simply leaves the watch interval unset.
+        """
         from app.pulse import run_pulse  # late import — pulse imports broadly
 
         conn = None

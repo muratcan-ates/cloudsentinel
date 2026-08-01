@@ -59,12 +59,15 @@ def test_tick_runs_a_real_pulse_and_files_proposals(client):
     assert client.get("/anomalies").json()["mission"] == "finops"
 
 
-def test_tick_skips_in_readonly_showcase_mode(client, monkeypatch):
+def test_tick_beats_even_in_the_readonly_showcase(client, monkeypatch):
+    """Read-only guards strangers' HTTP writes; the watchdog is the
+    system's own heartbeat — the live showcase keeps refreshing itself."""
     monkeypatch.setenv("SENTINEL_READONLY", "1")
     watchdog = Watchdog(interval=3600)
-    assert watchdog.tick() is False
-    assert watchdog.skipped_readonly == 1
-    assert watchdog.ticks == 0
+    assert watchdog.tick() is True
+    assert watchdog.ticks == 1
+    # and strangers are still locked out over HTTP while the system lives
+    assert client.post("/pulse").status_code == 403
 
 
 def test_failing_tick_records_the_error_and_survives(client, monkeypatch):
