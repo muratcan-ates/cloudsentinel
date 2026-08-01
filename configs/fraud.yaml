@@ -22,14 +22,18 @@ role_intent:
 # app/fraud.py; no statistical detection pass runs over fraud events.
 detection:
   source: fraud
-  threshold: 2.0
-  critical_z: 3.0
+  # The published rule score is the fraud lane's primary instrument;
+  # this detector is the second opinion, so it only speaks when the
+  # deviation is egregious. A low bar here would drown the rule score
+  # in noise it did not raise.
+  threshold: 2.75
+  critical_z: 3.5
   detector: zscore
-  baseline_window_days: 28
+  baseline_window_days: 21
   seasonal: false
 
 escalation:
-  confidence_debate_threshold: 0.6
+  confidence_debate_threshold: 0.5
 
 # LIVE, unlike the detection block: the rule-score thresholds are mission
 # configuration. Point values stay code constants (published arithmetic).

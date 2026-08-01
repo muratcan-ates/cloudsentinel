@@ -18,13 +18,19 @@ role_intent:
 
 detection:
   source: security
-  threshold: 2.0
-  critical_z: 3.0
-  detector: zscore
-  baseline_window_days: 28
+  # A credential burst is small and fast: it must be caught before it
+  # is large, so the bar is lower than the cost lane's — and MAD is
+  # used rather than z-score because the burst inflates the very mean
+  # a z-score would measure it against.
+  threshold: 1.75
+  critical_z: 2.75
+  detector: mad
+  # Security patterns turn over faster than spend does; a month of
+  # history describes an estate that no longer exists.
+  baseline_window_days: 14
   seasonal: false
 
 escalation:
   # Security signals do not route into the LLM agents in this sprint;
   # the threshold is kept for schema uniformity and future use.
-  confidence_debate_threshold: 0.6
+  confidence_debate_threshold: 0.75

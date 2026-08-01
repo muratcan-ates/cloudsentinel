@@ -22,6 +22,9 @@ role_intent:
 
 detection:
   source: cost
+  # Cost history is long and slow, so a month of baseline is right, and
+  # the plain z-score stays: this is the lane the demo walks through, and
+  # its numbers are the ones every screenshot and test already pins.
   threshold: 2.0
   critical_z: 3.0
   detector: zscore

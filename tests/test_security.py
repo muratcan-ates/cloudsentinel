@@ -26,7 +26,8 @@ def test_planted_security_spikes_are_flagged_critical(client):
     assert body["mission"] == "security"
     assert body["metric"] == "failed_login_count"
     assert body["reflex_ms"] is not None and body["reflex_ms"] > 0
-    assert body["window_days"] == 28
+    # 14, not 28: security patterns turn over faster than spend does
+    assert body["window_days"] == 14
     assert body["insufficient_data_services"] == []
     flagged = {(s["service"], s["date"]) for s in body["signals"]}
     assert flagged == {
@@ -34,7 +35,9 @@ def test_planted_security_spikes_are_flagged_critical(client):
         ("admin-portal", "2026-07-02"),
     }
     assert all(s["severity"] == "critical" for s in body["signals"])
-    assert all(s["detector"] == "zscore" for s in body["signals"])
+    # MAD, not z-score: a credential burst inflates the mean it would
+    # otherwise be measured against, and the median it cannot move
+    assert all(s["detector"] == "mad" for s in body["signals"])
 
 
 def test_quiet_source_stays_quiet(client):
@@ -45,7 +48,10 @@ def test_quiet_source_stays_quiet(client):
 def test_security_threshold_override_governs(client):
     body = client.get("/security/signals", params={"threshold": 5}).json()
     assert body["threshold"] == 5.0
-    assert body["signal_count"] == 0
+    # Under MAD the planted burst scores ~148 sigma — it does not inflate
+    # the median the way it inflates a mean — so a bar of 5 cannot silence
+    # it. The override still governs; it has to be raised past the signal.
+    assert body["signal_count"] == 2
 
 
 def test_security_signals_persist_with_stable_ids(client):
