@@ -1,78 +1,62 @@
 # CloudSentinel — Executive Summary
 
-*YZTA Bootcamp 2026 · AI Track · Team CloudSentinel (Group 60)*
-*One-page brief for the submission and the jury. SCQA framing. Every claim
-here is one the codebase can back up — including the boundaries.*
+*YZTA Bootcamp 2026 · AI Track · Team CloudSentinel (Group 60). Every number
+below was measured in this repository, beside the command that reproduces it.*
 
 ---
 
-**Situation.** Cloud cost and security signals arrive faster than any team
-can triage them, and the industry's own numbers are blunt: analysts project
-that a large share of agentic-AI initiatives get cancelled over runaway,
-unaccountable cost. The pressure is to *act* on anomalies quickly.
+**Situation.** Cloud cost, security and payment signals arrive faster than any
+on-call team can triage them, and each one is a question about money.
 
-**Complication.** The two obvious answers both fail. A passive dashboard
-sees the spike but decides nothing. A fully-autonomous agent decides fast
-but acts on real infrastructure with no accountable human in the loop — and
-no serious operator will trust it. Speed and accountability pull apart.
+**Complication.** The two obvious answers both fail. A dashboard sees the spike
+and decides nothing. An autonomous agent decides quickly and acts on live
+infrastructure with nobody accountable for the result. Speed and accountability
+pull apart.
 
-**Question.** How do you get the *speed* of automation and the
-*accountability* of a human decision at the same time?
+**Question.** How do you get the speed of automation and the accountability of a
+human decision at the same time?
 
-**Answer — CloudSentinel.** A dual-loop, agentic decision-support system for
-cloud operations. A deterministic **reflex** lane handles routine anomalies
-in measured sub-millisecond statistics; a **conscious** loop escalates the
-hard calls — an Analyst triages with cited evidence, a Skeptic challenges
-weak reasoning, and a Recommender proposes a cautious and a bold option with
-Python-computed savings and rollback. **Nothing executes without a human.**
-The machine watches, the human decides.
+**Answer.** CloudSentinel splits the loop in two. A deterministic **reflex** lane
+clears routine anomalies in a measured **0.24 ms mean, 0.31 ms p95** over 200
+samples (`app/benchmark.py`). A **conscious** loop escalates the rest: an Analyst
+cites evidence, a Skeptic attacks weak reasoning, a Recommender returns one
+cautious and one bold option, each with a rollback, whose savings are computed in
+Python and re-checked against its own narrative at ±5%. **Nothing executes
+without a human.** The machine watches; the human decides.
 
----
+## What the code shows
 
-## What it actually does
+- **1190 tests pass**, 96% coverage over 5873 statements, ruff clean
+  (`SENTINEL_FAKE_LLM=1 pytest -q`). **69 endpoints** across 67 paths are
+  enrolled automatically by `tests/test_endpoint_matrix.py` — a route added
+  tomorrow is tested the moment it is mounted.
+- A **288-case golden set** (`scripts/eval_harness.py --cases 288`) swept through
+  the real chain: **208 signals → 208 proposals**, 0 phantom cards, 0 orphaned
+  signals, **0 unsafe actions**, 0 savings-formula mismatches; 7.46 ms mean /
+  12.03 ms p95 per case.
+- Adversarial families in that same sweep: **0 of 160 injected directives
+  obeyed**, 0 prompt-boundary escapes, **32/32 planted numeric lies caught with
+  0 false alarms**, and **32/32 abstentions** where history is too thin to have
+  an opinion. Twelve of 64 quiet cases were detector false positives — stated,
+  not smoothed.
+- **Three missions, one engine**: security (1.75 / 14-day), fraud (2.75 /
+  21-day), finops (2.0 / 28-day) are YAML in `configs/`. Change the mission,
+  change the posture, not the code.
+- The ledger does not ask to be believed. `GET /audit/verify` recomputes every
+  SHA-256 link from genesis against the live rows and names which of four ways
+  it broke: spliced, rewritten, source-modified, source-deleted.
 
-- **Detects** cost, security, and payment anomalies on one deterministic
-  detection line (rolling-baseline z-score / MAD, optional weekly
-  seasonality), driven by declarative **mission YAML** — change the mission,
-  change the behavior, same engine.
-- **Reasons** with a multi-agent arena whose money figures are computed in
-  Python and never generated, then verified by a ±5% numeric post-check;
-  the reflex latency is **measured**, not claimed.
-- **Decides** through a human-in-the-loop lifecycle
-  (`proposed → approved/rejected → executed`) with recorded rationale and an
-  append-only decision ledger exportable to CSV.
-- **Remembers** operator verdicts and feeds them back into future
-  recommendations; a learning loop *proposes* new reflex rules from that
-  memory but never applies one automatically (human-in-the-loop stays
-  sacred).
-- **Accounts** for its own operation — a self-FinOps view tracks the
-  system's own LLM spend, and analytics turn history into a HITL funnel,
-  approved-savings, forecast and ROI figures.
+## Real vs. simulated
 
-## Why it is credible
+| Real | Simulated |
+|---|---|
+| Decision record, operator identity, hash-chained audit trail | Any change to any cloud resource — always |
+| Outbound webhook POST of the incident (`app/dispatch.py`) | The `executed` transition, stamped `SIMULATION` |
+| Detection statistics, savings arithmetic, guardrails | The data: bundled synthetic fixtures by default |
+| `/metrics`, `/audit/verify`, `/ops/preflight` | Live-model quality — scored on the deterministic lane |
 
-Built on FastAPI + Python 3.12 with a Gemini provider abstraction that
-degrades honestly to a deterministic fake and a rule-based fallback, so the
-full demo runs offline with no quota gamble. Quality bar: **400+ automated
-tests** over 40+ endpoints, ruff-clean, CI on every push and PR, a
-26-step live smoke sweep, a detection benchmark and a 200-case agent-chain
-eval ([scorecard](EVAL_SCORECARD.md)) that measure rather than assert.
+## What we would build next
 
-## Boundaries we state, not hide
-
-Data is synthetic by default and execution is **simulated by design** for
-the competition; identity is local (register/sign-in with server-derived
-operator identity — no OIDC or tenant isolation yet), sqlite rather than
-Postgres, no background scheduler, and the fraud lane is published
-deterministic arithmetic, not ML. These are documented decisions in `Scope & Limitations`
-and the Sprint 3 backlog — the honest label is *a well-engineered prototype
-that faithfully simulates a production product's behavior*. The roadmap to
-close that gap (real identity, durable state, scheduled ingestion, one real
-side effect, post-change verification) is written down, prioritized, and
-deliberately left for after the competition window.
-
----
-
-**In one line:** CloudSentinel closes the gap between *"your cloud bill
-spiked"* and *"someone accountable did something about it"* — fast where it
-can be, human where it must be.
+1. Live-model eval: triage accuracy and injection obedience against real Gemini.
+2. Durable state and real identity — Postgres, OIDC, tenant isolation.
+3. One genuine side effect, behind approval, with post-change verification.
