@@ -8,7 +8,7 @@ statement of what we are not doing before the gate. The full sprint list
 lives in [sprint3_backlog.md](sprint3_backlog.md); this page is only the
 closeout.
 
-**State at the time of writing (Aug 1):** 530 tests green, ruff clean, CI on
+**State at the time of writing (Aug 1):** 542 tests green, ruff clean, CI on
 every push, 49 endpoints, six rooms, the agent chain and HITL loop working end
 to end on the deterministic provider. The gaps are not in the build — they are
 deployment, the live-key measurement, and the submission pack.
