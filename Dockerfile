@@ -3,9 +3,12 @@
 # a venv that points at an interpreter it does not have.
 ARG PYTHON_IMAGE=python:3.12-slim
 
-# Builder — resolves the pinned wheels into a virtualenv. Only that one
-# directory crosses into the runtime, so pip, its caches and anything a
-# future dependency needs to compile itself stay out of the shipped image.
+# Builder — resolves the pinned wheels into a virtualenv, so a future build
+# dependency (a compiler, a -dev header) can be installed here without ever
+# reaching the runtime. pip itself still ships: the runtime base carries one
+# and `python -m venv` bootstraps another into /opt/venv. What makes that
+# harmless is below — the venv stays root-owned and the rootfs is read-only,
+# so nothing in the running container can install anything.
 FROM ${PYTHON_IMAGE} AS builder
 
 RUN python -m venv /opt/venv

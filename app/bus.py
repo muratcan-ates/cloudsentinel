@@ -87,10 +87,11 @@ def prune(
 
     A row survives by clearing both bounds — among the newest
     ``keep_rows`` AND younger than ``keep_hours`` — save for the one
-    exception below. The statement names ``agent_feed`` alone;
-    ``decisions`` and ``action_events`` are the audit record and are
-    sealed into the ledger's hash chain, so they are out of reach of
-    retention by construction, not by convention.
+    exception below. The statement names ``agent_feed`` alone, so the
+    audit record — ``decisions``, ``action_events`` — is out of reach of
+    retention by construction rather than by care. The ledger's hash
+    chain is a second, different guarantee: it would not stop a delete
+    there, it would make one impossible to hide.
 
     Survivors are picked with ``ORDER BY id DESC LIMIT`` rather than the
     old ``id <= max(id) - keep_rows``. The two agree today, because ids
