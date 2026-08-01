@@ -40,6 +40,8 @@ Detection-quality controls (Sprint 3, pure Python by locked decision):
 """
 
 import json
+import logging
+import math
 import os
 import statistics
 from dataclasses import dataclass
@@ -48,6 +50,8 @@ from pathlib import Path
 
 from app import feeds
 from app.models import Anomaly, DailyServiceSeries, ServiceCostSummary
+
+logger = logging.getLogger("cloudsentinel.detection")
 
 DATA_FILE = Path(__file__).parent / "data" / "mock_costs.json"
 
@@ -287,6 +291,28 @@ class DetectionRun:
     detector: str
     window_days: int
     seasonal: bool
+    # Records whose cost was missing, non-numeric or non-finite. They are
+    # dropped before any statistic is computed; the count is kept so the
+    # drop is reported rather than silent.
+    unusable_records: int = 0
+
+
+def _finite_cost(record: object) -> float | None:
+    """The record's cost as a finite float, or None when it is unusable.
+
+    NaN and the infinities are the dangerous case: they propagate silently
+    through mean/stdev (``statistics`` raises deep inside on them), and a
+    NaN score compares False against every threshold, so it would slip past
+    the flagging guard and reach the wire as invalid JSON. A source that
+    emits one gets its record dropped and counted, never scored.
+    """
+    if not isinstance(record, dict):
+        return None
+    try:
+        cost = float(record["cost"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return cost if math.isfinite(cost) else None
 
 
 def run_detection(
@@ -311,6 +337,26 @@ def run_detection(
     critical_cutoff = (
         critical_z if critical_z is not None and critical_z > 0 else CRITICAL_Z_SCORE
     )
+
+    # Sanitize before any statistic is computed: a single NaN or infinity
+    # anywhere in a service's history poisons its whole baseline. Costs are
+    # normalized into a shallow copy so the caller's dataset — which other
+    # readers share — is never mutated underneath them.
+    usable: list[dict] = []
+    unusable = 0
+    for record in records:
+        cost = _finite_cost(record)
+        if cost is None:
+            unusable += 1
+            continue
+        usable.append(record if record["cost"] is cost else {**record, "cost": cost})
+    if unusable:
+        logger.warning(
+            "[DETECTION] dropped %d record(s) with a missing, non-numeric or "
+            "non-finite cost before scoring",
+            unusable,
+        )
+    records = usable
 
     by_service: dict[str, list[dict]] = {}
     for record in records:
@@ -383,7 +429,11 @@ def run_detection(
                 score = round(
                     (record["cost"] - baseline.center) / baseline.spread, 2
                 )
-                if abs(score) < threshold:
+                # A denormal spread against a huge cost can still overflow
+                # the division; an infinite score compares False against
+                # every threshold and would flag itself through the guard
+                # below. Nothing unmeasurable reaches the inbox.
+                if not math.isfinite(score) or abs(score) < threshold:
                     continue
                 # Persisted into the event payload on purpose: a config change
                 # re-keys LLM caches, and that is correct — a different detector
@@ -418,4 +468,5 @@ def run_detection(
         detector=mode,
         window_days=window_days,
         seasonal=use_seasonal,
+        unusable_records=unusable,
     )
