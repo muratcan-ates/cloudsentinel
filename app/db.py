@@ -57,6 +57,7 @@ _SCHEMA_STATEMENTS = (
         occurred_on TEXT NOT NULL,
         payload_json TEXT NOT NULL,
         analysis_json TEXT,
+        evidence_snapshot_json TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
     """,
@@ -239,6 +240,10 @@ def init_db(path: Path | str | None = None) -> None:
             }
             if "analysis_json" not in events_columns:
                 conn.execute("ALTER TABLE events ADD COLUMN analysis_json TEXT")
+            if "evidence_snapshot_json" not in events_columns:
+                conn.execute(
+                    "ALTER TABLE events ADD COLUMN evidence_snapshot_json TEXT"
+                )
     finally:
         conn.close()
 
@@ -291,8 +296,10 @@ def upsert_event(
     ``refresh_analysis_on_change`` drops the stored analysis when the
     incoming payload differs from the stored one: a live feed can
     re-state a day's figures, and an analyst narrative pinned to the
-    old numbers would silently lie. Identical payloads (the mock lane,
-    idempotent re-polls) keep their analysis and stay cache-cheap.
+    old numbers would silently lie. The evidence snapshot falls with it —
+    a superseded analysis and its frozen window are one audit unit, and
+    the next analysis snapshots the re-stated data. Identical payloads
+    (the mock lane, idempotent re-polls) keep both and stay cache-cheap.
     """
     if refresh_analysis_on_change:
         row = conn.execute(
@@ -302,6 +309,9 @@ def upsert_event(
             "analysis_json = CASE "
             "WHEN events.payload_json = excluded.payload_json "
             "THEN events.analysis_json ELSE NULL END, "
+            "evidence_snapshot_json = CASE "
+            "WHEN events.payload_json = excluded.payload_json "
+            "THEN events.evidence_snapshot_json ELSE NULL END, "
             "payload_json = excluded.payload_json "
             "RETURNING id",
             (kind, service, occurred_on, payload_json),

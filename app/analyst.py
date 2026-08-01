@@ -24,16 +24,18 @@ The anomaly payload and history enter the prompt between spotlighting
 delimiters (arXiv:2403.14720): data, never instructions.
 """
 
+import hashlib
 import json
 import logging
 import sqlite3
 import time
+from datetime import datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import BaseModel
 
-from app import bus, db, feeds
+from app import bus, db, feeds, missions
 from app.llm import (
     Confidence,
     LLMProvider,
@@ -227,7 +229,19 @@ def analyze_event(conn: sqlite3.Connection, event: sqlite3.Row) -> AnalysisRespo
     # Pre-call model id keys the cache; attribution uses the result's own
     # model so a fallback stays honestly labeled "rule-based".
     model = getattr(provider, "model", "unknown")
-    evidence = build_evidence(anomaly.get("service", ""))
+    # Audit reproducibility: the first analysis freezes the evidence window
+    # it actually read (events.evidence_snapshot_json); every re-analysis
+    # reuses that frozen window, so the same event id can never mean a
+    # different E1..En after the live feed moves on. The snapshot is only
+    # dropped by upsert_event when the day's figures are re-stated — a new
+    # analysis over new data is a new audit unit.
+    stored_snapshot = event["evidence_snapshot_json"]
+    if stored_snapshot:
+        evidence = json.loads(stored_snapshot)
+        snapshot_to_store: str | None = None
+    else:
+        evidence = build_evidence(anomaly.get("service", ""))
+        snapshot_to_store = json.dumps(evidence)
     prompt = build_prompt(anomaly, evidence)
     reflection_prompt: str | None = None
 
@@ -296,6 +310,13 @@ def analyze_event(conn: sqlite3.Connection, event: sqlite3.Row) -> AnalysisRespo
         report.evidence_ids = valid_evidence_ids(report.evidence_ids, evidence)
         duration_ms = round((time.perf_counter() - started) * 1000, 1)
 
+    # Audit stamp: with the frozen evidence window this makes the analysis
+    # reproducible months later — which prompt (by hash), which mission and
+    # which exact evidence produced this narrative, and when.
+    try:
+        mission_name = missions.get_mission().name
+    except Exception:  # a broken mission file must not block the analysis
+        mission_name = "unknown"
     envelope_json = json.dumps(
         {
             "report": report.model_dump(),
@@ -303,6 +324,16 @@ def analyze_event(conn: sqlite3.Connection, event: sqlite3.Row) -> AnalysisRespo
             "model": model_used,
             "reflected": reflected,
             "duration_ms": duration_ms,
+            "meta": {
+                "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
+                "evidence_fingerprint": hashlib.sha256(
+                    json.dumps(evidence, sort_keys=True).encode()
+                ).hexdigest(),
+                "mission": mission_name,
+                "analyzed_at": datetime.now(timezone.utc).isoformat(
+                    timespec="seconds"
+                ),
+            },
         }
     )
     with db.writing(conn):
@@ -331,10 +362,17 @@ def analyze_event(conn: sqlite3.Connection, event: sqlite3.Row) -> AnalysisRespo
                 envelope_json,
                 system_instruction=ANALYST_SYSTEM_INSTRUCTION,
             )
-        conn.execute(
-            "UPDATE events SET analysis_json = ? WHERE id = ?",
-            (envelope_json, event["id"]),
-        )
+        if snapshot_to_store is not None:
+            conn.execute(
+                "UPDATE events SET analysis_json = ?, "
+                "evidence_snapshot_json = ? WHERE id = ?",
+                (envelope_json, snapshot_to_store, event["id"]),
+            )
+        else:
+            conn.execute(
+                "UPDATE events SET analysis_json = ? WHERE id = ?",
+                (envelope_json, event["id"]),
+            )
 
     log_tag(
         logger,
