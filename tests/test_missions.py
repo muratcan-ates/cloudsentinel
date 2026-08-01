@@ -4,9 +4,15 @@ Acceptance criteria: the YAML is data (safe_load, hard validation, no
 silent defaults), the reflex pass resolves mission > env > argument
 precedence correctly and measures its own latency, and the learning
 loop only ever SUGGESTS rules mined from decision memory.
+
+The validation half of this file is written from the operator's side:
+each case asserts not merely that a bad file is refused, but that the
+refusal names the file, the key and the range — a loader that raises
+without saying which of forty lines is wrong has only moved the search.
 """
 
 import pytest
+import yaml
 
 from app import db, missions
 from app.benchmark import build_scenario
@@ -40,6 +46,23 @@ def test_finops_mission_loads_and_validates():
     assert mission.escalation.confidence_debate_threshold == 0.6
     assert mission.organizational_intent.strip()
     assert {"analyst", "recommender", "operator"} <= set(mission.role_intent)
+
+
+def test_every_shipped_config_still_loads_unchanged():
+    """The strict loader must not have changed what the configs MEAN.
+
+    Value for value: what the schema produces has to equal what a plain
+    safe_load of the same bytes produces — no coercion, no dropped key,
+    no default quietly filling a hole. Every file in configs/ is checked,
+    so a mission added later cannot skip the bar.
+    """
+    paths = sorted(missions.CONFIG_DIR.glob("*.yaml"))
+    assert {path.stem for path in paths} >= {"finops", "security", "fraud"}
+    for path in paths:
+        raw = yaml.safe_load(path.read_text())
+        loaded = load_mission(path.stem)
+        assert loaded.mission == path.stem  # slug and filename agree
+        assert loaded.model_dump(exclude_none=True) == raw
 
 
 def test_get_mission_caches_until_cleared():
@@ -128,10 +151,214 @@ def test_schema_violations_refuse_to_load(config_dir, overrides):
         load_mission("tuned")
 
 
+def _body_without(dotted: str) -> str:
+    """The valid body with one key removed — a config with a hole in it."""
+    import json
+
+    body = json.loads(_valid_body())
+    target = body
+    *parents, leaf = dotted.split(".")
+    for parent in parents:
+        target = target[parent]
+    del target[leaf]
+    return json.dumps(body)
+
+
+def _refusal(config_dir, body: str, name: str = "tuned") -> str:
+    (config_dir / f"{name}.yaml").write_text(body)
+    with pytest.raises(MissionError) as raised:
+        load_mission(name)
+    message = str(raised.value)
+    assert f"{name}.yaml" in message  # every refusal names the file
+    return message
+
+
 def test_declared_name_must_match_filename(config_dir):
     (config_dir / "alias.yaml").write_text(_valid_body())  # declares "tuned"
     with pytest.raises(MissionError, match="declares mission"):
         load_mission("alias")
+
+
+def test_declared_slug_must_itself_be_a_slug(config_dir):
+    message = _refusal(config_dir, _valid_body(mission="../etc"))
+    assert "mission — '../etc' does not match" in message
+
+
+@pytest.mark.parametrize(
+    "overrides, expected",
+    [
+        (
+            {"detection.threshold": -1},
+            "detection.threshold — accepts a number in (0.0, 100.0], got -1",
+        ),
+        (
+            {"detection.critical_z": 500.0},
+            "detection.critical_z — accepts a number in (0.0, 100.0], got 500.0",
+        ),
+        (
+            {"detection.baseline_window_days": 3},
+            "detection.baseline_window_days — accepts an integer in [7, 365], got 3",
+        ),
+        (
+            {"detection.baseline_window_days": 4000},
+            "detection.baseline_window_days — accepts an integer in [7, 365], got 4000",
+        ),
+        (
+            {"escalation.confidence_debate_threshold": 1.5},
+            "confidence_debate_threshold — accepts a number in [0.0, 1.0], got 1.5",
+        ),
+        (
+            {"detection.source": "weather"},
+            "detection.source — accepts one of: cost, security, fraud, got 'weather'",
+        ),
+        (
+            {"detection.detector": "quantum"},
+            "detection.detector — accepts one of: zscore, mad, got 'quantum'",
+        ),
+    ],
+)
+def test_out_of_range_values_name_the_key_and_the_accepted_range(
+    config_dir, overrides, expected
+):
+    """A refusal that does not say what to fix is just a longer outage."""
+    assert expected in _refusal(config_dir, _valid_body(**overrides))
+
+
+@pytest.mark.parametrize(
+    "overrides, expected",
+    [
+        # a lax parser would read all four of these as the value the
+        # author only APPEARS to have written
+        ({"detection.threshold": "2.0"}, "detection.threshold — accepts a number"),
+        ({"detection.seasonal": "no"}, "detection.seasonal — accepts true or false"),
+        (
+            {"detection.baseline_window_days": 28.0},
+            "detection.baseline_window_days — accepts an integer",
+        ),
+        ({"role_intent": {"analyst": 3}}, "role_intent.analyst — input should be"),
+    ],
+)
+def test_types_are_strict_so_a_config_means_what_it_says(
+    config_dir, overrides, expected
+):
+    assert expected in _refusal(config_dir, _valid_body(**overrides))
+
+
+def test_unknown_keys_are_refused_not_ignored(config_dir):
+    """leave_one_out is a real detector knob — of the ENVIRONMENT layer,
+    not of the DSL. Tolerated here it would sit in the file looking live
+    while no scan ever reads it, which nothing downstream can notice."""
+    message = _refusal(config_dir, _valid_body(**{"detection.leave_one_out": True}))
+    assert "detection.leave_one_out — unknown key" in message
+    assert "detection accepts: source, threshold, critical_z" in message
+
+
+def test_unknown_top_level_keys_are_refused(config_dir):
+    message = _refusal(config_dir, _valid_body(colour="blue"))
+    assert "colour — unknown key" in message
+    assert "the mission accepts: mission, title, description" in message
+
+
+def test_missing_keys_name_the_range_they_would_have_accepted(config_dir):
+    message = _refusal(config_dir, _body_without("detection.detector"))
+    assert "detection.detector — required, accepts one of: zscore, mad" in message
+
+
+def test_blank_free_text_is_a_missing_value_in_disguise(config_dir):
+    """Every free-text field reaches an agent prompt; a blank one drops
+    the mission's intent out of that prompt without a sound."""
+    message = _refusal(config_dir, _valid_body(organizational_intent="   "))
+    assert "organizational_intent — must not be blank" in message
+
+
+def test_role_intent_must_carry_at_least_one_role(config_dir):
+    message = _refusal(config_dir, _valid_body(role_intent={}))
+    assert "role_intent — accepts a mapping with 1 entry or more" in message
+
+
+def test_critical_z_below_the_flagging_threshold_refuses_to_load(config_dir):
+    """Ordering the DSL cannot express is checked here rather than felt
+    later: under critical_z < threshold every flagged signal is critical
+    and the warning band silently stops existing."""
+    message = _refusal(config_dir, _valid_body(**{"detection.critical_z": 1.0}))
+    assert "critical_z (1.0) must be at least threshold (2.0)" in message
+
+
+def test_a_rules_block_outside_the_fraud_lane_refuses_to_load(config_dir):
+    """Only app/fraud.py reads rules, and only from the fraud mission;
+    anywhere else the block is decoration that changes nothing."""
+    bands = {"hold_band": 70, "review_band": 40, "new_account_days": 30}
+    message = _refusal(config_dir, _valid_body(rules=bands))
+    assert "nothing would ever read it" in message
+
+
+def test_a_fraud_mission_without_rules_refuses_to_load(config_dir):
+    """The other half: a missing block hands scoring back to the code
+    constants while the file looks like it is in charge."""
+    message = _refusal(config_dir, _valid_body(**{"detection.source": "fraud"}))
+    assert "must carry a rules block" in message
+
+
+def test_every_fault_is_reported_in_one_pass(config_dir):
+    """Two mistakes, one boot: fixing a config one exception per attempt
+    is how a five-minute edit becomes an afternoon."""
+    message = _refusal(
+        config_dir,
+        _valid_body(
+            **{
+                "detection.threshold": -1,
+                "escalation.confidence_debate_threshold": 2,
+            }
+        ),
+    )
+    assert "detection.threshold" in message
+    assert "escalation.confidence_debate_threshold" in message
+
+
+_DUPLICATED_KEY_BODY = """
+mission: tuned
+title: t
+description: d
+organizational_intent: o
+role_intent:
+  analyst: a
+detection:
+  source: cost
+  threshold: 2.0
+  threshold: 9.0
+  critical_z: 3.0
+  detector: zscore
+  baseline_window_days: 28
+  seasonal: false
+escalation:
+  confidence_debate_threshold: 0.6
+"""
+
+
+def test_duplicate_keys_refuse_to_load(config_dir):
+    """YAML keeps the last of two twins, so the line an operator reads
+    would not be the setting in force. The loader will not take it."""
+    message = _refusal(config_dir, _DUPLICATED_KEY_BODY)
+    shadowed_line = _DUPLICATED_KEY_BODY.splitlines().index("  threshold: 9.0") + 1
+    assert f"duplicate key 'threshold' on line {shadowed_line}" in message
+
+
+@pytest.mark.parametrize("twin", ["tuned.yml", "Tuned.yaml", "TUNED.YAML"])
+def test_a_slug_twin_refuses_to_load(config_dir, twin):
+    """Only tuned.yaml is ever read. A .yml or case twin is a file you
+    can edit with no effect — and on a case-insensitive filesystem it may
+    be the one that loads, so the same repo behaves differently on a
+    macOS laptop and on the Linux deployment."""
+    (config_dir / twin).write_text(_valid_body())
+    with pytest.raises(MissionError, match="shadowed by"):
+        load_mission("tuned")
+
+
+def test_a_twin_blocks_even_an_otherwise_valid_config(config_dir):
+    (config_dir / "tuned.yaml").write_text(_valid_body())
+    (config_dir / "tuned.yml").write_text(_valid_body())
+    with pytest.raises(MissionError, match="shadowed by tuned.yml"):
+        load_mission("tuned")
 
 
 # --- reflex engine --------------------------------------------------------------
@@ -291,12 +518,18 @@ def test_mission_settings_actually_govern_the_scan(config_dir):
 
 def test_mission_threshold_governs_when_the_query_param_is_omitted(client, config_dir):
     """The endpoint's threshold is optional: omitted, the mission file rules."""
+    # 50.0 mutes the lane on this data (max |z| is ~6) and stays inside the
+    # loader's bounds: z is capped at 100 and critical_z may not sit below
+    # the flagging threshold.
     (config_dir / "finops.yaml").write_text(
-        _valid_body(mission="finops", **{"detection.threshold": 999.0})
+        _valid_body(
+            mission="finops",
+            **{"detection.threshold": 50.0, "detection.critical_z": 50.0},
+        )
     )
     clear_mission_cache()
     quiet = client.get("/anomalies").json()
-    assert quiet["threshold"] == 999.0  # resolved threshold reported honestly
+    assert quiet["threshold"] == 50.0  # resolved threshold reported honestly
     assert quiet["anomaly_count"] == 0
     explicit = client.get("/anomalies", params={"threshold": 2.0}).json()
     assert explicit["threshold"] == 2.0  # a caller-supplied value still wins
