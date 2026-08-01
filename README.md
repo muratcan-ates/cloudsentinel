@@ -416,6 +416,12 @@ Mapping of the official bootcamp scrum-notebook requirements to their evidence i
 
 ## Scope & Limitations (By Design)
 
+> **The full, current list lives in [docs/LIMITATIONS.md](docs/LIMITATIONS.md)** —
+> twelve sections covering what is synthetic, what is simulated, what is
+> estimated rather than measured, and what we never got round to verifying.
+> If anything in the demo looks like it does more than that page admits,
+> that page is the one to believe.
+
 These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Synthetic mock data only** — real cloud-provider connectors are outside the
