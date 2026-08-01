@@ -62,6 +62,7 @@ def test_dashboard_hidden_from_openapi_schema():
         "/metrics/backtest",
         "/metrics/detection",
         "/ops/demo-reset",
+        "/ops/health/watch",
         "/ready",
         "/pulse",
         "/pulse/last",

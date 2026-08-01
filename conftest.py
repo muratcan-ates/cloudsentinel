@@ -60,8 +60,11 @@ def _isolated_db(tmp_path, monkeypatch):
     ):
         monkeypatch.delenv(env, raising=False)
     # live-data state is process-global; each test starts with a clean slate
-    from app import feeds, stream, telemetry
+    from app import feeds, stream, telemetry, watchdog
 
     feeds.reset_cache()
     stream.reset()
     telemetry.reset_buffer()
+    # the process watch too: a watchdog left registered by an earlier test
+    # would make the next test's /ready report on a thread that is gone
+    watchdog.forget_current()

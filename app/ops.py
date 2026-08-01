@@ -1,6 +1,6 @@
-"""Demo operations — rehearsal hygiene, not product features.
+"""The operations surface — running the system, not the product it sells.
 
-One env-gated endpoint: ``POST /ops/demo-reset`` clears the decision
+``POST /ops/demo-reset`` is rehearsal hygiene: it clears the decision
 state (events, actions, decisions, idempotency claims, pulse log) so a
 rehearsal or jury run starts from a clean stage. The AI ledgers —
 ``ai_usage`` and ``llm_cache`` — are deliberately preserved: quota
@@ -9,10 +9,13 @@ history is real spend and must never be rewritten.
 ``?seed=1`` follows the wipe with a handful of synthetic PAST operator
 verdicts (clearly attributed to the demo seed), so the panels that feed
 on decision memory — the memory fold, the funnel, the ROI table — do not
-greet the jury empty right after a reset.
+greet the jury empty right after a reset. The reset is inert unless
+``SENTINEL_DEMO_RESET=1``: without the knob it answers 404,
+indistinguishable from not existing.
 
-The whole module is inert unless ``SENTINEL_DEMO_RESET=1``: without the
-knob the endpoint answers 404, indistinguishable from not existing.
+``GET /ops/health/watch`` publishes the standing watch's own vitals — the
+question ``/health`` structurally cannot answer, because a sentinel that
+froze three hours ago still has a perfectly live process behind it.
 """
 
 import logging
@@ -21,8 +24,9 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app import db, ledger
+from app import db, ledger, watchdog
 from app.models import DemoResetReport
+from app.watchdog import WatchHealth
 
 logger = logging.getLogger("cloudsentinel.ops")
 
@@ -61,6 +65,21 @@ SEED_DECISIONS = (
 
 def demo_reset_enabled() -> bool:
     return os.environ.get(DEMO_RESET_ENV, "").strip() == "1"
+
+
+@router.get("/health/watch")
+def watch_health(conn: sqlite3.Connection = Depends(db.get_db)) -> WatchHealth:
+    """Is the sentinel still watching? (``/health`` only knows the process is up.)
+
+    On 1 August the deployed watch stopped beating at 20:40 and nothing
+    said so for three hours — ``/health`` answered 200 the whole time,
+    correctly, because the process was fine. This endpoint answers the
+    other question: last successful beat and its age, consecutive failed
+    ticks, the configured cadence, and whether the gap has crossed the
+    staleness line. Read-only, unauthenticated and cheap, so an uptime
+    monitor can watch the watchman.
+    """
+    return watchdog.health(conn)
 
 
 def _seed_decisions(conn: sqlite3.Connection) -> int:
