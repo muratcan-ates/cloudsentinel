@@ -2400,6 +2400,14 @@ function refreshHealth() {
       if (state.readonly) {
         pulseButton.disabled = true;
         pulseButton.title = "read-only demo — the pulse chain is disabled";
+        // quick-switch rides the pulse, so it must go quiet with it — an
+        // active dropdown here would 403 invisibly instead of flipping
+        const missionSelect = document.getElementById("mission-select");
+        if (missionSelect) {
+          missionSelect.disabled = true;
+          missionSelect.title =
+            "read-only demo — quick-switch rides the pulse, which is disabled";
+        }
         renderDecisions();
       }
     })
