@@ -1,4 +1,23 @@
 -r requirements.txt
 
-pytest==8.4.2
+# Development and CI only — NEVER installed on the deploy target. The
+# runtime list (requirements.txt) stays frozen so a clean `make setup`
+# and the Render image keep working exactly as the jury will see them.
+
+# 9.0.3 rather than 8.4.2: pip-audit reports PYSEC-2026-1845 against the
+# older runner, and the suite was verified green on the new one before
+# the pin moved.
+pytest==9.0.3
 ruff==0.15.21
+
+# Coverage over app/ and main.py (`make coverage`), reported in the README.
+pytest-cov==7.1.0
+
+# Property-based tests for the detector: generated NaN / duplicate /
+# extreme inputs, not only the cases we thought to write by hand.
+hypothesis==6.164.0
+
+# `make audit` — the security product scans its own source and its own
+# supply chain, and CI fails if either regresses.
+bandit==1.9.4
+pip-audit==2.10.1

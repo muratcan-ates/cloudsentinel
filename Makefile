@@ -7,8 +7,10 @@ PIP := $(VENV)/bin/pip
 UVICORN := $(VENV)/bin/uvicorn
 PYTEST := $(VENV)/bin/pytest
 RUFF := $(VENV)/bin/ruff
+BANDIT := $(VENV)/bin/bandit
+PIP_AUDIT := $(VENV)/bin/pip-audit
 
-.PHONY: setup run test demo demo-live demo-sim smoke drill
+.PHONY: setup run test coverage audit demo demo-live demo-sim smoke drill verify
 
 setup:
 	$(PYTHON) -m venv $(VENV)
@@ -21,6 +23,18 @@ run:
 test:
 	$(RUFF) check .
 	SENTINEL_FAKE_LLM=1 $(PYTEST) -q
+
+# Line coverage over the application, the figure quoted in the README.
+coverage:
+	SENTINEL_FAKE_LLM=1 $(PYTEST) -q --cov=app --cov=main --cov-report=term-missing
+
+# The security product scans itself: bandit over our source (config and
+# justified skips in bandit.yaml), pip-audit over the dependencies that
+# actually ship. Both gate CI.
+audit:
+	$(BANDIT) -c bandit.yaml -r app main.py scripts -q
+	$(PIP_AUDIT) -r requirements.txt --progress-spinner off
+	$(PIP_AUDIT) -r requirements-dev.txt --progress-spinner off
 
 # Fresh demo stage: fake provider (no quota), dates rebased to this week,
 # demo reset armed. Run `make smoke` from another shell once it is up.
