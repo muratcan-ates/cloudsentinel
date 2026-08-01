@@ -40,9 +40,13 @@ services:
       # SENTINEL_*_FEED_URL) stay unset here on purpose: the public demo
       # serves the reproducible fixture; a fresh ephemeral deploy has no
       # accumulated telemetry history to show.
-      # Optional showcase knobs, deliberately left off — set them in the
-      # dashboard to turn the public link into a moving demo:
-      #   SENTINEL_SIM_STREAM=1        the simulated live tape (read-only,
-      #                                in-process, costs nothing)
-      #   SENTINEL_COSTS_SOURCE=sim    the tape also drives the cost lane;
-      #                                the badge then reads "SIMULATED LIVE"
+      # The simulated live tape: a synthetic ticker in the watch room and a
+      # run-rate line under the cost hero. Read-only, in-process, no network
+      # and no database writes, and every payload says simulated: true.
+      # Declared here because the running service has it — a blueprint that
+      # claimed otherwise would silently darken the tape on the next sync.
+      - key: SENTINEL_SIM_STREAM
+        value: "1"
+      # Optional, deliberately left off: SENTINEL_COSTS_SOURCE=sim also puts
+      # the cost lane on the tape (the estate's own history with today
+      # projected live), and the data badge then reads "SIMULATED LIVE".

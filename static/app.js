@@ -1083,17 +1083,22 @@ function renderInvestigation() {
     </div>
 
     <div class="inv-actions">
-      <button class="row-action" type="button" data-request-evidence ${anomaly.id != null && state.analystBusy.has(anomaly.id) ? "disabled" : ""}>${
+      <button class="row-action" type="button" data-request-evidence ${
+        (anomaly.id != null && state.analystBusy.has(anomaly.id)) || state.readonly ? "disabled" : ""
+      }${state.readonly ? ' title="read-only demo — the agent verbs are disabled; the analysis on this card is the one the watch already ran"' : ""}>${
         anomaly.id != null && state.analystBusy.has(anomaly.id)
           ? "analyst working…"
           : analysis ? "re-run analyst →" : "run analyst agent →"
       }</button>
       ${analysis && !action
-        ? `<button class="row-action" type="button" data-request-recommend ${state.recommendBusy.has(anomaly.id) ? "disabled" : ""}>${
+        ? `<button class="row-action" type="button" data-request-recommend ${
+            state.recommendBusy.has(anomaly.id) || state.readonly ? "disabled" : ""
+          }${state.readonly ? ' title="read-only demo — filing a recommendation is a write"' : ""}>${
             state.recommendBusy.has(anomaly.id) ? "recommender working…" : "file recommendation →"
           }</button>`
         : ""}
       ${action ? `<a class="row-action" href="#sec-decisions">decide in the inbox ↓</a>` : ""}
+      ${state.readonly ? `<p class="meta">read-only demo — the agents run on the deployment's own schedule; their output is already on this card</p>` : ""}
     </div>`;
 
   const series = state.daily?.services.find(
@@ -2286,13 +2291,25 @@ async function authAction(kind) {
     if (kind === "register") {
       const reg = await postJson("/auth/register", { username, password, role: "approver" });
       if (!reg.ok && reg.status !== 409) {
-        setIdentityNote("registration failed (name taken or weak password)");
+        // a 403 is the read-only guard, not a bad password — saying otherwise
+        // sends the visitor off to fix something that was never wrong
+        setIdentityNote(
+          reg.status === 403
+            ? "read-only demo — accounts cannot be created on the public link"
+            : "registration failed (name taken or weak password)"
+        );
         return;
       }
     }
     const login = await postJson("/auth/login", { username, password });
     if (!login.ok) {
-      setIdentityNote("invalid username or password");
+      setIdentityNote(
+        login.status === 403
+          ? "read-only demo — sign-in is disabled on the public link"
+          : login.status === 429
+            ? "too many sign-in attempts — try again shortly"
+            : "invalid username or password"
+      );
       return;
     }
     authToken = (await login.json()).token;
@@ -2531,6 +2548,22 @@ function refreshHealth() {
           missionSelect.title =
             "read-only demo — quick-switch rides the pulse, which is disabled";
         }
+        // the identity form asks for a password the endpoint cannot accept:
+        // #identity-form is a <span> (disabling it is a no-op) and signedOut()
+        // unhides it on every refresh, so the four controls are gated here
+        for (const id of ["auth-username", "auth-password", "auth-register", "auth-login"]) {
+          const control = document.getElementById(id);
+          if (control) {
+            control.disabled = true;
+            control.title = "read-only demo — sign-in is disabled on the public link";
+          }
+        }
+        setIdentityNote(
+          "read-only demo — decisions are disabled; sign-in runs on a private instance"
+        );
+        // the investigation room's agent verbs are writes too — an enabled
+        // "run analyst agent →" that 403s reads as a broken agent
+        renderInvestigation();
         renderDecisions();
       }
     })
