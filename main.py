@@ -32,7 +32,7 @@ from fastapi.staticfiles import StaticFiles
 
 import sqlite3
 
-from app import auth, configcheck, db, feeds, telemetry, watchdog
+from app import auth, configcheck, db, feeds, logstream, telemetry, watchdog
 from app.actions import router as actions_router
 from app.analyst import router as analyst_router
 from app.auth import router as auth_router
@@ -69,7 +69,6 @@ from app.models import (
     DailyCostReport,
     HealthStatus,
     ReadinessCheck,
-    ReadinessStatus,
 )
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -117,6 +116,11 @@ SECURITY_HEADERS = {
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     """Build the schema on every boot: the deploy target's disk is ephemeral."""
+    # SENTINEL_LOG_FORMAT=json reformats the whole stream as one object per
+    # line for a log pipeline. First, so even the [CONFIG] findings below
+    # come out in the format the operator asked for; opt-in, so the demo's
+    # readable [TAG] lines are untouched by default.
+    logstream.install_json_logging()
     # Configuration audit before anything else: under SENTINEL_ENV=production
     # a demo posture (open writes, fake provider, the outbound escape hatch)
     # refuses to boot instead of quietly serving real users. Every other
@@ -134,8 +138,7 @@ async def lifespan(application: FastAPI):
     # monitors instead of waiting for a click. None when unconfigured.
     application.state.watchdog = watchdog.start_from_env()
     yield
-    if application.state.watchdog is not None:
-        application.state.watchdog.stop()
+    watchdog.stop_current()
 
 
 def _log_boot_manifest() -> None:
@@ -296,8 +299,23 @@ def _over_limit(bucket: defaultdict[str, deque], client: str, limit: int) -> boo
 
 @app.middleware("http")
 async def guard_expensive_endpoints(request: Request, call_next):
-    """Rate-limit POST /pulse and tag every response with a request id."""
+    """Rate-limit POST /pulse and tag every response — and every log line.
+
+    The id is bound to the request's context before anything else runs,
+    so each [SIGNAL]/[ANALYST]/[HITL] line the chain emits below carries
+    the same value the caller reads off X-Request-ID. Two operators
+    clicking at once no longer interleave into one unreadable stream.
+    """
     request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]
+    token = logstream.set_request_id(request_id)
+    try:
+        return await _serve(request, call_next, request_id)
+    finally:
+        logstream.reset_request_id(token)
+
+
+async def _serve(request: Request, call_next, request_id: str):
+    """The guard itself, once the request id is bound to the context."""
     if request.method in {"POST", "PUT", "PATCH", "DELETE"} and readonly_enabled():
         return Response(
             content='{"detail": "read-only demo mode — write operations are disabled"}',
@@ -397,13 +415,16 @@ def health_check() -> HealthStatus:
 
 
 @app.get("/ready")
-def readiness_check(response: Response) -> ReadinessStatus:
+def readiness_check(response: Response) -> watchdog.ReadinessReport:
     """Readiness probe: verify the dependencies a real request needs.
 
     /health answers as long as the process is up; /ready goes one step
     further and confirms the database is reachable, the mission config
     parses and the dataset loads — so a deploy or uptime monitor can gate
     traffic on genuine readiness. Answers 503 if any check fails.
+
+    It also carries the standing watch's own verdict: a sentinel frozen
+    behind a live process reads `degraded` (200), never 503.
     """
     checks: list[ReadinessCheck] = []
 
@@ -449,14 +470,12 @@ def readiness_check(response: Response) -> ReadinessStatus:
         )
         checks.append(ReadinessCheck(name="dataset", ok=False, detail="unavailable"))
 
-    ready = all(check.ok for check in checks)
-    if not ready:
-        response.status_code = 503
-    return ReadinessStatus(
-        ready=ready,
-        version=app.version,
-        provider=provider_mode(),
-        checks=checks,
+    # The dependency verdict (and the 503) is unchanged; app/watchdog.py adds
+    # the watch's own condition next to it, because "this process serves
+    # requests" and "this sentinel is still watching" are different questions
+    # and only the first one may take the instance out of rotation.
+    return watchdog.readiness_report(
+        checks, version=app.version, provider=provider_mode(), response=response
     )
 
 
