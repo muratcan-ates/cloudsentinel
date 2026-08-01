@@ -1062,6 +1062,11 @@ main .ledger-wide {
   font-weight: 400;
   letter-spacing: 0.1em;
   color: var(--ink-dim);
+  /* the service cell shrinks when the live delta column appears; without
+     this the note wrapped under itself and collided with the amount */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .amount {
   font-variant-numeric: tabular-nums;
@@ -2026,8 +2031,10 @@ footer {
 @keyframes ledger-tick { from { color: var(--accent); } }
 .tape-chip {
   font-size: 10px; font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em; margin-left: 6px;
+  letter-spacing: 0.04em; flex: none;
+  min-width: 66px; text-align: right;
 }
+.tape-chip[hidden] { display: none; }
 .tape-chip.up { color: var(--accent); }
 .tape-chip.down { color: var(--alert); }
 

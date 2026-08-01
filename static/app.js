@@ -605,8 +605,8 @@ function renderTrend() {
         "text",
         {
           class: "live-point-label",
-          x: anchor === "end" ? last.x - 8 : last.x + 8,
-          y: Math.max(12, last.y - 8),
+          x: anchor === "end" ? last.x - 9 : last.x + 9,
+          y: Math.max(13, last.y - 11),
           "text-anchor": anchor,
         },
         label
@@ -976,7 +976,8 @@ function renderCosts(report, flaggedServices) {
             ? '<span class="phantom-sq" aria-hidden="true"></span><span class="phantom-note">phantom traced</span>'
             : ""
         }</button>
-        <span class="amount">${fmtNumber(service.total_cost)} <small>${escapeHtml(report.currency)}</small> <span class="share">· ${share}%</span> <span class="tape-chip" data-tape-chip="${escapeHtml(service.service)}" hidden></span></span>
+        <span class="amount">${fmtNumber(service.total_cost)} <small>${escapeHtml(report.currency)}</small> <span class="share">· ${share}%</span></span>
+        <span class="tape-chip" data-tape-chip="${escapeHtml(service.service)}" hidden></span>
       </div>
       <div class="bar"><div class="bar-fill" style="width:0%"></div></div>`;
     costBars.appendChild(row);
