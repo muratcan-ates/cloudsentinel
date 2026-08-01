@@ -942,7 +942,7 @@ function renderCosts(report, flaggedServices) {
             ? '<span class="phantom-sq" aria-hidden="true"></span><span class="phantom-note">phantom traced</span>'
             : ""
         }</button>
-        <span class="amount">${fmtNumber(service.total_cost)} <small>${escapeHtml(report.currency)}</small> <span class="share">· ${share}%</span></span>
+        <span class="amount">${fmtNumber(service.total_cost)} <small>${escapeHtml(report.currency)}</small> <span class="share">· ${share}%</span> <span class="tape-chip" data-tape-chip="${escapeHtml(service.service)}" hidden></span></span>
       </div>
       <div class="bar"><div class="bar-fill" style="width:0%"></div></div>`;
     costBars.appendChild(row);
@@ -2928,6 +2928,92 @@ try {
 }
 feedState.timer = setInterval(pollFeed, FEED_POLL_MS);
 pollFeed();
+
+/* Live tape — the simulated stream, honestly labeled. /stream/metrics 404s
+   when SENTINEL_SIM_STREAM is off, so a deployment without the flag never
+   even shows the strip. Synthetic figures only — no billing data anywhere. */
+const tapeState = { timer: null, failures: 0 };
+
+function tapeSparkline(trend) {
+  if (!Array.isArray(trend) || trend.length < 2) return "";
+  const min = Math.min(...trend);
+  const span = Math.max(...trend) - min || 1;
+  const step = 72 / (trend.length - 1);
+  const points = trend
+    .map((value, i) => `${(i * step).toFixed(1)},${(19 - ((value - min) / span) * 16).toFixed(1)}`)
+    .join(" ");
+  return `<svg class="tape-spark" viewBox="0 0 72 20" aria-hidden="true"><polyline points="${points}"></polyline></svg>`;
+}
+
+/* The tape also feeds the cost ledger a LIVE layer: a run-rate line under
+   the hero figure and a per-service delta chip on each row. The historical
+   daily figures stay untouched — facts are facts; only the clearly-labeled
+   simulated layer moves. */
+function feedCostLedgerFromTape(frame) {
+  const line = document.getElementById("ledger-live-rate");
+  if (line) {
+    const total = frame.services.reduce((sum, lane) => sum + lane.rate, 0);
+    line.hidden = false;
+    line.textContent = `live run-rate ${fmtNumber(total)} USD/hour — simulated stream`;
+    line.classList.remove("tick");
+    void line.offsetWidth; // restart the pulse so every frame visibly lands
+    line.classList.add("tick");
+  }
+  frame.services.forEach((lane) => {
+    const chip = document.querySelector(`[data-tape-chip="${CSS.escape(lane.service)}"]`);
+    if (!chip) return;
+    const up = lane.delta_pct >= 0;
+    chip.hidden = false;
+    chip.classList.toggle("up", up);
+    chip.classList.toggle("down", !up);
+    chip.textContent = `${up ? "▲" : "▼"}${Math.abs(lane.delta_pct).toFixed(2)}% now`;
+  });
+}
+
+function renderTape(frame) {
+  const host = document.getElementById("tape-rows");
+  if (!host) return;
+  host.innerHTML = frame.services
+    .map((lane) => {
+      const up = lane.delta_pct >= 0;
+      return `<div class="tape-row ${lane.spiking ? "spiking" : ""}">
+        <span class="tape-service">${escapeHtml(lane.service)}</span>
+        ${tapeSparkline(lane.trend)}
+        <span class="tape-rate">${fmtNumber(lane.rate)}</span>
+        <span class="tape-delta ${up ? "up" : "down"}">${up ? "▲" : "▼"}${Math.abs(lane.delta_pct).toFixed(2)}%</span>
+      </div>`;
+    })
+    .join("");
+}
+
+async function pollTape() {
+  const tape = document.getElementById("live-tape");
+  if (!tape) return;
+  try {
+    const frame = await fetchJson("/stream/metrics");
+    tape.hidden = false;
+    tapeState.failures = 0;
+    document.getElementById("tape-label").textContent =
+      `live tape — simulated stream · ${frame.unit} · synthetic figures, no real billing`;
+    renderTape(frame);
+    feedCostLedgerFromTape(frame);
+    if (!tapeState.timer) {
+      tapeState.timer = setInterval(pollTape, (frame.interval_seconds || 2.5) * 1000);
+    }
+  } catch {
+    // disabled (404) or unreachable: hide the strip and go quiet
+    tape.hidden = true;
+    tapeState.failures += 1;
+    if (tapeState.failures >= 2 && tapeState.timer) {
+      clearInterval(tapeState.timer);
+      tapeState.timer = null;
+    }
+  }
+}
+pollTape();
+setTimeout(() => {
+  if (!tapeState.timer && tapeState.failures < 2) pollTape();
+}, 15000); // one late retry (slow first boot), then quiet
 
 document.getElementById("brain-review")?.addEventListener("click", async () => {
   const out = document.getElementById("brain-proposals");

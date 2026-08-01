@@ -54,6 +54,7 @@ from app.reflex import router as reflex_router
 from app.routines import router as routines_router
 from app.runbooks import router as runbooks_router
 from app.security import router as security_router
+from app.stream import router as stream_router
 from app.detection import (
     DEFAULT_THRESHOLD,
     build_daily_series,
@@ -190,6 +191,7 @@ app.include_router(reflex_router)
 app.include_router(routines_router)
 app.include_router(runbooks_router)
 app.include_router(security_router)
+app.include_router(stream_router)
 app.include_router(pulse_router)
 app.include_router(recommender_router)
 app.include_router(telemetry.router)

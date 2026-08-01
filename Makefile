@@ -26,12 +26,14 @@ test:
 # demo reset armed. Run `make smoke` from another shell once it is up.
 demo:
 	SENTINEL_FAKE_LLM=1 SENTINEL_REBASE_DATES=1 SENTINEL_DEMO_RESET=1 \
+		SENTINEL_SIM_STREAM=1 \
 		$(UVICORN) main:app --host 127.0.0.1 --port 8000
 
 # Live-data stage: the cost lane serves the app's own request telemetry
 # (SENTINEL_COSTS_SOURCE=self) — real traffic, accumulating while it runs.
 demo-live:
 	SENTINEL_FAKE_LLM=1 SENTINEL_COSTS_SOURCE=self SENTINEL_DEMO_RESET=1 \
+		SENTINEL_SIM_STREAM=1 \
 		$(UVICORN) main:app --host 127.0.0.1 --port 8000
 
 smoke:

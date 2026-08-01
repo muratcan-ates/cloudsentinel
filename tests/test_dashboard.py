@@ -72,6 +72,7 @@ def test_dashboard_hidden_from_openapi_schema():
         "/runbooks",
         "/runbooks/match",
         "/security/signals",
+        "/stream/metrics",
         "/telemetry/usage"
     }
 

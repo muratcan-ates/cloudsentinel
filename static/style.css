@@ -1914,6 +1914,7 @@ footer {
 
   #tour-card { display: none; }
   .flow-map { display: none; }
+  .tape { display: none; }
 
   /* backtest: grayscale that keeps the three series apart on paper in
      every theme; swatches survive the browser's background-stripping */
@@ -1978,3 +1979,36 @@ footer {
 .row-action { transition: transform 0.15s ease, color 0.15s ease, opacity 0.15s ease; }
 .row-action:hover { transform: translateY(-1px); }
 .row-action:active { transform: translateY(0) scale(0.96); }
+
+/* live tape — the simulated stream strip (borsa feel, honest label) */
+.tape { margin: 4px 0 12px; }
+.tape-label { color: var(--ink-faint); }
+.tape-rows { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 6px; }
+.tape-row {
+  display: inline-flex; align-items: baseline; gap: 8px;
+  font-size: var(--fs-meta); color: var(--ink-dim);
+}
+.tape-service {
+  text-transform: uppercase; letter-spacing: 0.08em;
+  font-size: 10px; color: var(--ink-faint);
+}
+.tape-rate { font-variant-numeric: tabular-nums; color: var(--ink); }
+.tape-delta { font-size: 11px; font-variant-numeric: tabular-nums; }
+.tape-delta.up { color: var(--accent); }
+.tape-delta.down { color: var(--alert); }
+.tape-spark { width: 72px; height: 20px; align-self: center; }
+.tape-spark polyline { fill: none; stroke: var(--ink-faint); stroke-width: 1; }
+.tape-row.spiking .tape-spark polyline { stroke: var(--alert); }
+.tape-row.spiking .tape-rate,
+.tape-row.spiking .tape-service { color: var(--alert); }
+
+/* the ledger's live layer — run-rate line + per-row delta chips */
+.ledger-live { font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+.ledger-live.tick { animation: ledger-tick 0.6s ease-out; }
+@keyframes ledger-tick { from { color: var(--accent); } }
+.tape-chip {
+  font-size: 10px; font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em; margin-left: 6px;
+}
+.tape-chip.up { color: var(--accent); }
+.tape-chip.down { color: var(--alert); }

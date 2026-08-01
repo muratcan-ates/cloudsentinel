@@ -55,10 +55,12 @@ def _isolated_db(tmp_path, monkeypatch):
         "SENTINEL_REQUIRE_APPROVER",
         "SENTINEL_ADMIN_USER",
         "SENTINEL_ADMIN_PASSWORD",
+        "SENTINEL_SIM_STREAM",
     ):
         monkeypatch.delenv(env, raising=False)
     # live-data state is process-global; each test starts with a clean slate
-    from app import feeds, telemetry
+    from app import feeds, stream, telemetry
 
     feeds.reset_cache()
+    stream.reset()
     telemetry.reset_buffer()

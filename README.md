@@ -104,7 +104,8 @@ CloudSentinel is an agentic decision-support system that monitors cloud cost and
 - Live dashboard: anomaly feed with a live sentinel radar, cost ledger, investigation evidence, decision inbox (with operator identity + rationale capture), audit ledger and operations intelligence — real page rooms (`/watch`, `/investigate`, `/decide`, `/intel`), four palettes, WCAG AA, strict CSP
 - **Shift-handover brief** (`GET /analytics/handover`) — the standing operator questions answered from persisted state, printable to one page; a **guided jury tour** (`?tour=1`) walks the rooms in reading order
 - **Fully self-contained** — every font is self-hosted (`static/fonts/`) and Swagger is vendored, so the CSP allows no remote host on any path; shareable deep links (`?threshold=&service=`) open on the exact scene, and a `[BOOT]` manifest names each instance on startup
-- REST API (FastAPI, 50 endpoints) with self-hosted Swagger documentation (no CDN); a `/health` liveness ping and a `/ready` readiness probe (database, mission config and dataset) for deploy/uptime gating
+- **Live tape, simulated** — `SENTINEL_SIM_STREAM=1` (on in `make demo`) adds a trading-floor ticker to the watch room: per-service run-rates on a bounded random walk with occasional spikes, sparklines refreshing every 2.5 s. Synthetic by construction and labeled as such on the strip and in the payload (`simulated: true`) — no billing data, no credentials, and the strip never appears on deployments without the flag
+- REST API (FastAPI, 51 endpoints) with self-hosted Swagger documentation (no CDN); a `/health` liveness ping and a `/ready` readiness probe (database, mission config and dataset) for deploy/uptime gating
 - **Live data modes, env-gated** — the bundled datasets are the default (hermetic tests, reproducible demo), and each lane can go live: `SENTINEL_COSTS_SOURCE=self` runs the cost lane over the app's **own request telemetry** (`GET /telemetry/usage` — real traffic, accumulating while the server runs, `make demo-live`); `SENTINEL_COSTS_FILE` serves a **real billing export** converted credential-free by `scripts/import_costs.py` (Azure Cost Management / AWS CUR CSV headers recognized); and `SENTINEL_COSTS_FEED_URL` / `SENTINEL_SECURITY_FEED_URL` / `SENTINEL_FRAUD_FEED_URL` poll external JSON feeds in the exact mock contract (TTL-cached, malformed records dropped, failures fall back feed → last good payload → fixture); `/health` names each lane's source **as served, not as configured** and the dashboard's data badge renders it honestly — the statistical organs still demand real accumulated history before they score a live lane (no fabricated days)
 - Demo operations, all env-gated: whole-week date rebase, demo reset with seeded verdict history, read-only public showcase mode; a borderline signal makes the sensitivity slider meaningful (lower it, a third warning surfaces)
 - **Decision brain** (`GET /insights`) — reflects on persisted history into observations, a run-rate cost projection and improvement recommendations, all computed not generated; a **self-review cycle** (`POST /insights/self-review`) proposes changes to the system itself (reflex candidates, threshold reviews, calibration, backlog) and applies nothing, publishing the cycle to the agent feed
@@ -207,6 +208,7 @@ cloudsentinel/
 │   ├── recommender.py    Recommender agent + debate-lite skeptic
 │   ├── chronicler.py     Chronicler agent — pulse briefings
 │   ├── security.py       security lane — same detection line, own event kind
+│   ├── stream.py         simulated live tape — env-gated synthetic ticker
 │   ├── fraud.py          fraud lane — published deterministic rule score
 │   ├── actions.py        human-in-the-loop action lifecycle incl. reopen
 │   ├── history.py        append-only lifecycle trail — the desk's per-card timeline
@@ -226,7 +228,7 @@ cloudsentinel/
 ├── configs/              mission YAMLs — finops, security, fraud
 ├── static/               dashboard — tokenized design system, 4 palettes, vendored Swagger UI
 ├── scripts/              smoke test, failure drill, detection benchmark, Gemini spike
-├── tests/                551 pytest cases incl. performance budgets
+├── tests/                556 pytest cases incl. performance budgets
 ├── docs/                 architecture & agent design
 ├── Makefile              setup / run / test / demo / smoke / drill
 └── ProjectManagement/    sprint evidence packs (boards, screenshots)
@@ -322,7 +324,7 @@ One deploy target, two honest postures — pick one per link, don't mix:
 | **Python 3.12** | Core language (pinned in venv, CI and Docker) |
 | **FastAPI + Uvicorn** | REST API and ASGI server |
 | **Pydantic v2** | Typed request/response models and validation |
-| **pytest + httpx** | Automated test suite (551 tests, incl. performance budgets) |
+| **pytest + httpx** | Automated test suite (556 tests, incl. performance budgets) |
 | **SQLite** (stdlib `sqlite3`) | WAL-mode persistence core: action lifecycle, decision memory, LLM cache, idempotency |
 | **Docker** | Containerized, deployment-ready packaging |
 | **Gemini** (`google-genai`) | LLM provider layer with quota-aware retry and rule-based fallback |
@@ -589,7 +591,7 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Remaining scope** (headline items — the backlog holds the detail):
   - **Live Gemini spike** — provision the billing-disabled key and measure real RPM/RPD with `scripts/spike_gemini.py`; the whole chain already runs on the deterministic provider, so this lights up narratives, not correctness.
-  - **Continuous integration** — ✅ landed at Sprint 2 close: [`ci.yml`](.github/workflows/ci.yml) runs ruff + the full suite (551 tests) on every push and PR; Sprint 3 grows it with browser E2E and a post-deploy smoke.
+  - **Continuous integration** — ✅ landed at Sprint 2 close: [`ci.yml`](.github/workflows/ci.yml) runs ruff + the full suite (556 tests) on every push and PR; Sprint 3 grows it with browser E2E and a post-deploy smoke.
   - **Deployment** — Render (`render.yaml` ready, non-root healthchecked image) with UptimeRobot on `/health` and `SENTINEL_READONLY=1` on the public link; the dashboard's LIVE banner switches on via `SENTINEL_ENV=render`.
   - **Live-data trial & market watch** — a credential-free real billing export through the source-agnostic loader, and the trend/news-driven "possible suggestions" table.
   - **User's-eye UX pass** — friction measured from the operator's seat; the four-palette switcher shipped with horizon as the default; EN/TR overview kept in sync ([Türkçe özet](docs/README.tr.md)).

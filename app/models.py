@@ -246,6 +246,7 @@ class ActionDecisionRequest(BaseModel):
         description="Why the operator decided this way; feeds decision memory.",
     )
 
+
     @field_validator("actor")
     @classmethod
     def actor_must_not_be_blank(cls, value: str) -> str:
@@ -261,6 +262,25 @@ class ActionDecisionRequest(BaseModel):
             return None
         stripped = value.strip()
         return stripped or None
+
+
+class StreamService(BaseModel):
+    """One lane of the simulated live tape — synthetic by construction."""
+
+    service: str
+    rate: float
+    delta_pct: float
+    trend: list[float]
+    spiking: bool
+
+
+class StreamReport(BaseModel):
+    # pinned True so no client can mistake the tape for real billing data
+    simulated: Literal[True]
+    note: str
+    unit: str
+    interval_seconds: float
+    services: list[StreamService]
 
 
 class DecisionRecord(BaseModel):

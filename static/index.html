@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CloudSentinel — Anomaly Watch</title>
-  <link rel="stylesheet" href="/static/style.css?v=s7.3" />
+  <link rel="stylesheet" href="/static/style.css?v=s7.5" />
   <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
   <meta name="description" content="CloudSentinel — cloud cost and security anomaly watch: detection, evidence-cited AI triage and human-approved remediation, execution simulated by design." />
   <meta property="og:title" content="CloudSentinel — Anomaly Watch" />
@@ -114,6 +114,10 @@
           <span class="numeral">I</span>
           <h2 class="section-word">anomalies</h2>
         </header>
+        <div class="tape" id="live-tape" hidden>
+          <p class="microcap tape-label" id="tape-label">live tape — simulated stream</p>
+          <div class="tape-rows" id="tape-rows"></div>
+        </div>
         <svg id="sentinel-radar" class="radar" viewBox="0 0 200 200" role="img" aria-label="Sentinel radar — the live signal field, sweeping"></svg>
         <p class="meta" id="anomaly-meta">scanning…</p>
         <p class="meta sort-row">sort —
@@ -140,6 +144,7 @@
         <div class="hero">
           <p class="microcap">Total Spend</p>
           <p class="hero-figure" id="total-cost">—</p>
+          <p class="meta ledger-live" id="ledger-live-rate" hidden></p>
         </div>
         <div class="trend-block">
           <p class="microcap">Spend trend <span class="hint">— daily total, all services</span></p>
@@ -337,6 +342,6 @@
     </div>
   </aside>
 
-  <script src="/static/app.js?v=s7.3"></script>
+  <script src="/static/app.js?v=s7.5"></script>
 </body>
 </html>
