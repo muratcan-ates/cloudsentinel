@@ -95,35 +95,67 @@
       </a>
     </section>
 
-    <section class="colophon">
-      <label class="microcap" for="threshold">Sensitivity <span class="hint">— z-score threshold</span></label>
-      <div class="colophon-row">
-        <input type="range" id="threshold" min="0.5" max="4" step="0.25" value="2" />
-        <output id="threshold-value" for="threshold">2.00</output>
-        <label class="microcap select-label" for="service-filter">Service
-          <select id="service-filter" aria-label="Filter signals by service">
-            <option value="">all</option>
-          </select>
-        </label>
-        <label class="microcap select-label" for="mission-select" title="one engine, three YAMLs — the switch re-reads thresholds, detector and the debate bar; the next Pulse runs under the new mission">Mission
-          <select id="mission-select" aria-label="Quick-switch the active mission">
-            <option value="finops">finops</option>
-            <option value="security">security</option>
-            <option value="fraud">fraud</option>
-          </select>
-        </label>
-        <label class="microcap select-label" for="operator-name">Operator
-          <input type="text" id="operator-name" placeholder="operator" maxlength="80" autocomplete="off" aria-label="Operator name recorded with every decision" />
-        </label>
-        <button id="rescan" type="button">Re-scan →</button>
-        <button id="pulse-run" type="button" title="run the whole chain: detect, analyze, recommend — decisions stay with you">Pulse →</button>
-        <p class="microcap theme-row" role="group" aria-label="Palette">Palette —
-          <button class="row-action" type="button" data-theme-choice="horizon" aria-pressed="true">horizon</button> /
-          <button class="row-action" type="button" data-theme-choice="mission" aria-pressed="false">night</button> /
-          <button class="row-action" type="button" data-theme-choice="paper" aria-pressed="false">paper</button> /
-          <button class="row-action" type="button" data-theme-choice="dawn" aria-pressed="false">dawn</button> /
-          <button class="row-action" type="button" data-theme-choice="vivid" aria-pressed="false">vivid</button>
-        </p>
+    <section class="colophon" aria-labelledby="controls-heading">
+      <p class="microcap" id="controls-heading">Controls <span class="hint">— what you set here changes what the whole page shows</span></p>
+      <div class="colophon-row ctl-grid">
+
+        <div class="ctl ctl-wide">
+          <label class="microcap" for="threshold">Sensitivity <span class="hint">— z-score threshold</span></label>
+          <div class="colophon-row ctl-inline">
+            <input type="range" id="threshold" min="0.5" max="4" step="0.25" value="2" aria-describedby="threshold-help" />
+            <output id="threshold-value" for="threshold">2.00</output>
+          </div>
+          <p class="meta ctl-note" id="threshold-help">How far a day must sit from its own baseline to count as a signal. Lower it, more surfaces.</p>
+        </div>
+
+        <div class="ctl">
+          <label class="microcap select-label" for="service-filter">Service
+            <select id="service-filter" aria-describedby="service-help">
+              <option value="">all</option>
+            </select>
+          </label>
+          <p class="meta ctl-note" id="service-help">Narrows every lane on this page to one service.</p>
+        </div>
+
+        <div class="ctl">
+          <label class="microcap select-label" for="mission-select">Mission
+            <select id="mission-select" aria-describedby="mission-help">
+              <option value="finops">finops</option>
+              <option value="security">security</option>
+              <option value="fraud">fraud</option>
+            </select>
+          </label>
+          <p class="meta ctl-note" id="mission-help">One engine, three rulebooks — the next Pulse runs under the one you pick.</p>
+        </div>
+
+        <div class="ctl">
+          <label class="microcap select-label" for="operator-name">Operator
+            <input type="text" id="operator-name" placeholder="operator" maxlength="80" autocomplete="off" aria-describedby="operator-help" />
+          </label>
+          <p class="meta ctl-note" id="operator-help">The name written into the ledger beside every verdict you give.</p>
+        </div>
+
+        <div class="ctl ctl-actions">
+          <p class="microcap" id="run-label">Run it</p>
+          <div class="colophon-row ctl-inline" role="group" aria-labelledby="run-label">
+            <button id="rescan" type="button" aria-describedby="rescan-help">Re-scan →</button>
+            <button id="pulse-run" type="button" aria-describedby="pulse-help">Pulse →</button>
+          </div>
+          <p class="meta ctl-note" id="rescan-help">Re-scan re-reads the cost data at the sensitivity above.</p>
+          <p class="meta ctl-note" id="pulse-help">Pulse runs the whole chain and files proposals; nothing executes.</p>
+        </div>
+
+        <div class="ctl ctl-theme">
+          <p class="microcap theme-row" role="group" aria-label="Palette">Palette —
+            <button class="row-action" type="button" data-theme-choice="horizon" aria-pressed="true">horizon</button> /
+            <button class="row-action" type="button" data-theme-choice="mission" aria-pressed="false">night</button> /
+            <button class="row-action" type="button" data-theme-choice="paper" aria-pressed="false">paper</button> /
+            <button class="row-action" type="button" data-theme-choice="dawn" aria-pressed="false">dawn</button> /
+            <button class="row-action" type="button" data-theme-choice="vivid" aria-pressed="false">vivid</button>
+          </p>
+          <p class="meta ctl-note">Five looks for the same data, remembered in this browser.</p>
+        </div>
+
       </div>
       <p class="meta" id="pulse-note" aria-live="polite"></p>
     </section>
@@ -134,52 +166,115 @@
           <span class="numeral">0</span>
           <h2 class="section-word" id="desk-heading">the desk</h2>
         </header>
-        <p class="meta">everything the estate is holding right now — the lanes it watches, the proofs it can produce, and the four things waiting on a human</p>
+        <p class="meta">everything the estate is holding right now — the lanes it watches, the proofs it can produce, and the things waiting on a human</p>
+
+        <div class="cs-card cs-steps" id="desk-steps">
+          <div class="cs-card-head">
+            <h3 class="cs-card-title">How this page works</h3>
+            <span class="cs-badge" data-lane="proof">four steps</span>
+          </div>
+          <p class="cs-card-sub">The product is four rooms in a line, and the desk is the doorway to all of them. Each step below opens the room that does it.</p>
+          <ol class="cs-rows cs-steps-list">
+            <li class="cs-row cs-step">
+              <span>
+                <a class="cs-row-name" href="/watch" data-room="watch">1 · Signals surface</a>
+                <span class="cs-row-note">Cost, security and fraud run through one detector, and a day that leaves its own baseline becomes a signal.</span>
+              </span>
+              <span class="cs-row-value">watch →</span>
+            </li>
+            <li class="cs-row cs-step">
+              <span>
+                <a class="cs-row-name" href="/investigate" data-room="investigate">2 · Evidence and triage</a>
+                <span class="cs-row-note">The analyst reads the evidence behind one signal and the recommender proposes options, both citing what they used.</span>
+              </span>
+              <span class="cs-row-value">investigation →</span>
+            </li>
+            <li class="cs-row cs-step">
+              <span>
+                <a class="cs-row-name" href="/decide" data-room="decide">3 · The hand decides</a>
+                <span class="cs-row-note">A proposal stays inert until you accept or reject it, and the verdict is sealed into a hash-chained ledger.</span>
+              </span>
+              <span class="cs-row-value">decision desk →</span>
+            </li>
+            <li class="cs-row cs-step">
+              <span>
+                <a class="cs-row-name" href="/intel" data-room="intel">4 · Results measured</a>
+                <span class="cs-row-note">Acceptance, time to decide and saved run rate are counted from that ledger — arithmetic, never generation.</span>
+              </span>
+              <span class="cs-row-value">intelligence →</span>
+            </li>
+          </ol>
+        </div>
+
         <div class="cs-desk">
-          <div class="cs-desk-left">
+          <aside class="cs-desk-left" aria-label="Where you stand, and what the system can prove">
             <div class="cs-sticky">
               <div class="cs-card" id="desk-identity">
-                <p class="cs-card-title" id="desk-who">the operator's desk</p>
+                <div class="cs-card-head">
+                  <h3 class="cs-card-title" id="desk-who">the operator's desk</h3>
+                  <span class="cs-badge" data-lane="ops">you</span>
+                </div>
                 <p class="cs-card-sub" id="desk-who-sub">not signed in — decisions carry the operator field</p>
+                <p class="meta">Three figures for where you stand: what is open, what is waiting on your hand, and what you have already decided.</p>
                 <div class="cs-stat3" id="desk-stats"></div>
               </div>
               <div class="cs-card">
-                <div class="cs-card-head"><p class="cs-card-title">what it can prove</p></div>
-                <p class="cs-card-sub">each row is a live endpoint, not a claim — the value is read from it</p>
+                <div class="cs-card-head">
+                  <h3 class="cs-card-title">What it can prove</h3>
+                  <span class="cs-badge" data-lane="proof">live</span>
+                </div>
+                <p class="cs-card-sub">Every row is a live endpoint rather than a claim: the figure beside it is read from that endpoint, and a row that cannot answer says so.</p>
                 <ul class="cs-rows" id="desk-capabilities"></ul>
               </div>
             </div>
-          </div>
+          </aside>
+
           <div class="cs-desk-main">
             <div class="cs-card cs-hero">
               <span class="cs-hero-mark" aria-hidden="true">◎</span>
               <div>
-                <p class="cs-card-title">Run the whole chain</p>
+                <h3 class="cs-card-title">Run the whole chain</h3>
                 <p class="cs-card-sub">detect → analyst triage → recommender options → the decision desk. Nothing executes: the hand decides, and every figure is computed rather than generated.</p>
                 <div class="cs-hero-actions">
                   <button class="cs-btn" type="button" id="desk-pulse">Pulse ▸</button>
                   <button class="cs-btn ghost" type="button" id="desk-rescan">Re-scan</button>
                   <a class="cs-btn ghost" href="/decide" data-room="decide">Go to the decisions</a>
                 </div>
+                <p class="meta">Pulse runs every agent once and files proposals for you. Re-scan only re-reads the cost data at the sensitivity you set above. The third button opens the room where the verdicts are given.</p>
                 <p class="meta" id="desk-pulse-note" aria-live="polite"></p>
               </div>
             </div>
-            <div class="cs-chips" id="desk-chips" role="group" aria-label="Filter the desk by lane"></div>
+
+            <div class="cs-card cs-feed-head">
+              <div class="cs-card-head">
+                <h3 class="cs-card-title">Everything open right now</h3>
+              </div>
+              <p class="meta">One card per thing the estate is holding — a cost signal, a security signal, a fraud score, a decision awaiting your hand, a standing opportunity. The chips keep one lane and hide the rest.</p>
+              <div class="cs-chips" id="desk-chips" role="group" aria-label="Filter the desk by lane"></div>
+            </div>
             <div id="desk-feed" aria-live="polite"></div>
           </div>
-          <div class="cs-desk-right">
+
+          <aside class="cs-desk-right" aria-label="What is waiting on you, and what is worth doing anyway">
             <div class="cs-sticky">
               <div class="cs-card">
-                <div class="cs-card-head"><p class="cs-card-title">waiting on you</p></div>
+                <div class="cs-card-head">
+                  <h3 class="cs-card-title">Waiting on you</h3>
+                  <span class="cs-badge" data-lane="decision">yours</span>
+                </div>
+                <p class="cs-card-sub">The short list of things that cannot move until a human moves them. Each row opens the room that holds it.</p>
                 <ul class="cs-rows" id="desk-actionable"></ul>
               </div>
               <div class="cs-card">
-                <div class="cs-card-head"><p class="cs-card-title">worth doing anyway</p></div>
-                <p class="cs-card-sub">standing opportunities — priced against this estate's own run rate</p>
+                <div class="cs-card-head">
+                  <h3 class="cs-card-title">Worth doing anyway</h3>
+                  <span class="cs-badge" data-lane="market">market</span>
+                </div>
+                <p class="cs-card-sub">Standing opportunities that no anomaly raised — published market bands, priced against this estate's own run rate.</p>
                 <ul class="cs-rows" id="desk-market"></ul>
               </div>
             </div>
-          </div>
+          </aside>
         </div>
       </section>
 
@@ -271,10 +366,11 @@
       <header class="section-head">
         <span class="numeral">VI</span>
         <h2 class="section-word" id="intel-heading">operations intelligence</h2>
-        <button class="head-action row-action" type="button" id="copy-brief" title="copy the one-line jury brief to the clipboard">copy brief ⧉</button>
-        <button class="head-action row-action" type="button" id="handover-print-btn" title="print a one-page shift-handover brief">handover ↓</button>
+        <button class="head-action row-action" type="button" id="copy-brief">copy brief ⧉</button>
+        <button class="head-action row-action" type="button" id="handover-print-btn">handover ↓</button>
       </header>
       <p class="meta" id="intel-meta">aggregates over everything the pipeline has persisted — pure arithmetic, no generation</p>
+      <p class="meta">Copy brief puts the one-line jury summary on your clipboard. Handover prints a one-page shift brief: what happened, what is still open, what the next operator inherits.</p>
       <div class="intel-grid">
         <div class="intel-block">
           <p class="microcap">Decision funnel <span class="hint">— signals to executions</span></p>
@@ -334,7 +430,8 @@
           </div>
         </div>
         <div class="brain-review">
-          <button class="head-action" type="button" id="brain-review" title="run one HITL-safe self-review cycle">run self-review ↻</button>
+          <button class="head-action" type="button" id="brain-review">run self-review ↻</button>
+          <p class="meta">One self-review cycle: the system reads its own history and drafts proposals about itself. They are drafts — nothing is applied without a human hand.</p>
           <ul class="brain-list" id="brain-proposals"></ul>
         </div>
         <div class="brain-routines">
@@ -409,11 +506,12 @@
   </div>
 
   <aside class="agent-feed" id="agent-feed" aria-label="Live agent feed">
-    <button id="feed-toggle" type="button" aria-expanded="false" title="live inter-agent traffic — every hop of the chain as it happens">
+    <button id="feed-toggle" type="button" aria-expanded="false" aria-describedby="feed-what">
       <span class="live-dot" aria-hidden="true"></span> agent feed
     </button>
     <div class="feed-body" id="feed-body" hidden>
       <p class="microcap feed-head"><span class="live-dot" aria-hidden="true"></span> agents talking — live</p>
+      <p class="meta" id="feed-what">Every hop of the chain as it happens: which agent spoke, to whom, and what it passed on.</p>
       <ol id="feed-list" aria-live="polite"></ol>
       <p class="meta feed-empty" id="feed-empty">quiet — run a scan or a Pulse and watch the chain talk</p>
     </div>
