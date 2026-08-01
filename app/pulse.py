@@ -219,6 +219,9 @@ def _chronicle_run(
         "proposals_filed": filed_count,
         "proposals_reused": reused_count,
         "top_service": top.service if top else None,
+        # The engineer depth of the briefing quotes this; like every other
+        # entry here it is Python's number, restated rather than generated.
+        "top_z_score": top.z_score if top else None,
     }
     return PulseBriefing(**write_briefing(conn, facts))
 

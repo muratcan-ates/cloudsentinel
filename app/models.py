@@ -352,12 +352,23 @@ class PulseChainLink(BaseModel):
     reused: bool
 
 
+class BriefingDepths(BaseModel):
+    """One pulse run retold for three readers at three altitudes."""
+
+    executive: str
+    manager: str
+    engineer: str
+
+
 class PulseBriefing(BaseModel):
     """Chronicler agent output: the pulse run narrated for the operator."""
 
     headline: str
     summary: str
     watch_next: str
+    # The same run at executive / manager / engineer depth. Optional so a
+    # briefing persisted before the depths shipped still replays.
+    depths: BriefingDepths | None = None
     source: Literal["gemini", "fake", "fallback"]
     model: str
     from_cache: bool = False
