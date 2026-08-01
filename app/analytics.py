@@ -296,16 +296,23 @@ def detection_backtest(
 ) -> BacktestReport:
     """Precision/recall against planted synthetic ground truth (backtesting).
 
-    Runs the standard scenarios under three configurations — the default
-    z-score, the MAD detector, and z-score with leave-one-out — so detection
-    quality is measured, not narrated. Pure synthetic harness, no DB: the
-    contaminated-baseline scenario is where MAD's contamination resistance
-    shows as higher recall than the classic z-score.
+    Runs the standard scenarios under every scorer in the registry — the
+    default z-score, the MAD detector, z-score with leave-one-out, and the
+    forecast-residual scorer with and without it — so detection quality is
+    measured, not narrated. Pure synthetic harness, no DB.
+
+    Each scorer owns a failure mode the others do not: contaminated-baseline
+    is where MAD's resistance shows, and trending-growth is where a flat
+    baseline's spread is so inflated by the trend that all three flat
+    scorers miss a real spike the residual scorer catches. Reported side by
+    side rather than ranked, because no row wins every column.
     """
     modes = (
         ("zscore", "zscore", False),
         ("mad", "mad", False),
         ("zscore+loo", "zscore", True),
+        ("residual", "residual", False),
+        ("residual+loo", "residual", True),
     )
     rows: list[BacktestRow] = []
     for scenario in standard_scenarios():
@@ -326,10 +333,14 @@ def detection_backtest(
         threshold=threshold,
         rows=rows,
         note=(
-            "Synthetic ground truth. On the contaminated-baseline scenario MAD "
-            "keeps full recall where the classic z-score misses the smaller "
-            "spike; leave-one-out sharpens a point that inflates its own "
-            "baseline (a different failure mode)."
+            "Synthetic ground truth. On contaminated-baseline MAD keeps full "
+            "recall where the classic z-score misses the smaller spike; "
+            "leave-one-out sharpens a point that inflates its own baseline; "
+            "on trending-growth every flat-baseline scorer misses the planted "
+            "spike because the trend itself inflates the spread, and only the "
+            "forecast-residual scorer — which fits the trend before scoring "
+            "the deviation from it — recovers full recall. No scorer wins "
+            "every scenario, which is why all five are reported."
         ),
     )
 

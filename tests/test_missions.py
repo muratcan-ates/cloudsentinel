@@ -213,7 +213,8 @@ def test_declared_slug_must_itself_be_a_slug(config_dir):
         ),
         (
             {"detection.detector": "quantum"},
-            "detection.detector — accepts one of: zscore, mad, got 'quantum'",
+            "detection.detector — accepts one of: zscore, mad, residual, "
+            "got 'quantum'",
         ),
     ],
 )

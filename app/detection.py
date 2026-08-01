@@ -70,11 +70,21 @@ DEFAULT_WINDOW_DAYS = 28
 MIN_HISTORY = 7
 MIN_WEEKDAY_SAMPLES = 3
 MAD_SCALE = 1.4826  # normal-consistency constant: scaled MAD estimates sigma
+# A trend line needs more than two points to mean anything: with two, the
+# fit is exact and every residual is zero.
+MIN_RESIDUAL_POINTS = 4
+
+
+# The detector registry. Every mode scores the same question — how far is
+# this record from what this service normally does — but each disagrees
+# about what "normally" means, and each has a failure mode the others do
+# not. They are reported side by side in the backtest rather than ranked.
+DETECTORS = ("zscore", "mad", "residual")
 
 
 def detector_mode() -> str:
     raw = os.environ.get(DETECTOR_ENV, "").strip().lower()
-    return raw if raw in ("zscore", "mad") else "zscore"
+    return raw if raw in DETECTORS else "zscore"
 
 
 def baseline_window_days() -> int:
@@ -261,6 +271,36 @@ def _baseline(costs: list[float], mode: str) -> _Baseline | None:
     return _Baseline(center=mean, spread=stdev, label="zscore")
 
 
+def _ols_fitted(costs: list[float]) -> list[float] | None:
+    """Least-squares trend line over the window, as fitted values per point.
+
+    The third scorer's whole premise: a service on a steady growth curve has
+    a mean that is permanently behind it, so every late day in the window
+    looks like a deviation and the inflated spread hides the day that
+    genuinely is one. Fitting the trend first turns "how far from average"
+    into "how far from where this was heading", which is the question an
+    operator was asking anyway.
+
+    Returns None when there is nothing to fit — too few points, a flat x
+    axis, or an arithmetic result that is not finite.
+    """
+    n = len(costs)
+    if n < MIN_RESIDUAL_POINTS:
+        return None
+    mean_x = (n - 1) / 2
+    mean_y = statistics.mean(costs)
+    sxx = sum((index - mean_x) ** 2 for index in range(n))
+    if sxx == 0:
+        return None
+    sxy = sum((index - mean_x) * (cost - mean_y) for index, cost in enumerate(costs))
+    slope = sxy / sxx
+    intercept = mean_y - slope * mean_x
+    fitted = [intercept + slope * index for index in range(n)]
+    if not all(math.isfinite(value) for value in fitted):
+        return None
+    return fitted
+
+
 def _weekday(record: dict) -> int | None:
     try:
         return date.fromisoformat(str(record["date"])).weekday()
@@ -330,7 +370,7 @@ def run_detection(
     Keyword overrides exist for the reflex engine, tests and the benchmark
     harness; called bare, the knobs resolve from the environment.
     """
-    mode = detector if detector in ("zscore", "mad") else detector_mode()
+    mode = detector if detector in DETECTORS else detector_mode()
     window_days = window if window and window >= MIN_HISTORY else baseline_window_days()
     use_seasonal = seasonal_enabled() if seasonal is None else seasonal
     use_loo = leave_one_out_enabled() if leave_one_out is None else leave_one_out
@@ -406,28 +446,53 @@ def run_detection(
 
         for group in groups:
             costs = [record["cost"] for record in group]
-            group_baseline = _baseline(costs, mode)
+            # Residual mode scores the DISTANCE FROM THE TREND rather than
+            # from the average: fit the line once per group, then hand the
+            # residual series to the same baseline machinery. A window with
+            # no fittable trend falls back to the classic z-score, honestly
+            # relabelled, rather than silently going quiet.
+            fitted = _ols_fitted(costs) if mode == "residual" else None
+            if fitted is not None:
+                scored_values = [
+                    cost - expected for cost, expected in zip(costs, fitted)
+                ]
+                stat_mode, base_label = "zscore", "residual"
+            else:
+                scored_values = costs
+                stat_mode = "zscore" if mode == "residual" else mode
+                base_label = "residual->zscore" if mode == "residual" else None
+            group_baseline = _baseline(scored_values, stat_mode)
             for index, record in enumerate(group):
                 # Leave-one-out excludes the record under test from its own
                 # baseline, so a single large outlier can no longer inflate the
                 # centre and spread it is then measured against — the
                 # contaminated-baseline weakness the review and the Sprint 3
                 # backlog both named. Default off: existing scans are untouched.
+                #
+                # Under residual mode it excludes the point from the residual
+                # SPREAD, not from the trend fit: the line is still drawn over
+                # the whole window, so an extreme outlier still tilts it. That
+                # is the known interaction between the two, and it is why the
+                # backtest reports them side by side instead of ranking them.
                 if use_loo:
-                    others = costs[:index] + costs[index + 1:]
-                    baseline = _baseline(others, mode) if len(others) >= 2 else None
+                    others = scored_values[:index] + scored_values[index + 1:]
+                    baseline = (
+                        _baseline(others, stat_mode) if len(others) >= 2 else None
+                    )
                 else:
                     baseline = group_baseline
                 if baseline is None:
                     continue
-                label = baseline.label + ("+weekday" if seasonal_applied else "")
+                label = (base_label or baseline.label) + (
+                    "+weekday" if seasonal_applied else ""
+                )
                 if use_loo:
                     label += "+loo"
                 # The published (rounded) score decides flagging and severity,
                 # so a reader recomputing from the payload always agrees with
                 # the stored severity — no raw-vs-rounded disagreement band.
                 score = round(
-                    (record["cost"] - baseline.center) / baseline.spread, 2
+                    (scored_values[index] - baseline.center) / baseline.spread, 2
                 )
                 # A denormal spread against a huge cost can still overflow
                 # the division; an infinite score compares False against
@@ -445,12 +510,23 @@ def run_detection(
                 }
                 if use_loo:
                     params["leave_one_out"] = True
+                # Under residual mode the baseline centre is the mean of the
+                # residuals (~0), which would be meaningless on a card. What
+                # the operator needs is what this day was EXPECTED to cost —
+                # the trend's own fitted value — so the reported figure stays
+                # a cost, comparable with the one beside it, whatever scorer
+                # produced the score.
+                expected = (
+                    fitted[index] + baseline.center
+                    if fitted is not None
+                    else baseline.center
+                )
                 anomalies.append(
                     Anomaly(
                         service=service,
                         date=record["date"],
                         cost=record["cost"],
-                        service_mean=round(baseline.center, 2),
+                        service_mean=round(expected, 2),
                         z_score=score,
                         severity=(
                             "critical" if abs(score) >= critical_cutoff else "warning"

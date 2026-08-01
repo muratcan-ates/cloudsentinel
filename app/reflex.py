@@ -35,6 +35,7 @@ from pydantic import BaseModel
 from app import db, history
 from app.detection import (
     DETECTOR_ENV,
+    DETECTORS,
     MIN_HISTORY,
     SEASONAL_ENV,
     WINDOW_ENV,
@@ -68,7 +69,7 @@ def _env_detector() -> str | None:
     raw = os.environ.get(DETECTOR_ENV, "").strip().lower()
     if not raw:
         return None
-    if raw in ("zscore", "mad"):
+    if raw in DETECTORS:
         return raw
     logger.warning("ignoring invalid %s=%r; using the mission value", DETECTOR_ENV, raw)
     return None

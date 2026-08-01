@@ -109,7 +109,10 @@ class MissionDetection(BaseModel):
     source: Literal["cost", "security", "fraud"]
     threshold: float = Field(gt=0.0, le=MAX_Z_SCORE)
     critical_z: float = Field(gt=0.0, le=MAX_Z_SCORE)
-    detector: Literal["zscore", "mad"]
+    # The scorer registry (app/detection.DETECTORS). Widening this is
+    # backward compatible: an existing mission file names one of the first
+    # two and keeps behaving exactly as it did.
+    detector: Literal["zscore", "mad", "residual"]
     baseline_window_days: int = Field(ge=MIN_WINDOW_DAYS, le=MAX_WINDOW_DAYS)
     seasonal: bool
 

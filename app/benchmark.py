@@ -34,21 +34,30 @@ def build_scenario(
     base: float = 100.0,
     noise: float = 4.0,
     weekend_uplift: float = 0.0,
+    trend: float = 0.0,
     spikes: tuple[tuple[int, float], ...] = (),
+    bumps: tuple[tuple[int, float], ...] = (),
     service: str = "svc",
     seed: int = 7,
     start: date = date(2026, 6, 1),
 ) -> Scenario:
-    """One service's synthetic daily series with planted spikes.
+    """One service's synthetic daily series with planted anomalies.
 
-    ``spikes`` are (day_index, multiplier) pairs; the record at that index
-    is overwritten with ``base * multiplier`` and becomes ground truth.
+    ``trend`` adds a linear per-day drift, so a scenario can carry genuine
+    growth rather than a flat baseline with noise.
+
+    Two ways to plant ground truth, because a trending series needs the
+    second one: ``spikes`` are (day_index, multiplier) pairs that OVERWRITE
+    the record with ``base * multiplier``, and ``bumps`` are (day_index,
+    amount) pairs ADDED on top of whatever the day already was — which is
+    the only way to plant a spike without flattening the trend underneath
+    it.
     """
     rng = random.Random(seed)
     records = []
     for index in range(days):
         day = start + timedelta(days=index)
-        cost = base + (rng.uniform(-noise, noise) if noise else 0.0)
+        cost = base + trend * index + (rng.uniform(-noise, noise) if noise else 0.0)
         if weekend_uplift and day.weekday() >= 5:
             cost += weekend_uplift
         records.append(
@@ -57,6 +66,9 @@ def build_scenario(
     planted = set()
     for index, multiplier in spikes:
         records[index]["cost"] = round(base * multiplier, 2)
+        planted.add((service, records[index]["date"]))
+    for index, amount in bumps:
+        records[index]["cost"] = round(records[index]["cost"] + amount, 2)
         planted.add((service, records[index]["date"]))
     return Scenario(name=name, records=records, planted=planted)
 
@@ -108,7 +120,7 @@ def evaluate(
 
 
 def standard_scenarios() -> list[Scenario]:
-    """The three claims the detection layer makes, as testable scenarios."""
+    """The four claims the detection layer makes, as testable scenarios."""
     return [
         # 1. Clean baseline, two honest spikes: any detector should find both.
         build_scenario("clean-spikes", spikes=((10, 5.0), (20, 6.0))),
@@ -124,6 +136,18 @@ def standard_scenarios() -> list[Scenario]:
             noise=0.0,
             weekend_uplift=150.0,
             spikes=((17, 3.0),),  # 2026-06-18, a Thursday
+        ),
+        # 4. Genuine growth: spend climbing 25/day with one real spike on top.
+        #    The trend itself dominates the standard deviation, so the flat
+        #    baseline's spread is far too wide to notice a 180-unit jump —
+        #    z-score, MAD and leave-one-out all miss it. Fitting the trend
+        #    first shrinks the spread back to the noise floor, where the
+        #    spike is unmissable. This is the residual scorer's failure mode
+        #    to own, and the reason a second scorer exists at all.
+        build_scenario(
+            "trending-growth",
+            trend=25.0,
+            bumps=((20, 180.0),),
         ),
     ]
 
