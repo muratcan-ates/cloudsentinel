@@ -49,3 +49,10 @@ smoke:
 
 drill:
 	bash scripts/failure_drill.sh
+
+# Release gate: measure the counters the docs claim, follow every relative
+# link, and — with a URL — confirm the live host is still serving our app.
+#   make verify                 # local checkout only
+#   make verify BASE=https://<host>
+verify:
+	bash scripts/verify_release.sh $(BASE)
