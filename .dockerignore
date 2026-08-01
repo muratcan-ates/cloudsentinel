@@ -1,7 +1,10 @@
 .venv/
 .git/
 .claude/
-__pycache__/
+# Nested, not just at the root: `COPY app/ app/` would otherwise carry the
+# host's stale .pyc into an image that — running read-only, with bytecode
+# writes off — can never refresh them.
+**/__pycache__/
 .pytest_cache/
 tests/
 docs/
@@ -14,3 +17,15 @@ cloudsentinel.db*
 *.db
 *.db-wal
 *.db-shm
+
+# The image copies main.py, app/, static/ and configs/ by name, so nothing
+# below could reach it anyway; keeping it out of the context is about build
+# speed and about not busting the layer cache on an unrelated edit.
+.github/
+.githooks/
+scripts/
+conftest.py
+Makefile
+PROJECT_CONTEXT.md
+render.yaml
+.DS_Store
