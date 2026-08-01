@@ -30,8 +30,16 @@ router = APIRouter(prefix="/ops", tags=["ops"])
 
 DEMO_RESET_ENV = "SENTINEL_DEMO_RESET"
 
-# FK-safe wipe order: decisions reference actions, actions reference events.
-CLEARED_TABLES = ("decisions", "actions", "events", "idempotency", "pulse_log")
+# FK-safe wipe order: action_events and decisions reference actions,
+# actions reference events.
+CLEARED_TABLES = (
+    "action_events",
+    "decisions",
+    "actions",
+    "events",
+    "idempotency",
+    "pulse_log",
+)
 
 SEED_ACTOR_NOTE = "seeded demo verdict"
 

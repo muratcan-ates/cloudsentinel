@@ -354,7 +354,10 @@ def test_changed_debate_threshold_partitions_the_llm_cache(client, config_dir):
     clear_mission_cache()
     event_id = seed_analyzed_event(service="compute", occurred_on="2026-07-01")
     first = client.post(f"/anomalies/{event_id}/recommend").json()
-    client.post(f"/actions/{first['action_id']}/reject")  # free the reuse lane
+    client.post(
+        f"/actions/{first['action_id']}/reject",
+        json={"actor": "op", "rationale": "free the reuse lane"},
+    )
 
     (config_dir / "finops.yaml").write_text(
         _valid_body(mission="finops", **{"escalation.confidence_debate_threshold": 0.9})

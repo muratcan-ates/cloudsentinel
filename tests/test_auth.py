@@ -41,7 +41,10 @@ def test_approve_derives_operator_identity_from_session(client):
 def test_decision_without_token_keeps_body_actor(client):
     body = run_chain(client, service="rds", occurred_on="2026-07-12", verdict=None)
     action_id = body["action_id"]
-    response = client.post(f"/actions/{action_id}/reject", json={"actor": "cli-bot"})
+    response = client.post(
+        f"/actions/{action_id}/reject",
+        json={"actor": "cli-bot", "rationale": "cli-driven rejection"},
+    )
     assert response.status_code == 200
     assert response.json()["decided_by"] == "cli-bot"
 

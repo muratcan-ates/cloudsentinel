@@ -200,6 +200,17 @@ class RecommendationResponse(BaseModel):
     from_cache: bool
 
 
+class ActionHistoryEntry(BaseModel):
+    """One immutable step on an action's lifecycle trail."""
+
+    transition: Literal[
+        "filed", "approved", "rejected", "executed", "reopened", "expired"
+    ]
+    actor: str | None
+    note: str | None
+    at: str
+
+
 class ActionRecord(BaseModel):
     id: int
     event_id: int | None
@@ -213,6 +224,8 @@ class ActionRecord(BaseModel):
     # Hours left before the request-triggered TTL expires this proposal;
     # None for decided actions or a disabled TTL.
     expires_in_hours: float | None = None
+    # Append-only lifecycle trail; empty for cards filed before it shipped.
+    history: list[ActionHistoryEntry] = []
 
 
 class ActionListReport(BaseModel):

@@ -97,7 +97,8 @@ def test_approve_proposed_action(client):
 def test_reject_proposed_action_with_actor(client):
     action_id = seed_action()
     response = client.post(
-        f"/actions/{action_id}/reject", json={"actor": "tuana"}
+        f"/actions/{action_id}/reject",
+        json={"actor": "tuana", "rationale": "known migration window"},
     )
     assert response.status_code == 200
     assert response.json()["state"] == "rejected"
@@ -132,7 +133,7 @@ def test_actor_is_stripped_before_recording(client):
 def test_openapi_documents_decision_conflicts(client):
     """The 404/409 state-machine contract must be visible in /docs."""
     paths = client.get("/openapi.json").json()["paths"]
-    for verb in ("approve", "reject", "execute"):
+    for verb in ("approve", "reject", "execute", "reopen"):
         responses = paths[f"/actions/{{action_id}}/{verb}"]["post"]["responses"]
         assert "404" in responses
         assert "409" in responses
@@ -149,7 +150,11 @@ def test_double_decision_without_key_conflicts(client):
 def test_reject_after_approve_conflicts(client):
     action_id = seed_action()
     client.post(f"/actions/{action_id}/approve")
-    assert client.post(f"/actions/{action_id}/reject").status_code == 409
+    response = client.post(
+        f"/actions/{action_id}/reject",
+        json={"actor": "operator", "rationale": "second thoughts"},
+    )
+    assert response.status_code == 409
 
 
 def test_empty_actor_is_rejected(client):
@@ -410,8 +415,9 @@ def test_idempotency_key_replays_first_response(client, verb):
     """Both decision endpoints must wire the header, not just approve."""
     action_id = seed_action()
     headers = {"Idempotency-Key": "click-abc"}
-    first = client.post(f"/actions/{action_id}/{verb}", headers=headers)
-    second = client.post(f"/actions/{action_id}/{verb}", headers=headers)
+    body = {"actor": "operator", "rationale": "double-click drill"}
+    first = client.post(f"/actions/{action_id}/{verb}", headers=headers, json=body)
+    second = client.post(f"/actions/{action_id}/{verb}", headers=headers, json=body)
     assert first.status_code == 200
     assert second.status_code == 200
     assert first.json() == second.json()
@@ -434,9 +440,89 @@ def test_idempotency_key_is_scoped_per_verb(client):
     )
     # different verb, same key: no replay, so the state machine answers 409
     assert (
-        client.post(f"/actions/{action_id}/reject", headers=headers).status_code
+        client.post(
+            f"/actions/{action_id}/reject",
+            headers=headers,
+            json={"actor": "operator", "rationale": "cross-verb key drill"},
+        ).status_code
         == 409
     )
+
+
+# --- reopen + the lifecycle trail (Sprint 3 — the hand reconsiders) ---------------
+
+
+def test_reject_without_rationale_is_refused(client):
+    """A terminal "no" must explain itself: 422, and the proposal stays live."""
+    action_id = seed_action()
+    assert client.post(f"/actions/{action_id}/reject").status_code == 422
+    blank = client.post(
+        f"/actions/{action_id}/reject", json={"actor": "op", "rationale": "   "}
+    )
+    assert blank.status_code == 422
+    assert client.get("/actions").json()["actions"][0]["state"] == "proposed"
+
+
+def test_reopen_returns_a_rejected_action_to_the_inbox(client):
+    action_id = seed_action()
+    client.post(
+        f"/actions/{action_id}/reject",
+        json={"actor": "tuana", "rationale": "not convinced by the baseline"},
+    )
+    response = client.post(
+        f"/actions/{action_id}/reopen",
+        json={"actor": "murat", "rationale": "new evidence in the trend room"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["state"] == "proposed"
+    assert body["decided_at"] is None
+    assert body["decided_by"] is None
+    # nothing was erased: the trail still tells the whole story, in order
+    transitions = [entry["transition"] for entry in body["history"]]
+    assert transitions[-2:] == ["rejected", "reopened"]
+    assert body["history"][-1]["actor"] == "murat"
+    assert body["history"][-2]["note"] == "not convinced by the baseline"
+
+
+def test_reopen_only_from_rejected(client):
+    action_id = seed_action()
+    assert client.post(f"/actions/{action_id}/reopen").status_code == 409
+    client.post(f"/actions/{action_id}/approve")
+    assert client.post(f"/actions/{action_id}/reopen").status_code == 409
+    client.post(f"/actions/{action_id}/execute")
+    assert client.post(f"/actions/{action_id}/reopen").status_code == 409
+    assert client.post("/actions/999/reopen").status_code == 404
+
+
+def test_reopen_restarts_the_ttl_clock(client):
+    """An expired proposal comes back with a fresh TTL, and the expiry
+    itself stays on the trail."""
+    stale_id = seed_stale_proposal(hours_old=100)  # default TTL is 72h
+    swept = client.get("/actions").json()["actions"][0]
+    assert swept["state"] == "rejected"
+    assert swept["decided_by"] == "system:timeout"
+    reopened = client.post(f"/actions/{stale_id}/reopen").json()
+    assert reopened["state"] == "proposed"
+    assert "expired" in [entry["transition"] for entry in reopened["history"]]
+    # the next inbox read must NOT sweep it again — the clock restarted
+    after = client.get("/actions").json()["actions"][0]
+    assert after["state"] == "proposed"
+    assert after["expires_in_hours"] is not None
+    assert after["expires_in_hours"] > 0
+
+
+def test_decisions_and_executions_land_on_the_trail(client):
+    action_id = seed_action()
+    client.post(
+        f"/actions/{action_id}/approve",
+        json={"actor": "murat", "rationale": "capacity confirmed with the team"},
+    )
+    trail = client.post(f"/actions/{action_id}/execute").json()["history"]
+    assert [entry["transition"] for entry in trail] == ["approved", "executed"]
+    assert trail[0]["actor"] == "murat"
+    assert trail[0]["note"] == "capacity confirmed with the team"
+    assert "SIMULATION" in trail[1]["note"]
 
 
 def test_idempotency_key_is_scoped_per_action(client):

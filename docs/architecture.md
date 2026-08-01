@@ -46,9 +46,12 @@ flowchart LR
    figures.
 2. **Human-in-the-loop is a state machine, not a checkbox.** Every proposed
    action has a lifecycle: `proposed → approved | rejected → executed
-   (simulated)`. Each transition is persisted with timestamp, actor and an
-   optional rationale; decisions are idempotent (scoped idempotency keys) and
-   stale proposals expire on read, attributed to `system:timeout`.
+   (simulated)`, plus `rejected → proposed` (reopen — the hand reconsiders,
+   fresh TTL). A rejection must carry a rationale (422 without one). Each
+   transition is persisted with timestamp and actor on the append-only
+   `action_events` trail the desk renders as a per-card timeline; decisions
+   are idempotent (scoped idempotency keys) and stale proposals expire on
+   read, attributed to `system:timeout`.
 3. **Memory makes agents purposeful.** Operator verdicts feed the
    Recommender's frozen `decision_memory` prompt slot; how many verdicts were
    considered is surfaced on the card (`memory_considered` + entries fold).
@@ -114,19 +117,20 @@ Analyst's critical-severity second pass, not a separate roster entry.
 | `events` | every signal, all three lanes, upserted by natural key (kind, subject, day) — stable ids across rescans |
 | `actions` | proposed actions with the full evidence pack (options, savings, transcript, trace, memory) in `detail_json` |
 | `decisions` | operator verdicts with rationale and input context — the decision memory |
+| `action_events` | append-only lifecycle trail per action — filed / approved / rejected / executed / reopened / expired, with actor and note |
 | `ai_usage` | one row per agent call: agent, model, source, prompt hash, cache flag |
 | `llm_cache` | provider answers keyed by model + system + prompt |
 | `idempotency` | scoped decision keys with canonical responses |
 | `pulse_log` | every pulse report — `GET /pulse/last` replays the latest run |
 | `agent_feed` | every inter-agent hop, cursor-streamed by `GET /agents/feed` |
 
-## API Surface (implemented — 49 endpoints)
+## API Surface (implemented — 50 endpoints)
 
 | Area | Endpoints |
 |---|---|
 | Detection & costs | `GET /anomalies` · `GET /costs/summary` (+ `/export`, FOCUS 1.4 schema) · `GET /costs/daily` |
 | Agents | `POST /anomalies/{id}/analyze` · `POST /anomalies/{id}/recommend` · `POST /pulse` (+ `GET /pulse/last`) |
-| HITL | `GET /actions` · `POST /actions/{id}/approve|reject|execute` · `GET /actions/{id}/report` |
+| HITL | `GET /actions` · `POST /actions/{id}/approve|reject|reopen|execute` · `GET /actions/{id}/report` |
 | Memory | `GET /decisions` (search) · `GET /decisions/similar` · `GET /decisions/export` |
 | Identity | `POST /auth/register` · `POST /auth/login` · `POST /auth/logout` · `GET /auth/me` |
 | Brain | `GET /insights` · `POST /insights/self-review` |

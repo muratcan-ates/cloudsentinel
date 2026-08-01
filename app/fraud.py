@@ -36,7 +36,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
 
-from app import bus, db, feeds
+from app import bus, db, feeds, history
 from app.detection import shift_iso, demo_rebase_delta
 from app.logstream import log_tag
 from app.missions import MissionError, get_mission
@@ -280,7 +280,7 @@ def file_hold_actions(conn: sqlite3.Connection, signals: list[FraudSignal]) -> i
                 "fraud": signal.model_dump(),
                 "note": HOLD_ACTION_NOTE,
             }
-            conn.execute(
+            cursor = conn.execute(
                 "INSERT INTO actions (event_id, title, detail_json) VALUES (?, ?, ?)",
                 (
                     event["id"],
@@ -288,6 +288,7 @@ def file_hold_actions(conn: sqlite3.Connection, signals: list[FraudSignal]) -> i
                     json.dumps(detail),
                 ),
             )
+            history.record(conn, cursor.lastrowid, "filed", "agent:fraud-watch")
             filed_signals.append(signal)
     for signal in filed_signals:
         logger.info(

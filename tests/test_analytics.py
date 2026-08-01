@@ -28,7 +28,10 @@ def run_chain(client, *, service: str, occurred_on: str, verdict: str | None):
     event_id = seed_analyzed_event(service=service, occurred_on=occurred_on)
     body = client.post(f"/anomalies/{event_id}/recommend").json()
     if verdict is not None:
-        response = client.post(f"/actions/{body['action_id']}/{verdict}")
+        response = client.post(
+            f"/actions/{body['action_id']}/{verdict}",
+            json={"actor": "operator", "rationale": f"test chain verdict: {verdict}"},
+        )
         assert response.status_code == 200
     return body
 

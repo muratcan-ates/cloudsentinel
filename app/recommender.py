@@ -39,7 +39,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import BaseModel
 
-from app import bus, db, feeds
+from app import bus, db, feeds, history
 from app.llm import (
     Confidence,
     generate_with_fallback,
@@ -685,6 +685,7 @@ def _persist_proposal(
             "INSERT INTO actions (event_id, title, detail_json) VALUES (?, ?, ?)",
             (event["id"], preferred_title, json.dumps(detail)),
         )
+        history.record(conn, cursor.lastrowid, "filed", "agent:recommender")
         action_row = conn.execute(
             "SELECT * FROM actions WHERE id = ?", (cursor.lastrowid,)
         ).fetchone()

@@ -87,6 +87,17 @@ _SCHEMA_STATEMENTS = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS action_events (
+        id INTEGER PRIMARY KEY,
+        action_id INTEGER NOT NULL REFERENCES actions(id),
+        transition TEXT NOT NULL CHECK (transition IN
+            ('filed', 'approved', 'rejected', 'executed', 'reopened', 'expired')),
+        actor TEXT,
+        note TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS ai_usage (
         id INTEGER PRIMARY KEY,
         agent TEXT NOT NULL,

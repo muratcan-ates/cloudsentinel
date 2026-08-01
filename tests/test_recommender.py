@@ -594,10 +594,22 @@ def test_concurrent_recommends_file_exactly_one_action(client):
     assert count == 1
 
 
+def test_filed_actions_carry_the_agent_on_the_trail(client):
+    """The recommender signs its own filings — the timeline opens with it."""
+    event_id = seed_analyzed_event()
+    client.post(f"/anomalies/{event_id}/recommend")
+    listed = client.get("/actions").json()["actions"][0]
+    assert listed["history"][0]["transition"] == "filed"
+    assert listed["history"][0]["actor"] == "agent:recommender"
+
+
 def test_rejected_action_allows_a_fresh_recommendation(client):
     event_id = seed_analyzed_event()
     first = client.post(f"/anomalies/{event_id}/recommend").json()
-    client.post(f"/actions/{first['action_id']}/reject")
+    client.post(
+        f"/actions/{first['action_id']}/reject",
+        json={"actor": "operator", "rationale": "baseline contaminated — hold"},
+    )
     second = client.post(f"/anomalies/{event_id}/recommend").json()
     assert second["reused"] is False
     assert second["action_id"] != first["action_id"]

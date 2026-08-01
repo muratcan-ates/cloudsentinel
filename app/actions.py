@@ -3,9 +3,12 @@
 State machine (docs/architecture.md, binding):
 
     proposed -> approved | rejected -> executed (simulated, WP-5b)
+    rejected -> proposed (reopen — the hand reconsiders)
 
 Approve/reject are the operator decisions; every transition is persisted
-with timestamp and actor. Both POST endpoints honor an optional
+with timestamp and actor, and lands on the append-only ``action_events``
+trail the decision desk renders as a per-card timeline. The decision POST
+endpoints honor an optional
 ``Idempotency-Key`` header: the key is claimed inside the same write
 transaction as the state change, so a retried or double-clicked decision
 replays the first response instead of failing or double-executing. Keys
@@ -26,7 +29,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Response
 
-from app import bus, db, dispatch
+from app import bus, db, dispatch, history
 from app.auth import UserOut, enforce_decision_auth, optional_user
 from app.enrichment import (
     blast_radius_tier,
@@ -35,7 +38,13 @@ from app.enrichment import (
 )
 from app.logstream import log_tag
 from app.runbooks import match_runbooks
-from app.models import ActionDecisionRequest, ActionListReport, ActionRecord, ActionState
+from app.models import (
+    ActionDecisionRequest,
+    ActionHistoryEntry,
+    ActionListReport,
+    ActionRecord,
+    ActionState,
+)
 
 logger = logging.getLogger("cloudsentinel.actions")
 
@@ -60,6 +69,11 @@ DECISION_RESPONSES = {
 EXECUTE_RESPONSES = {
     404: {"description": "No action with this id exists."},
     409: {"description": "Only approved actions can be executed."},
+}
+
+REOPEN_RESPONSES = {
+    404: {"description": "No action with this id exists."},
+    409: {"description": "Only rejected (or expired) actions can be reopened."},
 }
 
 # Request-triggered timeout: the deploy target sleeps between requests, so
@@ -102,13 +116,30 @@ def expire_stale_proposals(conn: sqlite3.Connection) -> int:
     if stale is None:
         return 0
     with db.writing(conn):
-        cursor = conn.execute(
+        rows = conn.execute(
+            "SELECT id FROM actions WHERE state = 'proposed' "
+            "AND proposed_at < datetime('now', ?)",
+            (cutoff_modifier,),
+        ).fetchall()
+        if not rows:
+            return 0
+        ids = [row["id"] for row in rows]
+        placeholders = ",".join("?" for _ in ids)
+        conn.execute(
             "UPDATE actions SET state = 'rejected', "
             "decided_at = datetime('now'), decided_by = ? "
-            "WHERE state = 'proposed' AND proposed_at < datetime('now', ?)",
-            (TIMEOUT_ACTOR, cutoff_modifier),
+            f"WHERE id IN ({placeholders})",
+            [TIMEOUT_ACTOR, *ids],
         )
-        return cursor.rowcount
+        for action_id in ids:
+            history.record(
+                conn,
+                action_id,
+                "expired",
+                TIMEOUT_ACTOR,
+                "proposal timed out unanswered",
+            )
+        return len(ids)
 
 
 def _expires_in_hours(row: sqlite3.Row) -> float | None:
@@ -133,7 +164,9 @@ def _expires_in_hours(row: sqlite3.Row) -> float | None:
     return round(ttl - age_hours, 1)
 
 
-def _to_record(row: sqlite3.Row) -> ActionRecord:
+def _to_record(
+    row: sqlite3.Row, trail: list[ActionHistoryEntry] | None = None
+) -> ActionRecord:
     return ActionRecord(
         id=row["id"],
         event_id=row["event_id"],
@@ -145,6 +178,7 @@ def _to_record(row: sqlite3.Row) -> ActionRecord:
         decided_by=row["decided_by"],
         executed_at=row["executed_at"],
         expires_in_hours=_expires_in_hours(row),
+        history=trail or [],
     )
 
 
@@ -163,7 +197,8 @@ def list_actions(
         ).fetchall()
     else:
         rows = conn.execute("SELECT * FROM actions ORDER BY id").fetchall()
-    records = [_to_record(row) for row in rows]
+    trails = history.for_actions(conn, [row["id"] for row in rows])
+    records = [_to_record(row, trails.get(row["id"])) for row in rows]
     return ActionListReport(count=len(records), actions=records)
 
 
@@ -239,6 +274,7 @@ def _decide(
             (verdict, actor, action_id),
         )
         _record_decision(conn, row, verdict, rationale)
+        history.record(conn, row["id"], verdict, actor, rationale)
         bus.emit(
             conn,
             "operator",
@@ -248,7 +284,8 @@ def _decide(
             + " · fed to decision memory",
         )
         record = _to_record(
-            conn.execute("SELECT * FROM actions WHERE id = ?", (action_id,)).fetchone()
+            conn.execute("SELECT * FROM actions WHERE id = ?", (action_id,)).fetchone(),
+            history.for_actions(conn, [action_id]).get(action_id),
         )
         if scoped_key is not None:
             db.store_idempotency_response(conn, scoped_key, record.model_dump_json())
@@ -299,17 +336,101 @@ def reject_action(
     user: UserOut | None = Depends(optional_user),
     conn: sqlite3.Connection = Depends(db.get_db),
 ) -> ActionRecord:
-    """Reject a proposed action; safe to retry with an Idempotency-Key.
+    """Reject a proposed action; a non-empty rationale is mandatory (422).
 
-    A valid session token makes the operator identity server-derived.
-    In live-ops mode (``SENTINEL_REQUIRE_APPROVER=1``) that session is
-    mandatory and must hold the approver or admin role.
+    Safe to retry with an Idempotency-Key. A valid session token makes the
+    operator identity server-derived. In live-ops mode
+    (``SENTINEL_REQUIRE_APPROVER=1``) that session is mandatory and must
+    hold the approver or admin role.
     """
     enforce_decision_auth(user)
     rationale = decision.rationale if decision is not None else None
+    # a terminal "no" must explain itself: the rationale feeds decision
+    # memory and the card's timeline, so future proposals learn from it
+    if rationale is None or not rationale.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="a rejection must carry a rationale — say why the hand said no",
+        )
     return _decide(
-        conn, action_id, "rejected", _actor(user, decision), idempotency_key, rationale
+        conn,
+        action_id,
+        "rejected",
+        _actor(user, decision),
+        idempotency_key,
+        rationale.strip(),
     )
+
+
+@router.post("/{action_id}/reopen", responses=REOPEN_RESPONSES)
+def reopen_action(
+    action_id: int = ACTION_ID_PATH,
+    decision: ActionDecisionRequest | None = None,
+    idempotency_key: str | None = Header(
+        None, alias="Idempotency-Key", min_length=1, max_length=200
+    ),
+    user: UserOut | None = Depends(optional_user),
+    conn: sqlite3.Connection = Depends(db.get_db),
+) -> ActionRecord:
+    """Reopen a rejected (or expired) action: back to the inbox, fresh TTL.
+
+    The terminal "no" stays on the record — decision memory and the trail
+    are append-only — but the hand may reconsider: state returns to
+    'proposed', the decided fields clear, and the TTL clock restarts.
+    Safe to retry with an Idempotency-Key. In live-ops mode
+    (``SENTINEL_REQUIRE_APPROVER=1``) an approver-or-admin session is
+    mandatory, like the other decision verbs.
+    """
+    enforce_decision_auth(user)
+    actor = _actor(user, decision)
+    note = decision.rationale if decision is not None else None
+    scoped_key = (
+        f"actions:{action_id}:reopen:{idempotency_key}"
+        if idempotency_key is not None
+        else None
+    )
+    with db.writing(conn):
+        if scoped_key is not None:
+            claimed, stored = db.claim_idempotency(conn, scoped_key)
+            if not claimed and stored is not None:
+                return ActionRecord.model_validate_json(stored)
+        row = conn.execute(
+            "SELECT * FROM actions WHERE id = ?", (action_id,)
+        ).fetchone()
+        if row is None:
+            raise HTTPException(
+                status_code=404, detail=f"action {action_id} does not exist"
+            )
+        if row["state"] != "rejected":
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"action {action_id} is '{row['state']}'; "
+                    "only 'rejected' actions can be reopened"
+                ),
+            )
+        conn.execute(
+            "UPDATE actions SET state = 'proposed', "
+            "proposed_at = datetime('now'), decided_at = NULL, "
+            "decided_by = NULL WHERE id = ?",
+            (action_id,),
+        )
+        history.record(conn, action_id, "reopened", actor, note)
+        bus.emit(
+            conn,
+            "operator",
+            "decision",
+            f"action #{action_id} REOPENED by {actor} — back to the inbox"
+            + (f" — “{note}”" if note else ""),
+        )
+        record = _to_record(
+            conn.execute("SELECT * FROM actions WHERE id = ?", (action_id,)).fetchone(),
+            history.for_actions(conn, [action_id]).get(action_id),
+        )
+        if scoped_key is not None:
+            db.store_idempotency_response(conn, scoped_key, record.model_dump_json())
+    log_tag(logger, "[HITL]", action_id=action_id, transition="reopened")
+    return record
 
 
 @router.post("/{action_id}/execute", responses=EXECUTE_RESPONSES)
@@ -371,8 +492,16 @@ def execute_action(
             "execute",
             f"action #{action_id} executed — SIMULATION, no real infrastructure touched",
         )
+        history.record(
+            conn,
+            action_id,
+            "executed",
+            _actor(user, None),
+            "SIMULATION — no real infrastructure touched",
+        )
         record = _to_record(
-            conn.execute("SELECT * FROM actions WHERE id = ?", (action_id,)).fetchone()
+            conn.execute("SELECT * FROM actions WHERE id = ?", (action_id,)).fetchone(),
+            history.for_actions(conn, [action_id]).get(action_id),
         )
         if scoped_key is not None:
             db.store_idempotency_response(conn, scoped_key, record.model_dump_json())

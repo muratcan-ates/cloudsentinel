@@ -27,7 +27,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from app import bus, db
+from app import bus, db, history
 from app.actions import TIMEOUT_ACTOR, expire_stale_proposals
 from app.benchmark import evaluate, standard_scenarios
 from app.detection import build_daily_series, load_dataset
@@ -785,7 +785,7 @@ def file_budget_risk_action(conn: sqlite3.Connection) -> int:
         ).fetchone()
         if open_card is not None:
             return 0
-        conn.execute(
+        cursor = conn.execute(
             "INSERT INTO actions (event_id, title, detail_json) VALUES (?, ?, ?)",
             (
                 event_id,
@@ -794,6 +794,7 @@ def file_budget_risk_action(conn: sqlite3.Connection) -> int:
                 json.dumps(detail),
             ),
         )
+        history.record(conn, cursor.lastrowid, "filed", "agent:budget-guard")
     log_tag(
         logger,
         "[BUDGET]",

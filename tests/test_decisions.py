@@ -61,17 +61,18 @@ def test_operator_decisions_land_in_memory(client):
     assert "preferred" in context  # the full evidence pack was snapshotted
 
 
-def test_reject_records_a_decision_without_rationale(client):
-    decide_via_api(
-        client, verdict="reject", rationale=None, service="storage", occurred_on="2026-07-02"
-    )
+def test_reject_without_rationale_leaves_no_memory(client):
+    """The 422 guard fires before any write: decision memory stays empty."""
+    event_id = seed_analyzed_event(service="storage", occurred_on="2026-07-02")
+    action_id = client.post(f"/anomalies/{event_id}/recommend").json()["action_id"]
+    response = client.post(f"/actions/{action_id}/reject", json={"actor": "tuana"})
+    assert response.status_code == 422
     conn = db.connect()
     try:
-        row = conn.execute("SELECT verdict, rationale FROM decisions").fetchone()
+        count = conn.execute("SELECT count(*) FROM decisions").fetchone()[0]
     finally:
         conn.close()
-    assert row["verdict"] == "rejected"
-    assert row["rationale"] is None
+    assert count == 0
 
 
 def test_idempotent_replay_does_not_duplicate_memory(client):
