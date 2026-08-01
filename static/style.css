@@ -22,6 +22,7 @@
    19 · footer & tour card
    20 · motion off — the global reduced-motion switch
    21 · print — every print rule, consolidated, original order kept
+   22 · sprint 3 — self-describing desk: flow map, lifecycle steps, touch
 
    Rules only moved between layers when the cascade could not change:
    same-specificity overrides (chips, bar-fill, input focus, .meta vs
@@ -1912,6 +1913,7 @@ footer {
   body.printing-handover #handover-print { display: block; border: none; }
 
   #tour-card { display: none; }
+  .flow-map { display: none; }
 
   /* backtest: grayscale that keeps the three series apart on paper in
      every theme; swatches survive the browser's background-stripping */
@@ -1923,3 +1925,56 @@ footer {
   .backtest-svg .bt-bar.loo { fill: #555; }
   .backtest-legend .swatch { border: 1px solid #000; print-color-adjust: exact; }
 }
+
+/* ---------- 22 · sprint 3 — the site explains itself ----------
+   Flow map under the masthead (what lives where, left to right), the
+   per-card lifecycle steps, the fresh-card bloom and touch feedback on
+   every actionable row. Motion stays quiet; layer 20's global switch
+   already silences all of it for reduced-motion readers. */
+
+.flow-map {
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+  gap: 2px 8px; padding: 10px 12px 0;
+}
+.flow-stop {
+  display: inline-flex; flex-direction: column; align-items: center;
+  text-decoration: none; padding: 3px 6px;
+  transition: transform 0.18s ease;
+}
+.flow-stop b {
+  font-size: 10px; font-weight: 500; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ink-dim); transition: color 0.18s ease;
+}
+.flow-stop span { font-size: 10px; color: var(--ink-faint); }
+.flow-stop:hover { transform: translateY(-1px); }
+.flow-stop:hover b { color: var(--ink); }
+.flow-stop[aria-current="page"] b { color: var(--accent); }
+.flow-stop[aria-current="page"] span { color: var(--ink-dim); }
+.flow-arrow { font-size: 10px; color: var(--ink-faint); }
+
+/* the card's own map: filed → decided → executed, right-aligned in the rail */
+.dec-steps {
+  display: flex; justify-content: flex-end; align-items: center; gap: 5px;
+  margin-top: 4px; font-size: 10px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--ink-faint);
+}
+.dec-steps .step-joint { color: var(--ink-faint); }
+.dec-steps .step.done { color: var(--ink-dim); }
+.dec-steps .step.current { color: var(--accent); border-bottom: 1px solid var(--accent); }
+.dec-steps .step.halt { color: var(--alert); }
+
+/* growth feel: a card the session has not seen blooms into the inbox */
+@keyframes card-bloom {
+  from { opacity: 0; transform: translateY(6px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+.decision.fresh { animation: card-bloom 0.45s ease-out; }
+
+/* the reject guard speaks at the input, not in a toast */
+.rationale-input.needs-reason { border-bottom-color: var(--alert); }
+.rationale-input.needs-reason::placeholder { color: var(--alert); }
+
+/* touch feedback — action rows answer the hand */
+.row-action { transition: transform 0.15s ease, color 0.15s ease, opacity 0.15s ease; }
+.row-action:hover { transform: translateY(-1px); }
+.row-action:active { transform: translateY(0) scale(0.96); }

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CloudSentinel — Anomaly Watch</title>
-  <link rel="stylesheet" href="/static/style.css?v=s7.2" />
+  <link rel="stylesheet" href="/static/style.css?v=s7.3" />
   <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
   <meta name="description" content="CloudSentinel — cloud cost and security anomaly watch: detection, evidence-cited AI triage and human-approved remediation, execution simulated by design." />
   <meta property="og:title" content="CloudSentinel — Anomaly Watch" />
@@ -38,6 +38,20 @@
       <p class="edition" id="chip-system">SYSTEM ONLINE — SPRINT III</p>
       <p class="edition identity-line"><span id="identity-status">not signed in — decisions use the operator field</span><button class="row-action" type="button" id="auth-logout" hidden>sign out</button></p>
     </header>
+
+    <nav class="flow-map" id="flow-map" aria-label="Site map — how the rooms connect, left to right">
+      <a class="flow-stop" href="/watch" data-view="watch"><b>watch</b><span>signals surface</span></a>
+      <span class="flow-arrow" aria-hidden="true">→</span>
+      <a class="flow-stop" href="/investigate" data-view="investigate"><b>investigation</b><span>evidence &amp; triage</span></a>
+      <span class="flow-arrow" aria-hidden="true">→</span>
+      <a class="flow-stop" href="/decide" data-view="decide"><b>decision desk</b><span>the hand decides</span></a>
+      <span class="flow-arrow" aria-hidden="true">→</span>
+      <a class="flow-stop" href="/intel" data-view="intel"><b>intelligence</b><span>results measured</span></a>
+      <span class="flow-arrow" aria-hidden="true">→</span>
+      <a class="flow-stop" href="/brain" data-view="brain"><b>brain</b><span>memory &amp; debate</span></a>
+      <span class="flow-arrow" aria-hidden="true">→</span>
+      <a class="flow-stop" href="/broadsheet" data-view="all"><b>broadsheet</b><span>the story told</span></a>
+    </nav>
 
     <section class="summary-strip" aria-label="Operations summary">
       <a class="sum" href="#sec-costs">
@@ -323,6 +337,6 @@
     </div>
   </aside>
 
-  <script src="/static/app.js?v=s7.2"></script>
+  <script src="/static/app.js?v=s7.3"></script>
 </body>
 </html>

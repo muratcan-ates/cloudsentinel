@@ -104,6 +104,8 @@ const state = {
   recommendBusy: new Set(), // event ids with a recommend request in flight
   hitlBusy: new Set(), // action ids with a decision request in flight
   actions: [], // live HITL actions from GET /actions — feeds section IV
+  knownActionIds: null, // ids this session has seen — null until the first inbox load
+  freshActionIds: new Set(), // ids that just appeared — their cards enter with a bloom
   analytics: null, // GET /analytics/decisions — funnel, quality, telemetry (section VI)
   trend: null, // GET /analytics/costs/trend — window-over-window comparison (section VI)
   intelStale: false, // last intelligence fetch failed — section VI must say so
@@ -1301,6 +1303,16 @@ async function loadActions() {
     const report = await fetchJson("/actions");
     if (sequence !== actionsSequence) return; // superseded by a newer reload
     state.actions = report.actions;
+    // growth feel: a card this session has not seen enters with a bloom;
+    // the first load seeds silently so opening the page never strobes
+    state.freshActionIds = state.knownActionIds
+      ? new Set(
+          report.actions
+            .filter((action) => !state.knownActionIds.has(action.id))
+            .map((action) => action.id)
+        )
+      : new Set();
+    state.knownActionIds = new Set(report.actions.map((action) => action.id));
     // Decision-moment numbers: the what-if projection for every card still
     // awaiting a verdict (best-effort — a missing projection hides the line).
     const proposed = report.actions.filter((action) => action.state === "proposed");
@@ -1321,11 +1333,61 @@ async function loadActions() {
 }
 
 function actionStatusLine(action) {
-  if (action.state === "proposed") return "awaiting the hand";
+  if (action.state === "proposed") return "awaiting the hand — approve, or reject with a reason";
   if (action.state === "approved") return `approved · ${action.decided_by || "operator"} — ready for simulated execution`;
   if (action.state === "executed") return "executed — SIMULATION";
-  if (action.decided_by === "system:timeout") return "expired — proposal timed out unanswered";
-  return `rejected · ${action.decided_by || "operator"}`;
+  if (action.decided_by === "system:timeout") return "expired unanswered — reopen ↺ restarts the clock";
+  return `rejected · ${action.decided_by || "operator"} — reopen ↺ returns it to the inbox`;
+}
+
+/* The card wears its own map — filed → decided → executed — so the desk
+   explains where each proposal stands without a manual. */
+function lifecycleSteps(action) {
+  const rejected = action.state === "rejected";
+  const expired = rejected && action.decided_by === "system:timeout";
+  const decideLabel =
+    action.state === "approved" || action.state === "executed"
+      ? "approved"
+      : rejected
+        ? expired ? "expired" : "rejected"
+        : "decide";
+  const steps = [
+    { label: "filed", cls: "done" },
+    {
+      label: decideLabel,
+      cls: action.state === "proposed" ? "current" : rejected ? "halt" : "done",
+    },
+    {
+      label: action.state === "executed" ? "executed" : "execute",
+      cls:
+        action.state === "executed"
+          ? "done"
+          : action.state === "approved"
+            ? "current"
+            : "idle",
+    },
+  ];
+  return `<p class="dec-steps" aria-hidden="true">${steps
+    .map((step) => `<span class="step ${step.cls}">${step.label}</span>`)
+    .join('<span class="step-joint">→</span>')}</p>`;
+}
+
+/* Append-only trail from the server — the card's own timeline fold. */
+function historyFold(action) {
+  const trail = action.history || [];
+  if (!trail.length) return "";
+  const rows = trail
+    .map(
+      (entry) =>
+        `<p class="meta">${escapeHtml(entry.at)} · <strong>${escapeHtml(entry.transition)}</strong>${
+          entry.actor ? ` · ${escapeHtml(entry.actor)}` : ""
+        }${entry.note ? ` — “${escapeHtml(entry.note)}”` : ""}</p>`
+    )
+    .join("");
+  return buildFold(
+    `timeline — ${trail.length} step${trail.length === 1 ? "" : "s"}`,
+    rows
+  );
 }
 
 /* Reflex/conscious split — the filed cards' honest ledger: which sailed
@@ -1417,7 +1479,9 @@ function renderDecisions() {
           : anomaly.severity || "warning";
     const resolved = action.state === "rejected" || action.state === "executed";
     const card = document.createElement("article");
-    card.className = `decision ${severity} ${resolved ? "resolved" : ""} ${action.state}`;
+    card.className = `decision ${severity} ${resolved ? "resolved" : ""} ${action.state} ${
+      state.freshActionIds.has(action.id) ? "fresh" : ""
+    }`;
     // card body per lane: cost cards carry the full agent evidence pack;
     // fraud and budget cards carry their deterministic arithmetic instead
     let bodyHtml;
@@ -1451,7 +1515,7 @@ function renderDecisions() {
     }
     card.innerHTML = `
       <span class="sq" aria-hidden="true"></span>
-      <div>${bodyHtml}
+      <div>${bodyHtml}${historyFold(action)}
       </div>
       <div class="dec-rail">
         <span class="chip ${action.decided_by === "system:timeout" ? "expired" : action.state}">${
@@ -1461,15 +1525,19 @@ function renderDecisions() {
               ? "expired"
               : escapeHtml(action.state)
         }</span>
+        ${lifecycleSteps(action)}
         <p class="dec-status">${escapeHtml(actionStatusLine(action))}</p>
         ${action.expires_in_hours != null ? `<p class="meta">${action.expires_in_hours >= 48 ? `expires in ~${Math.round(action.expires_in_hours / 24)}d` : `expires in ~${Math.max(0, Math.round(action.expires_in_hours))}h`}</p>` : ""}
         ${action.event_id != null ? `<button class="row-action" type="button" data-view-signal="${action.event_id}" aria-label="jump to the ${escapeHtml(anomaly.service || "")} signal in investigation">view signal ↑</button>` : ""}
         ${action.state === "proposed" && !busy && !state.readonly ? `
-          <input type="text" class="rationale-input" placeholder="rationale — feeds decision memory" maxlength="500" data-rationale-for="${action.id}" aria-label="rationale for the ${escapeHtml(anomaly.service || "")} decision" />
+          <input type="text" class="rationale-input" placeholder="rationale — required to reject" maxlength="500" data-rationale-for="${action.id}" aria-label="rationale for the ${escapeHtml(anomaly.service || "")} decision" />
           <button class="row-action" type="button" data-hitl="reject" data-action-id="${action.id}" aria-label="reject the ${escapeHtml(anomaly.service || "")} proposal">reject ×</button>
           <button class="row-action" type="button" data-hitl="approve" data-action-id="${action.id}" aria-label="approve the ${escapeHtml(anomaly.service || "")} proposal for execution">approve →</button>` : ""}
         ${action.state === "approved" && !busy && !state.readonly ? `
           <button class="row-action" type="button" data-hitl="execute" data-action-id="${action.id}" aria-label="run the simulated execution of the ${escapeHtml(anomaly.service || "")} action">execute — simulation →</button>` : ""}
+        ${action.state === "rejected" && !busy && !state.readonly ? `
+          <input type="text" class="rationale-input" placeholder="why reopen? — lands on the timeline" maxlength="500" data-rationale-for="${action.id}" aria-label="reason for reopening the ${escapeHtml(anomaly.service || "")} proposal" />
+          <button class="row-action" type="button" data-hitl="reopen" data-action-id="${action.id}" aria-label="reopen the rejected ${escapeHtml(anomaly.service || "")} proposal">reopen ↺</button>` : ""}
         ${state.readonly && (action.state === "proposed" || action.state === "approved") ? `<p class="meta">read-only demo — decisions disabled</p>` : ""}
         ${busy ? `<p class="meta">recording…</p>` : ""}
       </div>`;
@@ -1480,8 +1548,17 @@ function renderDecisions() {
 async function decideAction(actionId, verb) {
   if (state.hitlBusy.has(actionId)) return;
   // capture the rationale BEFORE the busy re-render replaces the input
-  const rationale =
-    document.querySelector(`[data-rationale-for="${actionId}"]`)?.value.trim() || null;
+  const rationaleInput = document.querySelector(`[data-rationale-for="${actionId}"]`);
+  const rationale = rationaleInput?.value.trim() || null;
+  if (verb === "reject" && !rationale) {
+    // the server answers 422 to a bare "no" — say it at the input instead
+    if (rationaleInput) {
+      rationaleInput.classList.add("needs-reason");
+      rationaleInput.placeholder = "a rejection needs a reason — type one first";
+      rationaleInput.focus();
+    }
+    return;
+  }
   const actor = (operatorInput?.value || "").trim() || "operator";
   state.hitlBusy.add(actionId);
   renderDecisions();
@@ -1504,6 +1581,16 @@ async function decideAction(actionId, verb) {
       );
       return;
     }
+    if (response.status === 422) {
+      const refusal = await response.json().catch(() => ({}));
+      auditNote(
+        "Decision refused by validation",
+        typeof refusal.detail === "string"
+          ? refusal.detail
+          : "the request was incomplete."
+      );
+      return;
+    }
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const record = await response.json();
     const service = record.detail?.anomaly?.service || "the flagged service";
@@ -1511,11 +1598,13 @@ async function decideAction(actionId, verb) {
       approve: `Operator approved the ${service} proposal`,
       reject: `Operator rejected the ${service} proposal`,
       execute: `Simulated execution completed for ${service}`,
+      reopen: `Operator reopened the ${service} proposal`,
     };
     const copies = {
       approve: "The action is approved and ready for simulated execution — nothing runs on real infrastructure.",
       reject: "The proposal was closed with no infrastructure action.",
       execute: "SIMULATION only: the state machine recorded the execution; no real resource was touched.",
+      reopen: "Back in the inbox with a fresh TTL — the earlier verdict stays on the timeline.",
     };
     auditNote(titles[verb], copies[verb] + (rationale ? ` Rationale: ${rationale}` : ""));
   } catch (error) {
@@ -2520,6 +2609,10 @@ function applyView(view) {
   document.querySelectorAll(".view-tab, .nav-brand").forEach((tab) =>
     tab.setAttribute("aria-pressed", String(tab.dataset.view === view))
   );
+  // the flow map lights the room the visitor is standing in
+  document.querySelectorAll(".flow-stop").forEach((stop) =>
+    stop.setAttribute("aria-current", stop.dataset.view === view ? "page" : "false")
+  );
   document.title = `CloudSentinel — ${VIEW_TITLES[view] || "Anomaly Watch"}`;
   const main = document.querySelector("main");
   main.classList.remove("room-enter");
@@ -2793,6 +2886,16 @@ document.getElementById("view-nav").addEventListener("click", (event) => {
   const target = tab.getAttribute("href") || "/";
   if (location.pathname !== target) history.pushState({}, "", target);
   applyView(tab.dataset.view);
+  window.scrollTo({ top: 0 });
+});
+// the flow map is a second door to every room — same push-state grammar
+document.getElementById("flow-map")?.addEventListener("click", (event) => {
+  const stop = event.target.closest("[data-view]");
+  if (!stop) return;
+  event.preventDefault();
+  const target = stop.getAttribute("href") || "/";
+  if (location.pathname !== target) history.pushState({}, "", target);
+  applyView(stop.dataset.view);
   window.scrollTo({ top: 0 });
 });
 window.addEventListener("popstate", () => applyView(viewFromPath(location.pathname)));
