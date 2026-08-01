@@ -10,6 +10,7 @@
    01 · config & state — themes, demo narratives, the app state
    02 · dom lookups — the fixed elements every section shares
    03 · small utils — escapeHtml, formatters, fetch/post, shared builders
+        · motion — the one governor every moving thing answers to
    04 · svg helpers — precise static ink shared by every chart
    05 · charts — daily trend + the detection backtest bars
    06 · radar — the pixel-radar centerpiece
@@ -163,25 +164,187 @@ const fmtNumber = (value) =>
 
 const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)");
 
+/* ----------------------------------------------------------------------
+   MOTION — one governor, one animation frame, nothing left spinning
+
+   Everything on this page that moves (the radar beam, the trend drawing
+   itself in, the backtest bars growing, every rolling figure, the tape's
+   ticking rates) runs through here. The rules it enforces, once, for all
+   of them:
+
+   · Two switches can veto motion — the operating system's
+     `prefers-reduced-motion` and the accessibility panel's own
+     `[data-a11y-motion="off"]`. Either one and an animation never starts;
+     flip one mid-flight and every running animation is settled to its
+     finished frame immediately. "Motion off" and "motion finished" are
+     deliberately the same DOM, so nothing is ever left half-drawn.
+   · One requestAnimationFrame drives the lot, and it only exists while
+     something is actually moving. No setInterval anywhere near a pixel:
+     a background tab, a hidden room or a discarded chart cannot leave a
+     loop running, because the loop stops the moment its register empties
+     and every animator drops itself when its element leaves the document.
+   · Animations are named. Starting "trend-reveal" twice cannot produce
+     two of them fighting over the same path.
+   ---------------------------------------------------------------------- */
+
+/* The single question every animation asks before it starts, and that the
+   pump re-asks on every frame. The panel writes `data-a11y-motion="off"`
+   on <html>; the media query is the operating system's own answer. */
+function motionAllowed() {
+  return !REDUCED_MOTION.matches && document.documentElement.dataset.a11yMotion !== "off";
+}
+
+const animators = new Map(); // name → { tick(now) → false when finished, settle() }
+let motionFrame = 0;
+
+function pumpMotion(now) {
+  motionFrame = 0;
+  if (!motionAllowed()) return settleAllMotion();
+  for (const [name, animator] of [...animators]) {
+    let keep = false;
+    try {
+      keep = animator.tick(now) !== false;
+    } catch {
+      keep = false; // a broken animator is dropped, never repeated 60× a second
+    }
+    if (!keep) animators.delete(name);
+  }
+  if (animators.size) motionFrame = requestAnimationFrame(pumpMotion);
+}
+
+/* Start (or restart) a named animation. Returns false — having already
+   settled the element to its finished state — when motion is not allowed
+   or the tab is in the background. */
+function animate(name, animator) {
+  stopMotion(name);
+  if (!motionAllowed() || document.hidden) {
+    animator.settle?.();
+    return false;
+  }
+  animators.set(name, animator);
+  if (!motionFrame) motionFrame = requestAnimationFrame(pumpMotion);
+  return true;
+}
+
+function stopMotion(name) {
+  const animator = animators.get(name);
+  if (!animator) return;
+  animators.delete(name);
+  animator.settle?.();
+}
+
+function settleAllMotion() {
+  for (const name of [...animators.keys()]) stopMotion(name);
+  if (motionFrame) cancelAnimationFrame(motionFrame);
+  motionFrame = 0;
+}
+
+/* An element inside a closed room is not worth animating: the rooms are
+   display:none, so the animation would be a private performance. */
+function inClosedRoom(el) {
+  return Boolean(el?.closest?.(".view-hidden"));
+}
+
+const easeOutCubic = (t) => 1 - (1 - t) ** 3;
+/* A small overshoot before settling — what makes a marker "pop" instead
+   of merely appearing. The cubic coefficient is the quadratic one plus 1,
+   which is what pins f(0) to exactly 0 (no jump off the start) while the
+   peak stays around 1.05× — a nudge, not a bounce. */
+const easeOutBack = (t) => 1 + 2.1 * (t - 1) ** 3 + 1.1 * (t - 1) ** 2;
+
+/* A one-shot tween. `frame(progress)` paints 0→1; returning false from it
+   aborts (the element was replaced by a repaint). `settle()` is the
+   finished frame — the pump calls it at the end, the governor calls it
+   instead of ever starting when motion is off. */
+function tween(name, duration, frame, settle) {
+  const started = performance.now();
+  return animate(name, {
+    settle,
+    tick: (now) => {
+      const t = Math.min(1, (now - started) / duration);
+      if (frame(t) === false) return false;
+      if (t < 1) return true;
+      settle();
+      return false;
+    },
+  });
+}
+
+/* Ambient motion: the loops that should simply be running whenever the
+   page is visible and motion is allowed. Re-entered from the a11y switch,
+   from a tab coming back to the foreground, and from the OS media query. */
+function resumeAmbientMotion() {
+  startRadarSweep();
+}
+
+function syncMotion() {
+  if (motionAllowed() && !document.hidden) resumeAmbientMotion();
+  else settleAllMotion();
+}
+
+/* Polling is data, not decoration, so it is NOT gated on the motion
+   switch — but it is still driven by requestAnimationFrame rather than
+   setInterval, which buys the right behaviour for free: a backgrounded
+   tab stops asking instead of queueing a minute of missed requests, and
+   resumes the moment it is looked at again. */
+const rafTimers = new Map();
+
+function rafDelay(name, delayMs, run) {
+  cancelRafDelay(name);
+  const due = performance.now() + delayMs;
+  const handle = { id: 0 };
+  const step = (now) => {
+    if (rafTimers.get(name) !== handle) return; // superseded
+    if (now < due) {
+      handle.id = requestAnimationFrame(step);
+      return;
+    }
+    rafTimers.delete(name);
+    run();
+  };
+  rafTimers.set(name, handle);
+  handle.id = requestAnimationFrame(step);
+}
+
+function cancelRafDelay(name) {
+  const handle = rafTimers.get(name);
+  if (!handle) return;
+  cancelAnimationFrame(handle.id);
+  rafTimers.delete(name);
+}
+
 /* Living figures: numbers ROLL to their new value instead of snapping —
-   the page moves because the data moves. Falls back to a plain set under
-   reduced motion or on the very first paint. */
+   the page moves because the data moves. Keyed by the element's id (or an
+   explicit data-roll-key) so a second update mid-roll replaces the first
+   instead of racing it. Falls back to a plain set under either motion
+   switch, or on the very first paint of a figure. */
+let rollSequence = 0;
+
 function rollFigure(el, value, render) {
+  if (!el) return;
+  // a figure with neither an id nor an explicit key gets one, so two
+  // anonymous figures can never share a name and cancel each other
+  if (!el.id && !el.dataset.rollKey) el.dataset.rollKey = `fig-${(rollSequence += 1)}`;
+  const key = `roll:${el.id || el.dataset.rollKey}`;
+  stopMotion(key);
   const previous = Number(el.dataset.v);
   el.dataset.v = String(value);
-  if (REDUCED_MOTION.matches || Number.isNaN(previous) || previous === value) {
+  const settle = () => {
     el.innerHTML = render(value);
+  };
+  if (Number.isNaN(previous) || previous === value) {
+    settle();
     return;
   }
-  const started = performance.now();
-  const duration = 550;
-  const step = (now) => {
-    const t = Math.min(1, (now - started) / duration);
-    const eased = 1 - (1 - t) ** 3;
-    el.innerHTML = render(previous + (value - previous) * eased);
-    if (t < 1) requestAnimationFrame(step);
-  };
-  requestAnimationFrame(step);
+  tween(
+    key,
+    550,
+    (t) => {
+      if (!el.isConnected) return false;
+      el.innerHTML = render(previous + (value - previous) * easeOutCubic(t));
+    },
+    settle
+  );
 }
 
 const escapeHtml = (value) =>
@@ -439,39 +602,98 @@ function drawSeries(svg, values, { spikes = [], area = false, axes = null, band 
 
   const points = values.map((value, index) => ({ x: scale.x(index), y: scale.y(value) }));
   const path = smoothPath(points);
+  let areaEl = null;
 
   if (area) {
     const defs = svgEl("defs", {});
     const gradient = svgEl("linearGradient", { id: "trend-fill", x1: 0, y1: 0, x2: 0, y2: 1 });
-    const stopHi = svgEl("stop", { offset: "0" });
-    const stopLo = svgEl("stop", { offset: "1" });
-    stopHi.style.stopColor = "var(--chart-area-hi)";
-    stopLo.style.stopColor = "var(--chart-area-lo)";
-    gradient.append(stopHi, stopLo);
+    // presentation attributes, not inline styles: the palette variable
+    // resolves the same way and nothing here writes to style=""
+    gradient.append(
+      svgEl("stop", { offset: "0", "stop-color": "var(--chart-area-hi)" }),
+      svgEl("stop", { offset: "1", "stop-color": "var(--chart-area-lo)" })
+    );
     defs.append(gradient);
     const floor = height - pad.bottom;
-    svg.append(
-      defs,
-      svgEl("path", { class: "area", d: `${path} L ${points[points.length - 1].x.toFixed(1)},${floor} L ${points[0].x.toFixed(1)},${floor} Z` })
-    );
+    areaEl = svgEl("path", { class: "area", d: `${path} L ${points[points.length - 1].x.toFixed(1)},${floor} L ${points[0].x.toFixed(1)},${floor} Z` });
+    svg.append(defs, areaEl);
   }
 
-  svg.append(svgEl("path", { class: "line", d: path }));
+  const lineEl = svgEl("path", { class: "line", d: path });
+  svg.append(lineEl);
+  // Handed back so the caller can draw the series in: the reveal animates
+  // these exact nodes rather than repainting the chart 60 times a second.
+  const marks = [];
+  const lastIndex = Math.max(1, points.length - 1);
   for (const spike of spikes) {
     const point = points[spike.index];
     if (point) {
-      svg.append(svgEl("circle", { class: `spike ${spike.severity}`, cx: point.x.toFixed(1), cy: point.y.toFixed(1), r: 3.5 }));
+      const el = svgEl("circle", { class: `spike ${spike.severity}`, cx: point.x.toFixed(1), cy: point.y.toFixed(1), r: SPIKE_R });
+      svg.append(el);
+      // squeezed into [0, 1 − POP_WINDOW] so even a marker on the very last
+      // day finishes its pop inside the draw instead of snapping at the end
+      marks.push({ el, at: (spike.index / lastIndex) * (1 - POP_WINDOW) });
     }
   }
-  return { points, scale };
+  return { points, scale, line: lineEl, area: areaEl, marks };
+}
+
+/* The series draws itself in: the stroke is revealed left to right, the
+   area fades up behind it, and each anomaly marker pops the moment the
+   drawing front reaches its day — so the eye reads the shape in the order
+   the estate lived it, and the marks land as events rather than as dots
+   that were always there. */
+const SPIKE_R = 3.5;
+const DRAW_MS = 760;
+const POP_WINDOW = 0.16; // fraction of the draw a single marker takes to pop
+
+function revealSeries(name, { line, area, marks }) {
+  if (!line) return;
+  const settle = () => {
+    line.removeAttribute("stroke-dasharray");
+    line.removeAttribute("stroke-dashoffset");
+    if (area) area.removeAttribute("opacity");
+    for (const mark of marks) mark.el.setAttribute("r", String(SPIKE_R));
+  };
+  let length = 0;
+  try {
+    length = inClosedRoom(line) ? 0 : line.getTotalLength();
+  } catch {
+    length = 0; // detached or unmeasurable — show it finished
+  }
+  if (!length) {
+    settle();
+    return;
+  }
+  line.setAttribute("stroke-dasharray", length.toFixed(1));
+  line.setAttribute("stroke-dashoffset", length.toFixed(1));
+  if (area) area.setAttribute("opacity", "0");
+  for (const mark of marks) mark.el.setAttribute("r", "0");
+  tween(
+    name,
+    DRAW_MS,
+    (t) => {
+      if (!line.isConnected) return false; // a repaint replaced the chart
+      const front = easeOutCubic(t);
+      line.setAttribute("stroke-dashoffset", (length * (1 - front)).toFixed(1));
+      if (area) area.setAttribute("opacity", (front * front).toFixed(3));
+      for (const mark of marks) {
+        const p = (front - mark.at) / POP_WINDOW;
+        const grown = p <= 0 ? 0 : p >= 1 ? 1 : easeOutBack(p);
+        mark.el.setAttribute("r", (SPIKE_R * grown).toFixed(2));
+      }
+    },
+    settle
+  );
 }
 
 /* Grouped bars on a fixed 0→1 scale (precision/recall live there): hairline
    grid, one <rect> per bar, the exact value printed above each cap — the
    measurement is the ornament. A null value prints "—" instead of a bar.
    groups: [{label, bars: [{cls, value, note, title}]}] */
-function drawGroupedBars(svg, groups) {
+function drawGroupedBars(svg, groups, { grow = false } = {}) {
   svg.replaceChildren();
+  const columns = []; // {el, y, height} — the caps the grow-in animates to
   const [, , width, height] = svg.getAttribute("viewBox").split(" ").map(Number);
   const pad = { left: 34, right: 8, top: 14, bottom: 18 };
   const innerWidth = width - pad.left - pad.right;
@@ -513,6 +735,7 @@ function drawGroupedBars(svg, groups) {
       });
       if (bar.title) rect.append(svgEl("title", {}, bar.title));
       svg.append(rect);
+      columns.push({ el: rect, y, height: Math.max(yFor(0) - y, 1) });
       // two stacked lines — a combined "0.50 · FN 1" caption is wider than
       // the bar pitch and collided with its neighbor's when values were close
       captions.push(
@@ -533,11 +756,62 @@ function drawGroupedBars(svg, groups) {
     );
   });
   svg.append(...captions);
+  if (grow) growBars(columns, yFor(0));
+}
+
+/* The measurement arrives: bars rise out of the zero line left to right,
+   so a re-measured backtest reads as a fresh reading rather than as a
+   silent swap of one static picture for another. The captions do not
+   move — the numbers are the point, and a sliding number is unreadable. */
+function growBars(columns, floor) {
+  if (!columns.length || inClosedRoom(columns[0].el)) return;
+  const settle = () => {
+    for (const column of columns) {
+      column.el.setAttribute("y", column.y.toFixed(1));
+      column.el.setAttribute("height", column.height.toFixed(1));
+    }
+  };
+  // stagger small enough that the last bar still has most of the window
+  const stagger = Math.min(0.5 / columns.length, 0.05);
+  const span = 1 - stagger * (columns.length - 1); // not `window` — that name is taken
+  for (const column of columns) {
+    column.el.setAttribute("y", (floor - 1).toFixed(1));
+    column.el.setAttribute("height", "1");
+  }
+  tween(
+    "backtest-grow",
+    620,
+    (t) => {
+      if (!columns[0].el.isConnected) return false; // redrawn under us
+      columns.forEach((column, index) => {
+        const grown = easeOutCubic(
+          Math.max(0, Math.min(1, (t - index * stagger) / span))
+        );
+        const height = Math.max(1, column.height * grown);
+        column.el.setAttribute("y", (floor - height).toFixed(1));
+        column.el.setAttribute("height", height.toFixed(1));
+      });
+    },
+    settle
+  );
 }
 
 /* ======================================================================
    05 · CHARTS — daily trend + detection backtest
    ====================================================================== */
+
+/* The trend redraws on every ten-second scan and on every tape frame, so
+   the draw-in is deliberately NOT tied to "a render happened": a chart
+   that re-animates twice a minute is a distraction, not a signal. It
+   draws in when the reader arrives at it, when a hand asks for a refresh
+   (rescan, pulse, sensitivity, service), and when the series itself is a
+   different shape — a new day, a new window, a new panel width. */
+let trendShape = "";
+let trendWantsReveal = true;
+
+function markTrendForReveal() {
+  trendWantsReveal = true;
+}
 
 function renderTrend() {
   const svg = document.getElementById("cost-trend");
@@ -549,6 +823,7 @@ function renderTrend() {
     svg.onmouseleave = null;
     readout.textContent = "—";
     note.textContent = "";
+    trendShape = "";
     return;
   }
   const { dates, totals, currency } = state.daily;
@@ -569,7 +844,13 @@ function renderTrend() {
   const spikes = dates
     .map((date, index) => ({ index, severity: severityByDate.get(date) }))
     .filter((spike) => spike.severity);
-  const { points } = drawSeries(svg, totals, { spikes, area: true, axes: { dates } });
+  const series = drawSeries(svg, totals, { spikes, area: true, axes: { dates } });
+  const { points } = series;
+
+  const shape = `${dates[0]}→${dates[dates.length - 1]}·${dates.length}·${boxW}×${boxH}·${spikes.length}`;
+  if (trendWantsReveal || shape !== trendShape) revealSeries("trend-reveal", series);
+  trendShape = shape;
+  trendWantsReveal = false;
 
   const peakIndex = totals.indexOf(Math.max(...totals));
   const low = Math.min(...totals);
@@ -664,7 +945,7 @@ let backtestGroups = null; // last successful groups, redrawn on host resize wit
 /* Draw (or redraw) the cached groups with the viewBox matched 1:1 to the
    host's real pixel width — the same pattern the trend chart uses; a fixed
    460 box centered with gutters on desktop and letterboxed on phones. */
-function drawBacktestChart() {
+function drawBacktestChart(grow = false) {
   const host = document.getElementById("backtest-table");
   if (!host || !backtestGroups) return;
   let svg = host.querySelector("svg.backtest-svg");
@@ -682,7 +963,7 @@ function drawBacktestChart() {
   }
   const boxW = Math.max(320, Math.round(host.clientWidth || 460));
   svg.setAttribute("viewBox", `0 0 ${boxW} 150`);
-  drawGroupedBars(svg, backtestGroups);
+  drawGroupedBars(svg, backtestGroups, { grow });
 }
 
 async function renderBacktest() {
@@ -712,7 +993,7 @@ async function renderBacktest() {
         }];
       }),
     }));
-    drawBacktestChart();
+    drawBacktestChart(true); // a fresh measurement grows in; a resize redraw does not
     const legend = document.getElementById("backtest-legend");
     if (legend) legend.hidden = false;
     const note = document.getElementById("backtest-note");
@@ -730,63 +1011,161 @@ async function renderBacktest() {
 
 /* ======================================================================
    06 · SENTINEL RADAR
+   ----------------------------------------------------------------------
    The moving centerpiece: a pixel radar whose blips ARE the current
-   signals — cost anomalies in accent/alert, security in sky. One CSS
-   rotation for the sweep; everything else is static SVG.
+   signals — cost anomalies in accent/alert, security in sky.
+
+   The beam's angle is owned by this module, not by a stylesheet: it is one
+   registered animation in the motion governor, so it obeys both motion
+   switches, parks itself when the tab goes to the background, and cannot
+   be left spinning by anything. That is also why the beam group carries no
+   `radar-sweep` class — a CSS keyframe rotation on the same element would
+   fight this loop, and the two would beat against each other.
+
+   The contacts are the reason the beam exists. Each one remembers its
+   bearing, and lights when the beam crosses it: a ring pings outward and
+   the blip itself flares, then both decay over the next second and a bit.
+   The radar is therefore reporting a fact — "the sweep just passed this
+   signal" — rather than decorating the corner.
    ====================================================================== */
 
-function radarAngle(name) {
-  // deterministic angle per service/date so blips hold their post
+const RADAR_PERIOD_MS = 7000; // one full turn
+const RADAR_DECAY_MS = 1500; // how long a contact stays lit behind the beam
+const RADAR_BLIP = 6; // resting blip size, in viewBox units
+/* Mirrors the fill rules the stylesheet gives `.radar-blip.critical`
+   / `.warning` / `.security` — the ping ring is drawn by this module, so
+   it names the same palette variables rather than inventing a colour. */
+const RADAR_INK = {
+  critical: "var(--alert)",
+  warning: "var(--accent)",
+  security: "var(--info)",
+};
+
+const radarContacts = []; // {deg, cx, cy, ping, blip}
+let radarBeam = null;
+
+function radarAngleDeg(name) {
+  // deterministic bearing per service/date so blips hold their post
   let hash = 0;
   for (const ch of String(name)) hash = (hash * 31 + ch.charCodeAt(0)) % 360;
-  return (hash * Math.PI) / 180;
+  return hash;
+}
+
+/* energy: 1 the instant the beam crosses, decaying to 0. */
+function paintContact(contact, energy) {
+  const flare = RADAR_BLIP + energy * 5;
+  contact.blip.setAttribute("x", (contact.cx - flare / 2).toFixed(1));
+  contact.blip.setAttribute("y", (contact.cy - flare / 2).toFixed(1));
+  contact.blip.setAttribute("width", flare.toFixed(1));
+  contact.blip.setAttribute("height", flare.toFixed(1));
+  contact.ping.setAttribute("r", energy ? (4 + (1 - energy) * 13).toFixed(1) : "0");
+  contact.ping.setAttribute("opacity", (energy * 0.7).toFixed(3));
+}
+
+function settleRadar() {
+  if (radarBeam) radarBeam.setAttribute("transform", "rotate(0 100 100)");
+  for (const contact of radarContacts) paintContact(contact, 0);
+}
+
+function radarTick(now) {
+  if (!radarBeam || !radarBeam.isConnected) return false;
+  const turn = ((now % RADAR_PERIOD_MS) / RADAR_PERIOD_MS) * 360;
+  radarBeam.setAttribute("transform", `rotate(${turn.toFixed(2)} 100 100)`);
+  // the wedge's bright edge starts at twelve o'clock, which is −90° in the
+  // same bearing convention the contacts use (0° = east, clockwise)
+  const beamDeg = turn - 90;
+  for (const contact of radarContacts) {
+    const behind = (((beamDeg - contact.deg) % 360) + 360) % 360;
+    const since = (behind / 360) * RADAR_PERIOD_MS;
+    paintContact(contact, since < RADAR_DECAY_MS ? 1 - since / RADAR_DECAY_MS : 0);
+  }
+  return true;
+}
+
+function startRadarSweep() {
+  if (!radarBeam || !radarBeam.isConnected) return;
+  // a beam turning inside a room nobody is in is a leak, not a feature —
+  // the ten-second scan re-renders the radar whichever room is open
+  if (inClosedRoom(radarBeam)) return;
+  if (animators.has("radar")) return; // already turning — never restart mid-sweep
+  animate("radar", { tick: radarTick, settle: settleRadar });
 }
 
 function renderRadar() {
   const svg = document.getElementById("sentinel-radar");
   if (!svg) return;
-  const blip = (angle, radius, cls) => {
-    const x = 100 + Math.cos(angle) * radius - 3;
-    const y = 100 + Math.sin(angle) * radius - 3;
-    return `<rect class="radar-blip ${cls}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="6" height="6"/>`;
-  };
-  const blips = [
-    ...state.anomalies.map((anomaly) =>
-      blip(
-        radarAngle(anomaly.service + anomaly.date),
-        anomaly.severity === "critical" ? 44 : 72,
-        anomaly.severity
-      )
-    ),
-    ...(state.security ? state.security.signals : []).map((signal) =>
-      blip(radarAngle(signal.service + signal.date), 86, "security")
-    ),
-  ].join("");
-  // The rings, cross-hair, sweep and core are static — build them ONCE. A
-  // 60s auto-scan calls this each minute; reassigning the whole SVG would
-  // re-create the .radar-sweep element and restart its CSS spin from angle
-  // 0, a visible once-a-minute jump. Only the blip layer re-renders.
+
+  // The rings, cross-hair, beam and core are static ink — built ONCE. The
+  // auto-scan calls this every ten seconds; rebuilding the whole SVG would
+  // throw away the beam element mid-turn. Only the contacts re-render.
   let blipLayer = svg.querySelector("#radar-blips");
   if (!blipLayer) {
-    const rings = [30, 58, 86]
-      .map((r) => `<circle class="ring" cx="100" cy="100" r="${r}"/>`)
-      .join("");
-    const cross =
-      `<line class="cross" x1="100" y1="10" x2="100" y2="190"/>` +
-      `<line class="cross" x1="10" y1="100" x2="190" y2="100"/>`;
-    const sweep =
-      `<defs><linearGradient id="sweep-grad" x1="0" y1="0" x2="1" y2="0">` +
-      `<stop offset="0" stop-color="currentColor" stop-opacity="0.35"/>` +
-      `<stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>` +
-      `<g class="radar-sweep" style="color: var(--accent)">` +
-      `<path d="M100,100 L100,12 A88,88 0 0 1 152,29 Z" fill="url(#sweep-grad)"/></g>`;
-    svg.innerHTML =
-      rings + cross + sweep +
-      `<g id="radar-blips"></g>` +
-      `<rect class="radar-core" x="97" y="97" width="6" height="6"/>`;
-    blipLayer = svg.querySelector("#radar-blips");
+    svg.replaceChildren();
+    const gradient = svgEl("linearGradient", { id: "sweep-grad", x1: 0, y1: 0, x2: 1, y2: 0 });
+    gradient.append(
+      svgEl("stop", { offset: "0", "stop-color": "var(--accent)", "stop-opacity": "0.38" }),
+      svgEl("stop", { offset: "1", "stop-color": "var(--accent)", "stop-opacity": "0" })
+    );
+    const defs = svgEl("defs", {});
+    defs.append(gradient);
+    svg.append(defs);
+    for (const r of [30, 58, 86]) {
+      svg.append(svgEl("circle", { class: "ring", cx: 100, cy: 100, r }));
+    }
+    svg.append(
+      svgEl("line", { class: "cross", x1: 100, y1: 10, x2: 100, y2: 190 }),
+      svgEl("line", { class: "cross", x1: 10, y1: 100, x2: 190, y2: 100 })
+    );
+    radarBeam = svgEl("g", { class: "radar-beam", transform: "rotate(0 100 100)" });
+    radarBeam.append(
+      svgEl("path", { d: "M100,100 L100,12 A88,88 0 0 1 152,29 Z", fill: "url(#sweep-grad)" })
+    );
+    blipLayer = svgEl("g", { id: "radar-blips" });
+    svg.append(
+      radarBeam,
+      blipLayer,
+      svgEl("rect", { class: "radar-core", x: 97, y: 97, width: 6, height: 6 })
+    );
   }
-  blipLayer.innerHTML = blips;
+
+  const signals = [
+    ...state.anomalies.map((anomaly) => ({
+      bearing: anomaly.service + anomaly.date,
+      severity: anomaly.severity,
+      radius: anomaly.severity === "critical" ? 44 : 72,
+    })),
+    ...((state.security && state.security.signals) || []).map((signal) => ({
+      bearing: signal.service + signal.date,
+      severity: "security",
+      radius: 86,
+    })),
+  ];
+
+  radarContacts.length = 0;
+  blipLayer.replaceChildren();
+  for (const signal of signals) {
+    const deg = radarAngleDeg(signal.bearing);
+    const radians = (deg * Math.PI) / 180;
+    const cx = 100 + Math.cos(radians) * signal.radius;
+    const cy = 100 + Math.sin(radians) * signal.radius;
+    const ping = svgEl("circle", {
+      class: `radar-ping ${signal.severity}`,
+      cx: cx.toFixed(1),
+      cy: cy.toFixed(1),
+      r: 0,
+      fill: "none",
+      stroke: RADAR_INK[signal.severity] || RADAR_INK.warning,
+      "stroke-width": "1",
+      opacity: 0,
+    });
+    const blip = svgEl("rect", { class: `radar-blip ${signal.severity}` });
+    blipLayer.append(ping, blip);
+    const contact = { deg, cx, cy, ping, blip };
+    paintContact(contact, 0);
+    radarContacts.push(contact);
+  }
+
+  startRadarSweep();
 }
 
 /* ======================================================================
@@ -1005,6 +1384,8 @@ function populateServiceFilter() {
    08 · INVESTIGATION — signal rail, evidence pack, agent verbs
    ====================================================================== */
 
+let sparkDrawn = ""; // which signal's evidence is currently on the sparkline
+
 function renderInvestigation() {
   signalRail.innerHTML = "";
   if (state.anomalies.length === 0) {
@@ -1118,7 +1499,7 @@ function renderInvestigation() {
           .map((date) => state.daily.dates.indexOf(date))
           .filter((index) => index >= 0)
       : [];
-    drawSeries(spark, series.values, {
+    const drawn = drawSeries(spark, series.values, {
       spikes: [
         ...cited.map((index) => ({ index, severity: "cited" })),
         ...(anomalyIndex >= 0
@@ -1127,6 +1508,13 @@ function renderInvestigation() {
       ],
       band: { mean, sigma },
     });
+    // The evidence draws itself in when a DIFFERENT signal is picked (or the
+    // analyst's citations land) — the fourteen days arrive as a story and
+    // the cited days ring last. The ten-second scan repaints this panel too;
+    // re-animating on every one of those would be a tic, not a signal.
+    const sparkShape = `${anomaly.service}·${anomaly.date}·${cited.join(",")}`;
+    if (sparkShape !== sparkDrawn) revealSeries("spark-reveal", drawn);
+    sparkDrawn = sparkShape;
     spark.setAttribute(
       "aria-label",
       `Daily spend for ${anomaly.service}: mean ${fmtNumber(mean)} with a one-sigma band; the anomaly day is marked.`
@@ -1799,8 +2187,14 @@ function renderIntelligence() {
     ` · avg time to decide ${hours == null ? "—" : hours < 1 ? `${Math.round(hours * 60)}m` : `${hours.toFixed(1)}h`}` +
     (funnel.timeout_rejections ? ` · ${funnel.timeout_rejections} expired unanswered` : "");
 
-  const currency = state.costs ? state.costs.currency : "USD";
-  savingsFig.innerHTML = `${fmtNumber(quality.approved_estimated_monthly_savings)} <small>${escapeHtml(currency)} / mo</small>`;
+  const currency = escapeHtml(state.costs ? state.costs.currency : "USD");
+  // approved savings is the room's headline number — it counts to its new
+  // value when a verdict lands, so the change is something you watch happen
+  rollFigure(
+    savingsFig,
+    quality.approved_estimated_monthly_savings,
+    (v) => `${fmtNumber(v)} <small>${currency} / mo</small>`
+  );
 
   if (state.trend) {
     const trend = state.trend;
@@ -2693,7 +3087,17 @@ function applyView(view) {
   // first drawn while its room was hidden (width 0) needs a redraw now.
   // Deferred a tick: applyView also runs at boot, before the chart's
   // module-level state has initialized.
-  if (visible.includes("sec-brain")) setTimeout(drawBacktestChart, 0);
+  if (visible.includes("sec-brain")) setTimeout(() => drawBacktestChart(true), 0);
+  // Walking into the watch room draws the spend trend in — a chart measured
+  // at width 0 behind a hidden section has to be redrawn here anyway, and
+  // arriving at a chart is exactly the moment worth animating.
+  if (visible.includes("sec-costs")) {
+    markTrendForReveal();
+    if (state.daily && state.daily.totals.length) setTimeout(renderTrend, 0);
+  }
+  // A room that just went away must not leave anything running behind it.
+  if (!visible.includes("sec-anomalies")) stopMotion("radar");
+  else startRadarSweep();
 }
 
 /* Shareable deep links: the sensitivity and service filter live in the URL
@@ -2726,6 +3130,19 @@ applyTheme(
   THEMES.includes(themeParam) ? themeParam : THEMES.includes(storedTheme) ? storedTheme : "horizon"
 );
 
+/* ---------- motion: the two switches and the tab's own attention ----------
+   A backgrounded tab gets nothing: requestAnimationFrame stops on its own,
+   but the register is settled explicitly so returning to the page finds
+   finished charts and a beam that picks up cleanly rather than one that
+   has been "rotating" against a frozen clock. */
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) settleAllMotion();
+  else syncMotion();
+});
+/* The operating system can change its mind mid-session (a low-power mode,
+   a system setting) — the page follows it without a reload. */
+if (REDUCED_MOTION.addEventListener) REDUCED_MOTION.addEventListener("change", syncMotion);
+
 // Redraw the trend chart on resize so its 1:1 viewBox tracks the panel width.
 let trendResizeTimer = null;
 window.addEventListener("resize", () => {
@@ -2752,10 +3169,20 @@ if (Number.isFinite(initialThreshold) && initialThreshold >= 0.5 && initialThres
 thresholdInput.addEventListener("input", () => {
   thresholdValue.textContent = parseFloat(thresholdInput.value).toFixed(2);
 });
-thresholdInput.addEventListener("change", scan);
-serviceFilter.addEventListener("change", scan);
-rescanButton.addEventListener("click", scan);
-pulseButton.addEventListener("click", runPulse);
+/* A hand asked for this — so the trend redraws itself rather than
+   silently swapping one still picture for another. The ten-second
+   background scan deliberately does not do this. */
+const refreshTrend = () => {
+  markTrendForReveal();
+  scan();
+};
+thresholdInput.addEventListener("change", refreshTrend);
+serviceFilter.addEventListener("change", refreshTrend);
+rescanButton.addEventListener("click", refreshTrend);
+pulseButton.addEventListener("click", () => {
+  markTrendForReveal();
+  runPulse();
+});
 // flipping the mission runs the chain under the new YAML right away —
 // the switch IS the demo beat, not a silent preference
 document.getElementById("mission-select")?.addEventListener("change", runPulse);
@@ -3003,17 +3430,16 @@ pollFeed();
 /* Live tape — the simulated stream, honestly labeled. /stream/metrics 404s
    when SENTINEL_SIM_STREAM is off, so a deployment without the flag never
    even shows the strip. Synthetic figures only — no billing data anywhere. */
-const tapeState = { timer: null, failures: 0 };
+const tapeState = { polling: false, failures: 0, shape: "", rows: new Map() };
 
-function tapeSparkline(trend) {
+function tapeSparkPoints(trend) {
   if (!Array.isArray(trend) || trend.length < 2) return "";
   const min = Math.min(...trend);
   const span = Math.max(...trend) - min || 1;
   const step = 54 / (trend.length - 1);
-  const points = trend
+  return trend
     .map((value, i) => `${(i * step).toFixed(1)},${(13 - ((value - min) / span) * 11).toFixed(1)}`)
     .join(" ");
-  return `<svg class="tape-spark" viewBox="0 0 54 14" aria-hidden="true"><polyline points="${points}"></polyline></svg>`;
 }
 
 /* The tape also feeds the cost ledger a LIVE layer: a run-rate line under
@@ -3033,9 +3459,13 @@ function feedCostLedgerFromTape(frame) {
         : "";
     line.hidden = false;
     line.textContent = `live run-rate ${fmtNumber(total)} USD/hour${today} — simulated stream`;
-    line.classList.remove("tick");
-    void line.offsetWidth; // restart the pulse so every frame visibly lands
-    line.classList.add("tick");
+    if (motionAllowed()) {
+      line.classList.remove("tick");
+      void line.offsetWidth; // restart the pulse so every frame visibly lands
+      line.classList.add("tick");
+    } else {
+      line.classList.remove("tick");
+    }
   }
   frame.services.forEach((lane) => {
     const chip = document.querySelector(`[data-tape-chip="${CSS.escape(lane.service)}"]`);
@@ -3048,20 +3478,60 @@ function feedCostLedgerFromTape(frame) {
   });
 }
 
+/* The tape TICKS: the rows are built once for a given set of services and
+   then re-valued in place, so a rate travels to its new figure and the
+   sparkline slides along. Rebuilding the rows every 2.5 seconds — which is
+   what this did — replaced the whole strip mid-blink, and a thing that is
+   destroyed and recreated cannot appear to move. Text goes in through
+   textContent; the service names are the only external strings here and
+   they never reach an innerHTML. */
+function buildTapeRows(host, frame) {
+  host.replaceChildren();
+  tapeState.rows = new Map();
+  for (const lane of frame.services) {
+    const row = document.createElement("div");
+    row.className = "tape-row";
+
+    const service = document.createElement("span");
+    service.className = "tape-service";
+    service.textContent = lane.service;
+
+    const spark = svgEl("svg", { class: "tape-spark", viewBox: "0 0 54 14", "aria-hidden": "true" });
+    const polyline = svgEl("polyline", { points: "" });
+    spark.append(polyline);
+
+    const rate = document.createElement("span");
+    rate.className = "tape-rate";
+    rate.dataset.rollKey = `tape-${lane.service}`;
+
+    const delta = document.createElement("span");
+    delta.className = "tape-delta";
+
+    row.append(service, spark, rate, delta);
+    host.append(row);
+    tapeState.rows.set(lane.service, { row, polyline, rate, delta });
+  }
+}
+
 function renderTape(frame) {
   const host = document.getElementById("tape-rows");
   if (!host) return;
-  host.innerHTML = frame.services
-    .map((lane) => {
-      const up = lane.delta_pct >= 0;
-      return `<div class="tape-row ${lane.spiking ? "spiking" : ""}">
-        <span class="tape-service">${escapeHtml(lane.service)}</span>
-        ${tapeSparkline(lane.trend)}
-        <span class="tape-rate">${fmtNumber(lane.rate)}</span>
-        <span class="tape-delta ${up ? "up" : "down"}">${up ? "▲" : "▼"}${Math.abs(lane.delta_pct).toFixed(1)}%</span>
-      </div>`;
-    })
-    .join("");
+  const shape = frame.services.map((lane) => lane.service).join("|");
+  if (shape !== tapeState.shape || !host.firstChild) {
+    tapeState.shape = shape;
+    buildTapeRows(host, frame);
+  }
+  for (const lane of frame.services) {
+    const row = tapeState.rows.get(lane.service);
+    if (!row) continue;
+    const up = lane.delta_pct >= 0;
+    row.row.classList.toggle("spiking", Boolean(lane.spiking));
+    row.polyline.setAttribute("points", tapeSparkPoints(lane.trend));
+    rollFigure(row.rate, lane.rate, (v) => fmtNumber(v));
+    row.delta.classList.toggle("up", up);
+    row.delta.classList.toggle("down", !up);
+    row.delta.textContent = `${up ? "▲" : "▼"}${Math.abs(lane.delta_pct).toFixed(1)}%`;
+  }
 }
 
 /* Sim source only: today's projected point rides the tape, so the BIG
@@ -3090,6 +3560,7 @@ async function pollTape() {
     const frame = await fetchJson("/stream/metrics");
     tape.hidden = false;
     tapeState.failures = 0;
+    tapeState.everLive = true;
     tapeState.lastFrame = frame;
     tapeState.frames = (tapeState.frames || 0) + 1;
     // the honesty line lives under the rows, not in the heading — one short
@@ -3104,23 +3575,32 @@ async function pollTape() {
     ) {
       refreshSimCosts();
     }
-    if (!tapeState.timer) {
-      tapeState.timer = setInterval(pollTape, (frame.interval_seconds || 2.5) * 1000);
-    }
+    // The next frame is asked for by the animation clock, not by a standing
+    // interval: the tape keeps ticking for as long as anyone is looking at
+    // it and stops asking the moment the tab goes to the background, which
+    // is the difference between a live strip and a leak.
+    tapeState.polling = true;
+    rafDelay("tape", (frame.interval_seconds || 2.5) * 1000, pollTape);
   } catch {
-    // disabled (404) or unreachable: hide the strip and go quiet
     tape.hidden = true;
     tapeState.failures += 1;
-    if (tapeState.failures >= 2 && tapeState.timer) {
-      clearInterval(tapeState.timer);
-      tapeState.timer = null;
+    // Never live: the flag is off (/stream/metrics 404s) — two tries and
+    // the strip stays away for good, exactly as before. Once it HAS been
+    // live, a dropped frame is weather, not a verdict: back off and keep
+    // asking, because a tape that dies on one bad response is not a tape.
+    if (!tapeState.everLive && tapeState.failures >= 2) {
+      tapeState.polling = false;
+      cancelRafDelay("tape");
+      return;
     }
+    rafDelay("tape", Math.min(30000, 2500 * 2 ** Math.min(tapeState.failures, 4)), pollTape);
   }
 }
 pollTape();
-setTimeout(() => {
-  if (!tapeState.timer && tapeState.failures < 2) pollTape();
-}, 15000); // one late retry (slow first boot), then quiet
+rafDelay("tape-retry", 15000, () => {
+  // one late retry (slow first boot), then quiet
+  if (!tapeState.polling && tapeState.failures < 2) pollTape();
+});
 
 document.getElementById("brain-review")?.addEventListener("click", async () => {
   const out = document.getElementById("brain-proposals");
@@ -3365,8 +3845,33 @@ function renderDeskCapabilities() {
   }).join("");
 }
 
-function deskStat(figure, label) {
-  return `<div><p class="cs-stat-fig">${escapeHtml(figure)}</p><p class="cs-stat-label">${escapeHtml(label)}</p></div>`;
+/* The desk's three figures are built once and then only ever re-valued, so
+   they can count to their new number instead of being thrown away and
+   replaced by a different string. Rebuilding the markup on every scan is
+   what made them snap. */
+const DESK_STATS = [
+  { key: "signals", label: "open signals" },
+  { key: "pending", label: "awaiting you" },
+  { key: "decided", label: "decided" },
+];
+
+function buildDeskStats(host) {
+  host.replaceChildren(
+    ...DESK_STATS.map((stat) => {
+      const box = document.createElement("div");
+      const figure = document.createElement("p");
+      figure.className = "cs-stat-fig";
+      figure.dataset.deskStat = stat.key;
+      figure.dataset.rollKey = `desk-${stat.key}`;
+      figure.dataset.v = "0"; // so the first paint counts up from nothing
+      figure.textContent = "0";
+      const label = document.createElement("p");
+      label.className = "cs-stat-label";
+      label.textContent = stat.label;
+      box.append(figure, label);
+      return box;
+    })
+  );
 }
 
 function renderDeskIdentity() {
@@ -3374,10 +3879,13 @@ function renderDeskIdentity() {
   if (!stats) return;
   const pending = state.actions.filter((a) => a.state === "proposed").length;
   const approved = state.actions.filter((a) => a.state === "approved" || a.state === "executed").length;
-  stats.innerHTML =
-    deskStat(String(state.anomalies.length), "open signals") +
-    deskStat(String(pending), "awaiting you") +
-    deskStat(String(approved), "decided");
+  if (!stats.querySelector("[data-desk-stat]")) buildDeskStats(stats);
+  const figures = { signals: state.anomalies.length, pending, decided: approved };
+  for (const stat of DESK_STATS) {
+    rollFigure(stats.querySelector(`[data-desk-stat="${stat.key}"]`), figures[stat.key], (v) =>
+      String(Math.round(v))
+    );
+  }
   const who = document.getElementById("desk-who");
   const sub = document.getElementById("desk-who-sub");
   if (who && sub) {
@@ -3706,6 +4214,12 @@ function a11yApply() {
       ? "your system already asks for reduced motion — the site honours it either way"
       : "";
   }
+
+  /* The motion switch is not only a stylesheet matter: the radar beam, the
+     chart draw-ins and every rolling figure are JavaScript loops, and they
+     have to hear this. Flipping it off settles them all to their finished
+     frame on the spot; flipping it back on restarts the ambient ones. */
+  syncMotion();
 }
 
 function a11yStep(kind, direction) {
