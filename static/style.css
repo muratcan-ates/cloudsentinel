@@ -2501,3 +2501,53 @@ a.cs-card:focus-visible, button.cs-card:focus-visible {
 }
 .a11y-stepper button:hover, .a11y-stepper button:focus-visible { border-color: var(--accent); color: var(--accent); }
 .a11y-stepper output { min-width: 46px; text-align: center; font-size: var(--fs-meta); font-variant-numeric: tabular-nums; }
+
+/* ---------- the desk's three columns ----------
+   An earlier attempt widened this section past the 960px measure with a
+   negative margin; it worked and it also gave the document a 2800px
+   scroll width, which zooms the whole page out on first paint. The desk
+   stays inside the measure: two narrow rails and a middle column that
+   still holds a readable card. */
+.cs-desk { grid-template-columns: 200px minmax(0, 1fr) 210px; }
+@media (max-width: 1240px) {
+  .cs-desk { grid-template-columns: 200px minmax(0, 1fr); }
+  .cs-desk-right { grid-column: 1 / -1; }
+  .cs-desk-right .cs-sticky { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); align-items: start; }
+  .cs-desk-right .cs-card + .cs-card { margin-top: 0; }
+}
+@media (max-width: 820px) {
+  .cs-desk { grid-template-columns: minmax(0, 1fr); }
+  .cs-desk-right .cs-sticky { grid-template-columns: 1fr; }
+}
+.cs-desk .cs-card { padding: var(--sp-4); }
+
+/* A capability row is two stacked lines and a figure, not three inline runs:
+   in a 220px rail the inline version broke every label into single words. */
+.cs-row { align-items: flex-start; }
+.cs-row > span:first-child { min-width: 0; display: block; }
+.cs-row-name { display: block; }
+.cs-row-note { display: block; margin-top: 2px; }
+.cs-row-value { padding-top: 1px; }
+
+/* The measure belongs to the medium. A broadsheet column is 960px because
+   prose wants roughly seventy characters; a control surface wants room for
+   three columns of objects. So the width travels with the palette: vivid
+   widens the page, the four editorial palettes keep the newspaper exactly
+   as it was. No negative margins, no breakout, no horizontal overflow. */
+:root[data-theme="vivid"] .page { max-width: 1320px; }
+:root[data-theme="vivid"] main { column-gap: var(--sp-6); }
+:root[data-theme="vivid"] .cs-desk { grid-template-columns: 260px minmax(0, 1fr) 280px; }
+@media (max-width: 1240px) { :root[data-theme="vivid"] .cs-desk { grid-template-columns: 240px minmax(0, 1fr); } }
+@media (max-width: 820px) { :root[data-theme="vivid"] .cs-desk { grid-template-columns: minmax(0, 1fr); } }
+
+/* The stylesheet sets every button in small caps; that is right for a room
+   tab and wrong for a sentence. The panel's switches carry prose, so they
+   opt out — a description that shouts is a description nobody reads. */
+.a11y-switch, .a11y-switch b, .a11y-switch span,
+.a11y-panel .cs-card-sub, .a11y-stepper .a11y-step-label,
+.cs-card-sub, .cs-card-title, .cs-row-name, .cs-row-note {
+  text-transform: none;
+  letter-spacing: normal;
+}
+.a11y-switch b { text-transform: none; }
+.a11y-state { text-transform: uppercase; letter-spacing: var(--track-caps); }

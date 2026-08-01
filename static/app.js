@@ -38,7 +38,7 @@
    working; otherwise the choice persisted from the colophon switch applies.
    The default identity stays horizon — the switch promotes night (mission)
    and paper from hidden preview flags to first-class modes. */
-const THEMES = ["horizon", "mission", "paper", "dawn"];
+const THEMES = ["horizon", "mission", "paper", "dawn", "vivid"];
 
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
@@ -1963,6 +1963,7 @@ async function renderMarket() {
   if (!host) return;
   try {
     const data = await fetchJson("/market/opportunities");
+    state.market = data; // the desk rail reads the same payload, no second fetch
     const rows = data.opportunities || [];
     host.textContent = "";
     if (!rows.length) {
@@ -2255,7 +2256,9 @@ async function refreshIdentity() {
     );
   };
   if (!authToken) {
+    state.identity = null;
     signedOut("not signed in — decisions use the operator field");
+    renderDeskIdentity();
     return;
   }
   try {
@@ -2263,6 +2266,8 @@ async function refreshIdentity() {
     if (!me.username) throw new Error("bad token");
     // username/role are user-derived: textContent only, never innerHTML
     status.textContent = `signed in as ${me.username} (${me.role}) — decisions carry this identity`;
+    state.identity = me; // the desk names the operator whose desk it is
+    renderDeskIdentity();
     if (form) form.hidden = true;
     if (logout) logout.hidden = false;
     setIdentityNote("signed in — sign out from the masthead");
@@ -2369,6 +2374,7 @@ async function pollFeed() {
 
 function renderAll(report) {
   renderCosts(state.costs, renderAnomalies(report));
+  renderDesk();
   renderTrend();
   renderSummary();
   renderInvestigation();
@@ -2643,7 +2649,7 @@ function startTour() {
    no routes, no reload — sections toggle, the print view always shows the
    whole broadsheet. */
 const VIEW_SECTIONS = {
-  watch: ["sec-anomalies", "sec-costs"],
+  watch: ["sec-desk", "sec-anomalies", "sec-costs"],
   investigate: ["sec-investigation"],
   decide: ["sec-decisions", "sec-ledger"],
   intel: ["sec-intelligence", "sec-market"],
@@ -3204,3 +3210,571 @@ renderBacktest();
 renderMarket();
 refreshIdentity();
 scan();
+
+/* ======================================================================
+   23 · the desk — the surface area, shown as objects
+   ----------------------------------------------------------------------
+   Six rooms is a good structure for someone who already knows the product
+   and a poor one for someone meeting it: the rooms describe the *flow*,
+   and a visitor's first question is what the thing can do at all. Eleven
+   endpoints answered that question and appeared nowhere in the interface —
+   the ledger's integrity proof, the decision-quality measures, the run
+   receipts, the runbook hit rate, the watch's own vitals, the pre-flight
+   sweep. They were reachable by URL and invisible by design accident.
+
+   The desk is one screen that reads the estate: what it is holding, what
+   it can prove about itself, and what is waiting on a human. Every row is
+   fetched from the endpoint it names — a capability that cannot answer
+   says so rather than showing a hopeful dash.
+   ====================================================================== */
+
+const deskState = { proofs: {}, lane: "all", loaded: false };
+
+/* Each proof names its endpoint, how to reduce the answer to one line, and
+   the lane it belongs to. Adding a capability here is one object — which is
+   the point: the next endpoint should not be able to hide. */
+const DESK_PROOFS = [
+  {
+    key: "audit",
+    label: "Ledger integrity",
+    note: "hash-chained decision trail",
+    url: "/audit/verify",
+    lane: "proof",
+    read: (d) =>
+      d.ok
+        ? `${d.entries ?? d.checked ?? 0} sealed · intact`
+        : `broken at #${d.first_break?.entry_id ?? "?"}`,
+  },
+  {
+    key: "quality",
+    label: "Decision quality",
+    note: "acceptance, latency, calibration",
+    url: "/analytics/quality",
+    lane: "proof",
+    read: (d) =>
+      d.acceptance_rate == null
+        ? "no verdicts yet"
+        : `${Math.round(d.acceptance_rate * 100)}% of ${d.human_decisions} accepted`,
+  },
+  {
+    key: "receipts",
+    label: "Run receipts",
+    note: "turns · milliseconds · calls",
+    url: "/analytics/receipts",
+    lane: "proof",
+    read: (d) => {
+      const runs = d.receipts || [];
+      if (!runs.length) return "no runs recorded";
+      const turns = runs.reduce((sum, run) => sum + (run.agent_turns || 0), 0);
+      return `${d.count ?? runs.length} runs · ${turns} agent turns`;
+    },
+  },
+  {
+    key: "runbooks",
+    label: "Runbook hit rate",
+    note: "did the playbook help?",
+    url: "/runbooks/effectiveness",
+    lane: "proof",
+    read: (d) => {
+      const moving = (d.scores || []).filter((row) => row.adjustment);
+      return moving.length
+        ? `${moving.length} moving the ranking`
+        : `${d.decisions_considered || 0} decisions, none past the bar`;
+    },
+  },
+  {
+    key: "watch",
+    label: "Watch vitals",
+    note: "is the sentinel still watching?",
+    url: "/ops/health/watch",
+    lane: "ops",
+    read: (d) =>
+      !d.configured
+        ? "request-triggered (by choice)"
+        : d.degraded
+          ? `stale — ${Math.round(d.last_pulse_age_seconds || 0)}s since a beat`
+          : "beating",
+  },
+  {
+    key: "preflight",
+    label: "Pre-flight",
+    note: "the demo runbook as code",
+    url: "/ops/preflight",
+    lane: "ops",
+    read: (d) => {
+      const checks = d.checks || [];
+      const bad = checks.filter((c) => c.status === "fail").length;
+      return d.ok ? `${checks.length} checks clear` : `${bad} failing`;
+    },
+  },
+  {
+    key: "backtest",
+    label: "Detector backtest",
+    note: "scorers against planted truth",
+    url: "/metrics/backtest",
+    lane: "proof",
+    read: (d) => {
+      const scorers = new Set((d.rows || []).map((row) => row.mode));
+      return scorers.size ? `${scorers.size} scorers compared` : "no ground truth loaded";
+    },
+  },
+  {
+    key: "telemetry",
+    label: "Self telemetry",
+    note: "its own traffic, as a dataset",
+    url: "/telemetry/usage",
+    lane: "ops",
+    read: (d) => {
+      const rows = d.daily_costs || d.usage || [];
+      return rows.length ? `${rows.length} recorded days` : "nothing recorded yet";
+    },
+  },
+];
+
+async function loadDeskProofs() {
+  await Promise.all(
+    DESK_PROOFS.map(async (proof) => {
+      try {
+        const data = await fetchJson(proof.url);
+        deskState.proofs[proof.key] = { ok: true, line: proof.read(data) };
+      } catch {
+        // an endpoint that cannot answer says so — never a hopeful dash
+        deskState.proofs[proof.key] = { ok: false, line: "unavailable" };
+      }
+    })
+  );
+  deskState.loaded = true;
+  renderDeskCapabilities();
+}
+
+function renderDeskCapabilities() {
+  const host = document.getElementById("desk-capabilities");
+  if (!host) return;
+  host.innerHTML = DESK_PROOFS.map((proof) => {
+    const result = deskState.proofs[proof.key];
+    const value = result ? result.line : "reading…";
+    const off = !result || !result.ok ? " is-off" : "";
+    return `<li class="cs-row">
+      <span>
+        <a class="cs-row-name" href="${escapeHtml(proof.url)}">${escapeHtml(proof.label)}</a>
+        <span class="cs-row-note">${escapeHtml(proof.note)}</span>
+      </span>
+      <span class="cs-row-value${off}">${escapeHtml(value)}</span>
+    </li>`;
+  }).join("");
+}
+
+function deskStat(figure, label) {
+  return `<div><p class="cs-stat-fig">${escapeHtml(figure)}</p><p class="cs-stat-label">${escapeHtml(label)}</p></div>`;
+}
+
+function renderDeskIdentity() {
+  const stats = document.getElementById("desk-stats");
+  if (!stats) return;
+  const pending = state.actions.filter((a) => a.state === "proposed").length;
+  const approved = state.actions.filter((a) => a.state === "approved" || a.state === "executed").length;
+  stats.innerHTML =
+    deskStat(String(state.anomalies.length), "open signals") +
+    deskStat(String(pending), "awaiting you") +
+    deskStat(String(approved), "decided");
+  const who = document.getElementById("desk-who");
+  const sub = document.getElementById("desk-who-sub");
+  if (who && sub) {
+    const name = state.identity?.username;
+    who.textContent = name ? `${name}'s desk` : "the operator's desk";
+    sub.textContent = name
+      ? `signed in as ${state.identity.role || "operator"} — every verdict carries this identity`
+      : "not signed in — decisions carry the operator field";
+  }
+}
+
+/* The feed: one card per thing the estate is holding, newest concern first.
+   Lane badges carry the colour; the chips filter by lane without a refetch. */
+const DESK_LANES = [
+  { key: "all", label: "Everything" },
+  { key: "cost", label: "Cost" },
+  { key: "security", label: "Security" },
+  { key: "fraud", label: "Fraud" },
+  { key: "decision", label: "Decisions" },
+  { key: "market", label: "Opportunities" },
+];
+
+function renderDeskChips() {
+  const host = document.getElementById("desk-chips");
+  if (!host) return;
+  host.innerHTML = DESK_LANES.map(
+    (lane) =>
+      `<button class="cs-chip" type="button" data-desk-lane="${lane.key}" aria-pressed="${
+        deskState.lane === lane.key
+      }">${escapeHtml(lane.label)}</button>`
+  ).join("");
+}
+
+function deskCard({ lane, badge, title, body, meta, href }) {
+  const tag = href ? "a" : "div";
+  const attrs = href ? ` href="${escapeHtml(href)}"` : "";
+  return `<${tag} class="cs-card"${attrs} data-desk-item="${escapeHtml(lane)}">
+    <div class="cs-card-head">
+      <p class="cs-card-title">${escapeHtml(title)}</p>
+      <span class="cs-badge" data-lane="${escapeHtml(lane)}">${escapeHtml(badge)}</span>
+    </div>
+    <p class="cs-card-sub">${escapeHtml(body)}</p>
+    ${meta ? `<p class="meta">${escapeHtml(meta)}</p>` : ""}
+  </${tag}>`;
+}
+
+function renderDeskFeed() {
+  const host = document.getElementById("desk-feed");
+  if (!host) return;
+  const cards = [];
+
+  state.anomalies.slice(0, 6).forEach((anomaly) => {
+    cards.push(
+      deskCard({
+        lane: "cost",
+        badge: `z ${Number(anomaly.z_score ?? 0).toFixed(1)}`,
+        title: `${anomaly.service} — ${anomaly.date}`,
+        body: `Spend of ${Number(anomaly.cost ?? 0).toFixed(2)} against a rolling baseline of ${Number(
+          anomaly.baseline ?? 0
+        ).toFixed(2)}. Deterministic detection, no model involved.`,
+        meta: daysAgo(anomaly.date),
+      })
+    );
+  });
+
+  (state.security?.signals || []).slice(0, 3).forEach((signal) => {
+    cards.push(
+      deskCard({
+        lane: "security",
+        badge: signal.severity || "watch",
+        title: `${signal.service || "estate"} — ${signal.metric || "security signal"}`,
+        body: signal.summary || signal.detail || "A security signal through the same detection line as cost.",
+        meta: signal.date || "",
+      })
+    );
+  });
+
+  (state.fraud?.signals || []).slice(0, 3).forEach((signal) => {
+    cards.push(
+      deskCard({
+        lane: "fraud",
+        badge: signal.risk || "rule score",
+        title: signal.id ? `transaction ${signal.id}` : "fraud signal",
+        body:
+          signal.reason ||
+          "Scored by published deterministic rules — arithmetic, never a model, and never the final word.",
+        meta: signal.date || "",
+      })
+    );
+  });
+
+  state.actions
+    .filter((action) => action.state === "proposed")
+    .slice(0, 4)
+    .forEach((action) => {
+      cards.push(
+        deskCard({
+          lane: "decision",
+          badge: "awaiting a hand",
+          title: action.title,
+          body: "Proposed and inert until an operator accepts or rejects it. Execution stays simulated by design.",
+          meta: action.proposed_at || "",
+          href: "/decide",
+        })
+      );
+    });
+
+  (state.market?.opportunities || []).slice(0, 3).forEach((row) => {
+    cards.push(
+      deskCard({
+        lane: "market",
+        badge: "opportunity",
+        title: row.title || row.service || "standing opportunity",
+        body: row.rationale || row.note || "A published market band costed against this estate's own run rate.",
+        meta: row.saving ? `≈ ${row.saving}` : "",
+      })
+    );
+  });
+
+  host.innerHTML = cards.length
+    ? cards.join("")
+    : `<div class="cs-card"><p class="cs-card-sub">Nothing is open. Run a Pulse and the desk fills.</p></div>`;
+  applyDeskFilter();
+}
+
+function applyDeskFilter() {
+  document.querySelectorAll("[data-desk-item]").forEach((card) => {
+    const show = deskState.lane === "all" || card.dataset.deskItem === deskState.lane;
+    card.classList.toggle("view-hidden", !show);
+  });
+}
+
+function renderDeskActionable() {
+  const host = document.getElementById("desk-actionable");
+  if (!host) return;
+  const rows = [];
+  const pending = state.actions.filter((a) => a.state === "proposed");
+  rows.push({
+    name: "Decisions waiting",
+    note: "nothing runs unapproved",
+    value: String(pending.length),
+    href: "/decide",
+  });
+  const suggestions = state.reflexSuggestions?.proposed_rules?.length;
+  if (suggestions) {
+    rows.push({
+      name: "Reflex rules drafted",
+      note: "settled decisions, offered as rules",
+      value: String(suggestions),
+      href: "/brain",
+    });
+  }
+  const contested = state.reflexSuggestions?.contested_signatures?.length;
+  if (contested) {
+    rows.push({
+      name: "Contested signatures",
+      note: "the same signal decided both ways",
+      value: String(contested),
+      href: "/brain",
+    });
+  }
+  rows.push({
+    name: "Incident report",
+    note: "one decision, its whole trail",
+    value: "download",
+    href: "/decisions/export",
+  });
+  host.innerHTML = rows
+    .map(
+      (row) => `<li class="cs-row">
+        <span>
+          <a class="cs-row-name" href="${escapeHtml(row.href)}">${escapeHtml(row.name)}</a>
+          <span class="cs-row-note">${escapeHtml(row.note)}</span>
+        </span>
+        <span class="cs-row-value">${escapeHtml(row.value)}</span>
+      </li>`
+    )
+    .join("");
+}
+
+function renderDeskMarket() {
+  const host = document.getElementById("desk-market");
+  if (!host) return;
+  const rows = (state.market?.opportunities || []).slice(0, 5);
+  host.innerHTML = rows.length
+    ? rows
+        .map(
+          (row) => `<li class="cs-row">
+            <span>
+              <span class="cs-row-name">${escapeHtml(row.title || row.service || "opportunity")}</span>
+              <span class="cs-row-note">${escapeHtml(row.band || row.note || "published band")}</span>
+            </span>
+            <span class="cs-row-value">${escapeHtml(row.saving || "—")}</span>
+          </li>`
+        )
+        .join("")
+    : `<li class="cs-row"><span class="cs-row-note">nothing standing right now</span></li>`;
+}
+
+function renderDesk() {
+  renderDeskIdentity();
+  renderDeskChips();
+  renderDeskFeed();
+  renderDeskActionable();
+  renderDeskMarket();
+  renderDeskCapabilities();
+}
+
+/* ---------- the mega menu ---------- */
+const megaToggle = document.getElementById("mega-toggle");
+const megaPanel = document.getElementById("mega-panel");
+if (megaToggle && megaPanel) {
+  const closeMega = () => {
+    megaPanel.hidden = true;
+    megaToggle.setAttribute("aria-expanded", "false");
+  };
+  megaToggle.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const open = megaPanel.hidden;
+    megaPanel.hidden = !open;
+    megaToggle.setAttribute("aria-expanded", String(open));
+  });
+  document.addEventListener("click", (event) => {
+    if (!megaPanel.hidden && !megaPanel.contains(event.target)) closeMega();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeMega();
+  });
+}
+
+/* ---------- the desk's own controls ---------- */
+document.addEventListener("click", (event) => {
+  const chip = event.target.closest("[data-desk-lane]");
+  if (chip) {
+    deskState.lane = chip.dataset.deskLane;
+    renderDeskChips();
+    applyDeskFilter();
+  }
+  if (event.target.closest("#desk-pulse")) document.getElementById("pulse-run")?.click();
+  if (event.target.closest("#desk-rescan")) document.getElementById("rescan")?.click();
+});
+
+/* ======================================================================
+   24 · accessibility — the settings an operating system cannot express
+   ----------------------------------------------------------------------
+   Text scale, line height, letter spacing, a plain face, highlighted links
+   and headings, forced contrast, a reading mask, a larger pointer, motion
+   off. Each one is a data attribute on <html> and a CSS variable, so this
+   module never writes a style (the CSP forbids inline styles anyway) and
+   never loads anything: the accessibility overlays sold as a one-line
+   script are third-party code with a view of every keystroke on the page.
+
+   Preferences live in localStorage under one key. If storage is blocked
+   the panel still works for the session — it simply forgets, which is a
+   better failure than refusing to open.
+   ====================================================================== */
+
+const A11Y_KEY = "sentinel-a11y";
+const A11Y_SCALE_STEPS = [0.9, 1, 1.15, 1.3, 1.5, 1.75];
+const A11Y_LINE_STEPS = [1, 1.15, 1.3, 1.5];
+const A11Y_TRACK_STEPS = [0, 0.02, 0.05, 0.1];
+const A11Y_TOGGLES = ["font", "mask", "contrast", "links", "headings", "cursor", "motion"];
+
+const a11y = {
+  scale: 1,
+  line: 1,
+  track: 0,
+  font: null,
+  mask: null,
+  contrast: null,
+  links: null,
+  headings: null,
+  cursor: null,
+  motion: null,
+};
+
+function a11yLoad() {
+  try {
+    Object.assign(a11y, JSON.parse(localStorage.getItem(A11Y_KEY) || "{}"));
+  } catch {
+    /* storage unavailable or corrupt — the defaults above stand */
+  }
+}
+
+function a11ySave() {
+  try {
+    localStorage.setItem(A11Y_KEY, JSON.stringify(a11y));
+  } catch {
+    /* best effort: the session keeps the setting, the next one will not */
+  }
+}
+
+function a11yApply() {
+  const root = document.documentElement;
+  root.style.setProperty("--a11y-scale", String(a11y.scale));
+  root.style.setProperty("--a11y-line", String(a11y.line));
+  root.style.setProperty("--a11y-track", `${a11y.track}em`);
+  // the attributes only exist when they are doing something, so the
+  // selectors stay cheap and the DOM stays readable in devtools
+  root.toggleAttribute("data-a11y-scale", a11y.scale !== 1);
+  root.toggleAttribute("data-a11y-line", a11y.line !== 1);
+  root.toggleAttribute("data-a11y-track", a11y.track !== 0);
+  A11Y_TOGGLES.forEach((key) => {
+    if (a11y[key]) root.setAttribute(`data-a11y-${key}`, a11y[key]);
+    else root.removeAttribute(`data-a11y-${key}`);
+  });
+
+  const scaleOut = document.getElementById("a11y-scale-out");
+  const lineOut = document.getElementById("a11y-line-out");
+  const trackOut = document.getElementById("a11y-track-out");
+  if (scaleOut) scaleOut.textContent = `${Math.round(a11y.scale * 100)}%`;
+  if (lineOut) lineOut.textContent = `${Math.round(a11y.line * 100)}%`;
+  if (trackOut) trackOut.textContent = `${a11y.track.toFixed(2)}em`;
+
+  document.querySelectorAll("[data-a11y-toggle]").forEach((button) => {
+    const on = Boolean(a11y[button.dataset.a11yToggle]);
+    button.setAttribute("aria-pressed", String(on));
+    const state = button.querySelector(".a11y-state");
+    if (state) state.textContent = on ? "on" : "off";
+  });
+
+  const note = document.getElementById("a11y-motion-note");
+  if (note) {
+    const system = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    note.textContent = system
+      ? "your system already asks for reduced motion — the site honours it either way"
+      : "";
+  }
+}
+
+function a11yStep(kind, direction) {
+  const steps = kind === "scale" ? A11Y_SCALE_STEPS : kind === "line" ? A11Y_LINE_STEPS : A11Y_TRACK_STEPS;
+  const current = steps.indexOf(a11y[kind]);
+  const index = Math.min(steps.length - 1, Math.max(0, (current === -1 ? 1 : current) + direction));
+  a11y[kind] = steps[index];
+  a11ySave();
+  a11yApply();
+}
+
+function a11yReset() {
+  Object.assign(a11y, { scale: 1, line: 1, track: 0 });
+  A11Y_TOGGLES.forEach((key) => {
+    a11y[key] = null;
+  });
+  a11ySave();
+  a11yApply();
+}
+
+/* The reading mask follows the pointer: two dimmed bands with a lit strip
+   between them. Written as custom properties on <html> rather than inline
+   styles on the bands, so the CSP's style-src never has to widen. */
+function a11yMaskMove(event) {
+  if (!a11y.mask) return;
+  const strip = 120;
+  const top = Math.max(0, event.clientY - strip / 2);
+  document.documentElement.style.setProperty("--mask-top", `${top}px`);
+  document.documentElement.style.setProperty("--mask-bottom", `${top + strip}px`);
+}
+
+const a11yLaunch = document.getElementById("a11y-launch");
+const a11yPanel = document.getElementById("a11y-panel");
+if (a11yLaunch && a11yPanel) {
+  a11yLaunch.addEventListener("click", () => {
+    const open = a11yPanel.hidden;
+    a11yPanel.hidden = !open;
+    a11yLaunch.setAttribute("aria-expanded", String(open));
+    if (open) a11yPanel.querySelector("button, [href]")?.focus();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !a11yPanel.hidden) {
+      a11yPanel.hidden = true;
+      a11yLaunch.setAttribute("aria-expanded", "false");
+      a11yLaunch.focus();
+    }
+  });
+  a11yPanel.addEventListener("click", (event) => {
+    const toggle = event.target.closest("[data-a11y-toggle]");
+    if (toggle) {
+      const key = toggle.dataset.a11yToggle;
+      a11y[key] = a11y[key] ? null : toggle.dataset.on;
+      a11ySave();
+      a11yApply();
+      return;
+    }
+    const step = event.target.closest("[data-a11y-step]");
+    if (step) {
+      a11yStep(step.dataset.a11yStep, Number(step.dataset.dir));
+      return;
+    }
+    if (event.target.closest("#a11y-reset")) a11yReset();
+  });
+  document.addEventListener("mousemove", a11yMaskMove, { passive: true });
+}
+
+a11yLoad();
+a11yApply();
+
+/* The desk's capability rows are fetched once at boot, then again after a
+   Pulse — the proofs are cheap reads, but they are not free, so they do not
+   ride the ten-second scan. */
+loadDeskProofs();
