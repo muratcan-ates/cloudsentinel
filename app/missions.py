@@ -424,7 +424,12 @@ def load_mission(name: str) -> MissionConfig:
     except (OSError, UnicodeDecodeError) as error:
         raise MissionError(f"{where}: unreadable file — {error}") from error
     try:
-        raw = yaml.load(source, Loader=_StrictLoader)
+        # The suppression below is bandit B506, and it is a false positive:
+        # _StrictLoader is a SafeLoader SUBCLASS that only adds duplicate-key
+        # refusal, so no tag here can construct a Python object. bandit
+        # flags every yaml.load() that is not the literal safe_load; the
+        # loader class declared above is the actual guarantee.
+        raw = yaml.load(source, Loader=_StrictLoader)  # nosec B506
     except _DuplicateKey as error:
         raise MissionError(
             f"{where}: {error} — YAML keeps only the last one, so the setting "
