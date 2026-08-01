@@ -2375,6 +2375,7 @@ async function pollFeed() {
 function renderAll(report) {
   renderCosts(state.costs, renderAnomalies(report));
   renderDesk();
+  renderMissionPosture();
   renderTrend();
   renderSummary();
   renderInvestigation();
@@ -3778,3 +3779,44 @@ a11yApply();
    Pulse — the proofs are cheap reads, but they are not free, so they do not
    ride the ten-second scan. */
 loadDeskProofs();
+
+/* ======================================================================
+   25 · the mission posture — a control that says what it changed
+   ----------------------------------------------------------------------
+   Three missions once declared identical detection blocks, so the switch
+   moved and nothing followed. They differ now, but a differing config is
+   invisible unless the interface reads it back: this line states the
+   posture the *server* resolved — detector, baseline window, the lane's
+   own threshold — from the scan response rather than from a table in the
+   client, so it cannot drift from what actually ran.
+
+   It also names the one thing that confused everyone, including me: the
+   sensitivity slider overrides the mission's threshold. Both numbers are
+   shown when they disagree, because a control silently outranked by
+   another control is how a demo loses an audience's trust.
+   ====================================================================== */
+
+const MISSION_LANE = { finops: "cost", security: "security event", fraud: "payment" };
+const MISSION_DEFAULT_THRESHOLD = { finops: 2.0, security: 1.75, fraud: 2.75 };
+
+function renderMissionPosture() {
+  const host = document.getElementById("mission-posture");
+  if (!host) return;
+  const report = state.lastScan;
+  const select = document.getElementById("mission-select");
+  const mission = report?.mission || select?.value || "finops";
+  const lane = MISSION_LANE[mission] || "cost";
+  const parts = [`mission ${mission} — watches the ${lane} lane`];
+  if (report?.detector) parts.push(`scores with ${report.detector}`);
+  if (report?.window_days) parts.push(`${report.window_days}-day baseline`);
+  const slider = parseFloat(thresholdInput.value);
+  const missionDefault = MISSION_DEFAULT_THRESHOLD[mission];
+  if (missionDefault != null && Math.abs(slider - missionDefault) > 0.001) {
+    parts.push(
+      `threshold ${slider.toFixed(2)} from the slider, overriding the mission's ${missionDefault.toFixed(2)}`
+    );
+  } else if (report?.threshold != null) {
+    parts.push(`threshold ${Number(report.threshold).toFixed(2)}`);
+  }
+  host.textContent = parts.join(" · ");
+}
