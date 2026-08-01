@@ -229,7 +229,7 @@ cloudsentinel/
 ├── configs/              mission YAMLs — finops, security, fraud
 ├── static/               dashboard — tokenized design system, 4 palettes, vendored Swagger UI
 ├── scripts/              smoke test, failure drill, detection benchmark, Gemini spike
-├── tests/                1184 pytest cases incl. performance budgets
+├── tests/                1190 pytest cases incl. performance budgets
 ├── docs/                 architecture & agent design
 ├── Makefile              setup / run / test / demo / smoke / drill
 └── ProjectManagement/    sprint evidence packs (boards, screenshots)
@@ -325,7 +325,7 @@ One deploy target, two honest postures — pick one per link, don't mix:
 | **Python 3.12** | Core language (pinned in venv, CI and Docker) |
 | **FastAPI + Uvicorn** | REST API and ASGI server |
 | **Pydantic v2** | Typed request/response models and validation |
-| **pytest + httpx** | Automated test suite (1184 tests, incl. performance budgets) — **96% line coverage** over `app/` + `main.py` (`make coverage`) |
+| **pytest + httpx** | Automated test suite (1190 tests, incl. performance budgets) — **96% line coverage** over `app/` + `main.py` (`make coverage`) |
 | **Hypothesis** | Property-based tests: generated NaN / duplicate / extreme / reversed-window inputs against the detector |
 | **bandit + pip-audit** | The security product scans its own source and its own dependencies (`make audit`); both gate CI |
 | **SQLite** (stdlib `sqlite3`) | WAL-mode persistence core: action lifecycle, decision memory, LLM cache, idempotency |

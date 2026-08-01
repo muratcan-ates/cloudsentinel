@@ -392,3 +392,80 @@ def test_dashboard_ships_permalink_and_tour():
     assert "TOUR_STOPS" in app_js
     page = c.get("/").text
     assert "data-tour-launch" in page
+
+
+# --- the desk and the accessibility panel -------------------------------------
+
+
+def test_the_desk_is_the_landing_room():
+    """The first thing a visitor meets is the surface area, not a section."""
+    page = client.get("/").text
+    app_js = client.get("/static/app.js").text
+    assert 'id="sec-desk"' in page
+    assert '"sec-desk", "sec-anomalies", "sec-costs"' in app_js
+    assert "renderDesk" in app_js
+
+
+def test_every_hidden_capability_reaches_the_desk():
+    """The desk exists because these endpoints had no interface at all.
+
+    If one is added back to the product without a row here, this fails —
+    which is the whole point of pinning the list.
+    """
+    app_js = client.get("/static/app.js").text
+    for url in (
+        "/audit/verify",
+        "/analytics/quality",
+        "/analytics/receipts",
+        "/runbooks/effectiveness",
+        "/ops/health/watch",
+        "/ops/preflight",
+        "/metrics/backtest",
+        "/telemetry/usage",
+    ):
+        assert f'url: "{url}"' in app_js, f"{url} has no capability row on the desk"
+
+
+def test_a_capability_that_cannot_answer_says_so():
+    """A dash reads as zero, and zero is a claim we would not be making."""
+    app_js = client.get("/static/app.js").text
+    assert '"unavailable"' in app_js
+
+
+def test_the_vivid_palette_is_offered_without_replacing_the_others():
+    page = client.get("/").text
+    app_js = client.get("/static/app.js").text
+    css = client.get("/static/style.css").text
+    assert 'data-theme-choice="vivid"' in page
+    assert '"horizon", "mission", "paper", "dawn", "vivid"' in app_js
+    for theme in ("horizon", "mission", "paper", "dawn", "vivid"):
+        assert f'[data-theme="{theme}"]' in css
+
+
+def test_the_accessibility_panel_is_ours_and_local():
+    """No third-party overlay: an accessibility widget that phones home is
+    a privacy problem wearing a kindness costume."""
+    page = client.get("/").text
+    app_js = client.get("/static/app.js").text
+    assert 'id="a11y-panel"' in page
+    assert 'id="a11y-launch"' in page
+    for switch in ("font", "mask", "contrast", "links", "headings", "cursor", "motion"):
+        assert f'data-a11y-toggle="{switch}"' in page
+    assert "sentinel-a11y" in app_js
+    # the panel must never reach off-origin for anything
+    assert "//cdn" not in app_js and "https://unpkg" not in app_js
+
+
+def test_accessibility_preferences_are_css_attributes_not_inline_styles():
+    """The CSP forbids inline styles; the panel sets attributes and variables."""
+    css = client.get("/static/style.css").text
+    for attribute in (
+        'data-a11y-contrast="high"',
+        'data-a11y-links="on"',
+        'data-a11y-headings="on"',
+        'data-a11y-font="readable"',
+        'data-a11y-cursor="big"',
+        'data-a11y-motion="off"',
+        'data-a11y-mask="on"',
+    ):
+        assert attribute in css
