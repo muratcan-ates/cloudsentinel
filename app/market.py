@@ -19,6 +19,18 @@ Three disciplines carry over from the rest of the system:
 * **Suggestions, never actions.** Nothing here files an action or touches the
   decision inbox. These are standing opportunities for a human to pick up.
 
+The full table answers "what is on the menu". The **possible suggestions**
+shortlist answers the next question — "so what do I do on Monday?" — by
+folding the table into a handful of ranked lines, each anchored to the
+service where the move is worth the most, each carrying the estate facts
+that make it apply and an honest label for how far the figure can be
+trusted. That label is a rule over evidence already on the table (the
+signal's own risk rating and provenance, the width of its published band,
+the depth of this estate's cost history), never a model's opinion, and a
+suggestion that cannot earn it says ``needs review`` out loud rather than
+dressing a guess as a number. When nothing lands on this estate the
+shortlist says so plainly; an empty list is a finding, not a failure.
+
 The catalogue is bundled and deterministic. ``SENTINEL_MARKET_FEED_URL``
 points the lane at an external catalogue in the same shape (the feeds.py
 pattern: TTL cache, single-flight, fall back to the bundled file), which is
@@ -28,13 +40,15 @@ how a live market-tracking source would arrive without changing this module.
 import json
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from app import feeds
-from app.detection import load_daily_costs, summarize_costs
+from app.detection import MIN_HISTORY, load_daily_costs, summarize_costs
 
 logger = logging.getLogger("cloudsentinel.market")
 
@@ -44,6 +58,20 @@ MARKET_DATA_FILE = Path(__file__).parent / "data" / "market_watch.json"
 MARKET_FEED_ENV = "SENTINEL_MARKET_FEED_URL"
 
 DAYS_PER_MONTH = 30  # same convention the recommender uses for monthly figures
+
+# A shortlist an operator can actually work through in one sitting; the full
+# costed table is right there for anyone who wants the rest.
+MAX_SUGGESTIONS = 5
+
+# A published band whose high end is twice its low end or more is a range,
+# not an estimate — the suggestion may still be worth taking, but the figure
+# beside it cannot be called firm.
+WIDE_BAND_RATIO = 2.0
+
+NEEDS_REVIEW = "needs review"
+# Ranking order: a line a human still has to weigh cannot outrank one they
+# could start this afternoon, however large its band.
+CONFIDENCE_ORDER = {"high": 0, "moderate": 1, NEEDS_REVIEW: 2}
 
 
 class MarketOpportunity(BaseModel):
@@ -57,7 +85,9 @@ class MarketOpportunity(BaseModel):
     monthly_saving_mid: float
     service_monthly_run_rate: float
     share_of_service_spend: float
-    reduction_band: str
+    reduction_band: str  # display form of the two fractions below
+    reduction_min: float
+    reduction_max: float
     effort: str
     risk: str
     horizon: str
@@ -66,6 +96,36 @@ class MarketOpportunity(BaseModel):
     source: str
     checked: str
     basis: str
+
+
+class MarketSuggestion(BaseModel):
+    rank: int
+    suggestion: str
+    service: str
+    # The catalogue entry this line was derived from — a reader can look the
+    # claim up instead of taking it on trust.
+    signal: str
+    signal_headline: str
+    why_here: str  # the estate's own facts that make the signal apply
+    monthly_saving_low: float
+    monthly_saving_high: float
+    confidence: Literal["high", "moderate", "needs review"]
+    confidence_basis: str
+    also_applies_to: list[str]
+    evidence: str  # the catalogue's own rationale, quoted not paraphrased
+    watch_out: str
+    effort: str
+    horizon: str
+    source: str
+    checked: str
+
+
+class SuggestionShortlist(BaseModel):
+    signals_available: int  # catalogue entries checked
+    signals_matched: int  # …that touch a service this estate runs
+    shortlisted: int
+    suggestions: list[MarketSuggestion]
+    note: str
 
 
 class MarketReport(BaseModel):
@@ -80,6 +140,7 @@ class MarketReport(BaseModel):
     gross_monthly_high: float
     overlapping_services: list[str]
     opportunities: list[MarketOpportunity]
+    possible_suggestions: SuggestionShortlist
     note: str
 
 
@@ -162,6 +223,197 @@ def load_catalogue() -> tuple[dict, str]:
         return _validate_catalogue(json.load(f)), "curated"
 
 
+@dataclass(frozen=True)
+class ServiceFacts:
+    """What this estate says about one service, for the suggestion side."""
+
+    share_of_tracked_spend: float  # fraction of the estate's whole cost record
+    days_of_history: int  # distinct days of data standing behind the run rate
+
+
+# A service the cost record cannot describe gets the honest default rather
+# than a flattering one: no share, no history, and the first ladder rule
+# below sends it to "needs review".
+UNKNOWN_SERVICE = ServiceFacts(share_of_tracked_spend=0.0, days_of_history=0)
+
+
+def estate_facts(records: list, summaries: list) -> dict[str, ServiceFacts]:
+    """Per-service context the costed table does not already carry.
+
+    An opportunity row echoes the run rate. A suggestion has to say more:
+    how large the service is inside this estate, and how many days of data
+    the run rate rests on. Both change what the figure is worth, and both
+    come from the estate's own cost record rather than from the catalogue.
+    """
+    days: dict[str, set[str]] = {}
+    for record in records:
+        service = str(record["service"]).lower()
+        days.setdefault(service, set()).add(str(record["date"]))
+    return {
+        summary.service.lower(): ServiceFacts(
+            share_of_tracked_spend=summary.share_of_total,
+            days_of_history=len(days.get(summary.service.lower(), set())),
+        )
+        for summary in summaries
+    }
+
+
+def _confidence(opportunity: MarketOpportunity, facts: ServiceFacts) -> tuple[str, str]:
+    """Label one suggestion, and say in one clause what earned the label.
+
+    A ladder over evidence that is already on the table — first match wins,
+    and every rung names the thing it looked at: the estate's side (how much
+    history the run rate rests on), the signal's own provenance and risk
+    rating, and the width of the published band. "High" is reserved for a
+    row that clears every rung; anything a human would have to weigh anyway
+    is labelled as such instead of being quietly rounded up.
+    """
+    if facts.days_of_history < MIN_HISTORY:
+        return NEEDS_REVIEW, (
+            f"only {facts.days_of_history} day(s) of {opportunity.service} cost "
+            f"history, under the {MIN_HISTORY} days this system calls a baseline "
+            "anywhere else — the run rate beneath this figure is not yet a rate"
+        )
+    if opportunity.source == "unattributed" or opportunity.checked == "unknown":
+        return NEEDS_REVIEW, (
+            "the signal carries no source or no last-checked date, so its "
+            "published band cannot be argued with — only believed"
+        )
+    if opportunity.risk == "high":
+        return NEEDS_REVIEW, (
+            "the catalogue rates this move high risk, and that is a judgement "
+            "for a human rather than for an arithmetic rule"
+        )
+    hedges: list[str] = []
+    if opportunity.risk != "low":
+        hedges.append(f"{opportunity.risk} risk")
+    if opportunity.effort != "low":
+        hedges.append(f"{opportunity.effort} effort")
+    # Measured on the published fractions, not on the rounded money: a cent
+    # of rounding must never be what decides how much an operator trusts a row.
+    if opportunity.reduction_min <= 0:
+        hedges.append(f"a {opportunity.reduction_band} band that starts at nothing")
+    elif opportunity.reduction_max >= opportunity.reduction_min * WIDE_BAND_RATIO:
+        hedges.append(
+            f"a {opportunity.reduction_band} band whose high end is at least "
+            "double its low"
+        )
+    if hedges:
+        return "moderate", (
+            f"{', '.join(hedges)} — enough to shortlist, not enough to call the "
+            "figure firm"
+        )
+    return "high", (
+        f"low risk, low effort, a {opportunity.reduction_band} band from "
+        f"{opportunity.source} checked {opportunity.checked}, and "
+        f"{facts.days_of_history} days of {opportunity.service} cost history "
+        "behind the run rate"
+    )
+
+
+def derive_suggestions(
+    opportunities: list[MarketOpportunity],
+    facts: dict[str, ServiceFacts],
+    *,
+    signals_available: int,
+    limit: int = MAX_SUGGESTIONS,
+) -> SuggestionShortlist:
+    """Fold the costed table into a short, ranked, evidence-bearing shortlist.
+
+    One line per signal, anchored to the service where that signal is worth
+    the most: the same move on a second service is the same piece of work, so
+    repeating it would pad the list rather than lengthen it — the other
+    services ride along in ``also_applies_to``.
+
+    Ranked by trust first and money second. A larger band an operator still
+    has to argue about is worth less on a Monday morning than a smaller one
+    they can start, and ties break on the signal id so two runs over the same
+    estate produce the same list in the same order.
+    """
+    anchors: dict[str, MarketOpportunity] = {}
+    also: dict[str, list[str]] = {}
+    # The table arrives biggest-band-first and stably sorted, so the first
+    # row for a signal is already its most valuable service.
+    for opportunity in opportunities:
+        if opportunity.id in anchors:
+            also.setdefault(opportunity.id, []).append(opportunity.service)
+        else:
+            anchors[opportunity.id] = opportunity
+
+    labelled: list[tuple[MarketOpportunity, str, str]] = []
+    for opportunity in anchors.values():
+        service_facts = facts.get(opportunity.service, UNKNOWN_SERVICE)
+        labelled.append((opportunity, *_confidence(opportunity, service_facts)))
+    labelled.sort(
+        key=lambda row: (
+            CONFIDENCE_ORDER[row[1]],
+            -row[0].monthly_saving_mid,
+            row[0].id,
+        )
+    )
+
+    suggestions: list[MarketSuggestion] = []
+    for rank, (opportunity, confidence, basis) in enumerate(labelled[:limit], start=1):
+        siblings = sorted(also.get(opportunity.id, []))
+        service_facts = facts.get(opportunity.service, UNKNOWN_SERVICE)
+        suggestions.append(
+            MarketSuggestion(
+                rank=rank,
+                suggestion=(
+                    f"{opportunity.headline} — {opportunity.service}"
+                    + (f" first, then {', '.join(siblings)}." if siblings else ".")
+                ),
+                service=opportunity.service,
+                signal=opportunity.id,
+                signal_headline=opportunity.headline,
+                why_here=(
+                    f"{opportunity.service} runs at "
+                    f"{opportunity.service_monthly_run_rate:,.2f}/mo, "
+                    f"{round(service_facts.share_of_tracked_spend * 100)}% of this "
+                    "estate's tracked spend, and the catalogue puts "
+                    f"{round(opportunity.share_of_service_spend * 100)}% of that "
+                    f"within reach of this move; {service_facts.days_of_history} "
+                    "day(s) of cost history stand behind the run rate."
+                ),
+                monthly_saving_low=opportunity.monthly_saving_low,
+                monthly_saving_high=opportunity.monthly_saving_high,
+                confidence=confidence,
+                confidence_basis=basis,
+                also_applies_to=siblings,
+                evidence=opportunity.rationale,
+                watch_out=opportunity.watch_out,
+                effort=opportunity.effort,
+                horizon=opportunity.horizon,
+                source=opportunity.source,
+                checked=opportunity.checked,
+            )
+        )
+
+    if suggestions:
+        note = (
+            f"{len(anchors)} of {signals_available} bundled signal(s) land on a "
+            f"service this estate runs; the {len(suggestions)} that survive the "
+            "ranking are shortlisted, one line per signal. Confidence is a rule "
+            "over the signal's own risk, provenance and band width plus the depth "
+            "of this estate's cost record — never a model's opinion — and "
+            f"'{NEEDS_REVIEW}' means exactly that. Nothing here files an action."
+        )
+    else:
+        note = (
+            f"Nothing to suggest: {signals_available} bundled signal(s) checked, "
+            f"{len(anchors)} of them landing on a service this estate runs, and "
+            "nothing reaching the shortlist. An empty list is a finding — the "
+            "lane will not invent a move to fill the table."
+        )
+    return SuggestionShortlist(
+        signals_available=signals_available,
+        signals_matched=len(anchors),
+        shortlisted=len(suggestions),
+        suggestions=suggestions,
+        note=note,
+    )
+
+
 def build_report(min_monthly_saving: float = 0.0) -> MarketReport:
     """Match the catalogue against the estate and cost every hit."""
     records = load_daily_costs()
@@ -198,6 +450,8 @@ def build_report(min_monthly_saving: float = 0.0) -> MarketReport:
                         f"{round(entry['reduction_min'] * 100)}–"
                         f"{round(entry['reduction_max'] * 100)}%"
                     ),
+                    reduction_min=entry["reduction_min"],
+                    reduction_max=entry["reduction_max"],
                     effort=str(entry.get("effort") or "unknown"),
                     risk=str(entry.get("risk") or "unknown"),
                     horizon=str(entry.get("horizon") or "unknown"),
@@ -232,6 +486,13 @@ def build_report(min_monthly_saving: float = 0.0) -> MarketReport:
         gross_monthly_high=round(sum(o.monthly_saving_high for o in opportunities), 2),
         overlapping_services=overlapping,
         opportunities=opportunities,
+        # Derived from the rows above and the same cost record they were
+        # costed against — the shortlist can never disagree with the table.
+        possible_suggestions=derive_suggestions(
+            opportunities,
+            estate_facts(records, summaries),
+            signals_available=len(catalogue["opportunities"]),
+        ),
         note=(
             "Standing opportunities, not anomalies: published market bands costed "
             "against this estate's own run rate. Bands over the same service "
@@ -253,5 +514,10 @@ def get_market_opportunities(
         ),
     ),
 ) -> MarketReport:
-    """Rank standing cost opportunities for the services this estate runs."""
+    """Rank standing cost opportunities for the services this estate runs.
+
+    Carries both halves of the room: the full costed table, and the
+    ``possible_suggestions`` shortlist derived from it — the same floor
+    applies to both, so raising it narrows what the lane will suggest.
+    """
     return build_report(min_monthly_saving)

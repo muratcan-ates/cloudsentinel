@@ -173,6 +173,243 @@ def test_bundled_catalogue_declares_provenance_on_every_entry():
         assert entry["watch_out"], "every move states what can go wrong"
 
 
+def _opportunity(**overrides) -> market.MarketOpportunity:
+    """A costed row with sane defaults; each test overrides only its subject."""
+    row = {
+        "id": "MW-TEST",
+        "headline": "a move",
+        "category": "waste",
+        "service": "compute",
+        "monthly_saving_low": 100.0,
+        "monthly_saving_high": 150.0,
+        "monthly_saving_mid": 125.0,
+        "service_monthly_run_rate": 1000.0,
+        "share_of_service_spend": 0.5,
+        "reduction_band": "20–30%",
+        "reduction_min": 0.2,
+        "reduction_max": 0.3,
+        "effort": "low",
+        "risk": "low",
+        "horizon": "days",
+        "rationale": "why the move exists",
+        "watch_out": "what can go wrong",
+        "source": "a published pricing page",
+        "checked": "2026-08-01",
+        "basis": "1000.0/mo run rate × 50% addressable × 20–30% reduction",
+    }
+    row.update(overrides)
+    return market.MarketOpportunity(**row)
+
+
+SOLID = {"compute": market.ServiceFacts(share_of_tracked_spend=0.5, days_of_history=30)}
+
+
+def test_suggestions_are_derived_from_signals_the_estate_actually_matches():
+    report = client.get("/market/opportunities").json()
+    shortlist = report["possible_suggestions"]
+    costed = {o["id"] for o in report["opportunities"]}
+
+    assert shortlist["suggestions"], "the mock estate must produce a shortlist"
+    assert shortlist["shortlisted"] <= market.MAX_SUGGESTIONS, "short, not a table"
+    assert shortlist["signals_matched"] <= shortlist["signals_available"]
+    for suggestion in shortlist["suggestions"]:
+        assert suggestion["signal"] in costed, "no suggestion without a costed signal"
+        assert suggestion["source"] and suggestion["checked"], "provenance travels"
+        assert suggestion["why_here"], "every line says why it applies to this estate"
+        assert suggestion["confidence_basis"], "and what earned its label"
+
+
+def test_every_suggestion_carries_an_explicit_confidence_label():
+    shortlist = client.get("/market/opportunities").json()["possible_suggestions"]
+    labels = {s["confidence"] for s in shortlist["suggestions"]}
+    assert labels <= set(market.CONFIDENCE_ORDER), "no label outside the ladder"
+    assert all(s["confidence"] for s in shortlist["suggestions"])
+
+
+def test_suggestion_figures_are_the_table_s_own_arithmetic():
+    """The shortlist may never disagree with the row it was derived from."""
+    report = client.get("/market/opportunities").json()
+    rows = {(o["id"], o["service"]): o for o in report["opportunities"]}
+    for suggestion in report["possible_suggestions"]["suggestions"]:
+        row = rows[(suggestion["signal"], suggestion["service"])]
+        assert suggestion["monthly_saving_low"] == row["monthly_saving_low"]
+        assert suggestion["monthly_saving_high"] == row["monthly_saving_high"]
+
+
+def test_a_signal_is_suggested_once_on_its_most_valuable_service():
+    """The same move on a second service is the same work, not a second line."""
+    report = client.get("/market/opportunities").json()
+    shortlist = report["possible_suggestions"]["suggestions"]
+    assert len({s["signal"] for s in shortlist}) == len(shortlist)
+
+    by_signal: dict[str, list[dict]] = {}
+    for row in report["opportunities"]:
+        by_signal.setdefault(row["id"], []).append(row)
+    for suggestion in shortlist:
+        rows = by_signal[suggestion["signal"]]
+        best = max(r["monthly_saving_mid"] for r in rows)
+        anchor = next(r for r in rows if r["service"] == suggestion["service"])
+        assert anchor["monthly_saving_mid"] == best, "anchored to the best service"
+        assert suggestion["also_applies_to"] == sorted(
+            r["service"] for r in rows if r["service"] != suggestion["service"]
+        )
+
+
+def test_ranking_puts_trust_before_money():
+    """A line still owed a human judgement cannot outrank one ready to start."""
+    shortlist = market.derive_suggestions(
+        [
+            _opportunity(
+                id="BIG-RISK",
+                risk="high",
+                monthly_saving_mid=9000.0,
+                monthly_saving_high=9500.0,
+            ),
+            _opportunity(id="SMALL-SURE", monthly_saving_mid=12.0),
+        ],
+        SOLID,
+        signals_available=2,
+    )
+    assert [s.signal for s in shortlist.suggestions] == ["SMALL-SURE", "BIG-RISK"]
+    assert [s.rank for s in shortlist.suggestions] == [1, 2]
+    assert shortlist.suggestions[1].confidence == market.NEEDS_REVIEW
+
+
+def test_high_risk_and_missing_provenance_are_labelled_needs_review():
+    labelled = {
+        row.signal: (row.confidence, row.confidence_basis)
+        for row in market.derive_suggestions(
+            [
+                _opportunity(id="RISKY", risk="high"),
+                _opportunity(id="UNSOURCED", source="unattributed"),
+                _opportunity(id="UNCHECKED", checked="unknown"),
+                _opportunity(id="CLEAN"),
+            ],
+            SOLID,
+            signals_available=4,
+        ).suggestions
+    }
+    assert labelled["RISKY"][0] == market.NEEDS_REVIEW
+    assert "high risk" in labelled["RISKY"][1]
+    assert labelled["UNSOURCED"][0] == market.NEEDS_REVIEW
+    assert labelled["UNCHECKED"][0] == market.NEEDS_REVIEW
+    assert labelled["CLEAN"][0] == "high"
+
+
+def test_thin_cost_history_never_earns_confidence():
+    """A run rate over three days of data is not a run rate."""
+    thin = {
+        "compute": market.ServiceFacts(share_of_tracked_spend=0.5, days_of_history=3)
+    }
+    only = market.derive_suggestions([_opportunity()], thin, signals_available=1)
+    suggestion = only.suggestions[0]
+    assert suggestion.confidence == market.NEEDS_REVIEW
+    assert "3 day(s)" in suggestion.confidence_basis
+    assert str(market.MIN_HISTORY) in suggestion.confidence_basis
+
+
+def test_a_wide_published_band_is_moderate_not_high():
+    """A band whose high end doubles its low is a range, not an estimate."""
+    by_signal = {
+        row.signal: row
+        for row in market.derive_suggestions(
+            [
+                _opportunity(id="WIDE", reduction_min=0.1, reduction_max=0.5),
+                _opportunity(id="TIGHT", reduction_min=0.1, reduction_max=0.15),
+            ],
+            SOLID,
+            signals_available=2,
+        ).suggestions
+    }
+    wide, tight = by_signal["WIDE"], by_signal["TIGHT"]
+    assert tight.confidence == "high"
+    assert wide.confidence == "moderate"
+    assert "double" in wide.confidence_basis
+
+
+def test_medium_risk_or_effort_hedges_the_label():
+    hedged = market.derive_suggestions(
+        [_opportunity(risk="medium", effort="medium")], SOLID, signals_available=1
+    ).suggestions[0]
+    assert hedged.confidence == "moderate"
+    assert "medium risk" in hedged.confidence_basis
+    assert "medium effort" in hedged.confidence_basis
+
+
+def test_an_unknown_service_falls_back_to_needs_review():
+    """No cost record for the service means no confidence, not a flattering one."""
+    orphan = market.derive_suggestions(
+        [_opportunity(service="quantum")], SOLID, signals_available=1
+    ).suggestions[0]
+    assert orphan.confidence == market.NEEDS_REVIEW
+
+
+def test_nothing_applicable_says_so_plainly():
+    """An empty shortlist is a finding, and it must read like one."""
+    empty = market.derive_suggestions([], {}, signals_available=9)
+    assert empty.suggestions == []
+    assert empty.signals_matched == 0
+    assert empty.shortlisted == 0
+    assert "9 bundled signal(s)" in empty.note
+    assert "will not invent" in empty.note
+
+
+def test_shortlist_is_capped_and_deterministic():
+    rows = [
+        _opportunity(id=f"MW-{i:02d}", monthly_saving_mid=float(i)) for i in range(9)
+    ]
+    first = market.derive_suggestions(rows, SOLID, signals_available=9, limit=3)
+    second = market.derive_suggestions(
+        list(reversed(rows)), SOLID, signals_available=9, limit=3
+    )
+
+    assert first.shortlisted == 3
+    assert first.signals_matched == 9, "counts matches, not shortlisted lines"
+    assert [s.signal for s in first.suggestions] == [
+        s.signal for s in second.suggestions
+    ]
+
+
+def test_why_here_quotes_the_estate_not_the_catalogue():
+    """The 'why this estate' sentence must carry the estate's own numbers."""
+    suggestion = market.derive_suggestions(
+        [_opportunity(service_monthly_run_rate=4200.0, share_of_service_spend=0.6)],
+        SOLID,
+        signals_available=1,
+    ).suggestions[0]
+    assert "4,200.00/mo" in suggestion.why_here
+    assert "50% of this estate's tracked spend" in suggestion.why_here  # SOLID share
+    assert "60% of that" in suggestion.why_here  # the catalogue's assumption
+    assert "30 day(s) of cost history" in suggestion.why_here
+
+
+def test_the_operator_floor_narrows_the_shortlist_too():
+    """Raising the 'don't show me pocket change' knob must move both halves."""
+    everything = client.get("/market/opportunities").json()
+    floor = max(o["monthly_saving_high"] for o in everything["opportunities"])
+    filtered = client.get(f"/market/opportunities?min_monthly_saving={floor}").json()
+
+    assert filtered["possible_suggestions"]["shortlisted"] == 1
+    assert (
+        filtered["possible_suggestions"]["shortlisted"]
+        < everything["possible_suggestions"]["shortlisted"]
+    )
+
+
+def test_suggestions_are_free_of_model_generated_text():
+    """Every sentence on a suggestion traces to the catalogue or to arithmetic."""
+    with market.MARKET_DATA_FILE.open() as f:
+        catalogue = {entry["id"]: entry for entry in json.load(f)["opportunities"]}
+    report = client.get("/market/opportunities").json()
+    for suggestion in report["possible_suggestions"]["suggestions"]:
+        entry = catalogue[suggestion["signal"]]
+        assert suggestion["signal_headline"] == entry["headline"]
+        assert suggestion["evidence"] == entry["rationale"]
+        assert suggestion["watch_out"] == entry["watch_out"]
+        assert suggestion["source"] == entry["source"]
+        assert entry["headline"] in suggestion["suggestion"]
+
+
 def test_dashboard_ships_the_market_room():
     """The intel room carries the suggestions table with its provenance badge."""
     page = client.get("/").text
