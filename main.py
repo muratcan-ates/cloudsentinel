@@ -41,6 +41,7 @@ from app.analytics import router as analytics_router
 from app.bus import router as bus_router
 from app.decisions import router as decisions_router
 from app.insights import router as insights_router
+from app.ledger import router as ledger_router
 from app.llm import provider_mode
 from app.logstream import log_tag
 from app.market import router as market_router
@@ -193,6 +194,7 @@ app.include_router(analytics_router)
 app.include_router(decisions_router)
 app.include_router(fraud_router)
 app.include_router(insights_router)
+app.include_router(ledger_router)
 app.include_router(market_router)
 app.include_router(metrics_router)
 app.include_router(ops_router)
