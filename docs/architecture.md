@@ -184,3 +184,13 @@ receives decided incidents instead) and ML-based fraud models. Each is a
 deliberate boundary of this build, not an oversight —
 none is required to demonstrate the product thesis: **the machine
 watches, the human decides.**
+
+## Where to Look Next
+
+| Question | Page |
+|---|---|
+| What does this field mean, in what unit, from where? | [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md) |
+| What do we promise about serving it, and how is that measured? | [`SLO.md`](SLO.md) |
+| What does this build deliberately not do? | [`LIMITATIONS.md`](LIMITATIONS.md) |
+| Why was a locked choice made, and what did it cost? | [`adr/`](adr/README.md) |
+| How is the demo staged, reset and recovered? | [`DEMO_PREFLIGHT.md`](DEMO_PREFLIGHT.md) |
