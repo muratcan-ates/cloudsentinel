@@ -5,6 +5,10 @@ context: plain SQL by service, newest first — deliberately no
 embeddings (locked decision). The Recommender injects these rows into
 its frozen ``decision_memory`` prompt slot so repeated anomaly patterns
 meet an agent that remembers how the humans decided last time.
+
+The ledger's integrity check rides along here (``GET /audit/verify``,
+mounted from ``app.ledger``): the module that publishes the decision
+record is the one that should publish the proof it was not rewritten.
 """
 
 import csv
@@ -16,6 +20,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 
 from app import db
+from app.ledger import router as ledger_router
 from app.models import DecisionListReport, DecisionRecord, DecisionSearchReport
 
 # Leading characters a spreadsheet treats as the start of a formula.
@@ -28,6 +33,7 @@ def _csv_safe(value: str) -> str:
     return f"'{text}" if text.startswith(_CSV_FORMULA_PREFIXES) else text
 
 router = APIRouter(tags=["memory"])
+router.include_router(ledger_router)
 
 
 @router.get(

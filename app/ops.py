@@ -21,7 +21,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app import db
+from app import db, ledger
 from app.models import DemoResetReport
 
 logger = logging.getLogger("cloudsentinel.ops")
@@ -31,8 +31,12 @@ router = APIRouter(prefix="/ops", tags=["ops"])
 DEMO_RESET_ENV = "SENTINEL_DEMO_RESET"
 
 # FK-safe wipe order: action_events and decisions reference actions,
-# actions reference events.
+# actions reference events. The audit chain goes first and goes WITH them:
+# it seals those exact rows, so a chain left standing over a wiped table
+# would report a stage reset as tampering — which is the one thing a
+# tamper-evident ledger must not do.
 CLEARED_TABLES = (
+    "audit_ledger",
     "action_events",
     "decisions",
     "actions",
@@ -97,6 +101,10 @@ def demo_reset(
             status_code=404, detail="demo reset is not enabled on this deployment"
         )
     with db.writing(conn):
+        # The chain builds its own table lazily on first seal, so a
+        # deployment that has never recorded a verdict would answer the
+        # wipe with "no such table: audit_ledger".
+        ledger.ensure_schema(conn)
         for table in CLEARED_TABLES:
             conn.execute(f"DELETE FROM {table}")  # noqa: S608 — fixed table list
         seeded = _seed_decisions(conn) if seed else 0

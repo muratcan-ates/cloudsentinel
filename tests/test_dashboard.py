@@ -43,6 +43,7 @@ def test_dashboard_hidden_from_openapi_schema():
         "/analytics/whatif",
         "/anomalies/{event_id}/analyze",
         "/anomalies/{event_id}/recommend",
+        "/audit/verify",
         "/auth/login",
         "/auth/logout",
         "/auth/me",
