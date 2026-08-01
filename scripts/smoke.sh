@@ -43,6 +43,7 @@ check "inbox lists proposals"          200 GET  /actions
 check "decision ledger export"         200 GET  /decisions/export
 check "analytics funnel"               200 GET  /analytics/decisions
 check "self-finops ledger"             200 GET  /analytics/ai
+check "market watch"                   200 GET  /market/opportunities
 check "api docs (self-hosted)"         200 GET  /docs
 check "unknown action 404s"            404 POST /actions/999999/approve
 echo "--------------------------------------------------------------"

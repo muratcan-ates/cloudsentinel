@@ -16,6 +16,7 @@
    14 · decision desk — cards, state chips, rationale rail
    15 · decision ledger — the audit timeline
    16 · intelligence & handover
+   16b · market watch — standing opportunity rows
    17 · brain room — insights, routines, runbooks, identity
    18 · agent feed — the live right rail
    19 · footer & tour card
@@ -1573,6 +1574,59 @@ button:disabled:hover {
 #handover-print h2 { font-family: "Instrument Serif", serif; font-size: 22px; margin-bottom: 6px; }
 #handover-print ul { margin: 4px 0 10px 18px; }
 #handover-print li { font-size: var(--fs-body); }
+
+/* ---------- 16b · market watch — standing opportunity rows ---------- */
+
+/* Same hairline rhythm as the decision cards: the figure carries the eye,
+   the basis line keeps the arithmetic visible under it. */
+.market-row { padding: 18px 0; }
+.market-row + .market-row { border-top: 1px solid var(--hair); }
+
+.market-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+.market-id {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.market-title { font-size: 14px; font-weight: 500; color: var(--ink); }
+.market-service {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.market-band {
+  font-family: "Instrument Serif", serif;
+  font-size: var(--fs-figure);
+  line-height: 1.2;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  margin-top: 6px;
+}
+.market-band small {
+  font-family: "Inter", sans-serif;
+  font-size: 0.3em;
+  font-weight: 500;
+  letter-spacing: var(--track-caps);
+  color: var(--ink-dim);
+  vertical-align: 18%;
+}
+.market-basis { font-variant-numeric: tabular-nums; }
+.market-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  font-size: var(--fs-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.market-detail { margin-top: var(--sp-2); }
 
 /* ---------- 17 · brain room — history synthesis + self-review ---------- */
 

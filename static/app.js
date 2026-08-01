@@ -1826,6 +1826,72 @@ async function printHandover() {
 }
 
 /* ======================================================================
+   11b · MARKET WATCH — standing opportunities against this estate
+   ====================================================================== */
+
+/* GET /market/opportunities: published market bands costed against the
+   estate's own run rate. Read-only and action-free by design — the operator
+   picks these up, the system never files them. Every row carries the
+   arithmetic it rests on and the source it came from. */
+async function renderMarket() {
+  const host = document.getElementById("market-table");
+  if (!host) return;
+  try {
+    const data = await fetchJson("/market/opportunities");
+    const rows = data.opportunities || [];
+    host.textContent = "";
+    if (!rows.length) {
+      const empty = document.createElement("p");
+      empty.className = "meta";
+      empty.textContent = "no standing opportunity matches this estate";
+      host.appendChild(empty);
+      return;
+    }
+    for (const row of rows) {
+      const entry = document.createElement("article");
+      entry.className = "market-row";
+      entry.innerHTML = `
+        <div class="market-head">
+          <span class="market-id">${escapeHtml(row.id)}</span>
+          <span class="market-title">${escapeHtml(row.headline)}</span>
+          <span class="market-service">${escapeHtml(row.service)}</span>
+        </div>
+        <p class="market-band">${fmtNumber(row.monthly_saving_low)} – ${fmtNumber(
+          row.monthly_saving_high
+        )} <small>${escapeHtml(data.currency)} / mo</small></p>
+        <p class="meta market-basis">${escapeHtml(row.basis)}</p>
+        <p class="meta market-facts"><span>effort ${escapeHtml(
+          row.effort
+        )}</span><span>risk ${escapeHtml(row.risk)}</span><span>${escapeHtml(
+          row.horizon
+        )}</span></p>
+        <details class="transcript market-detail">
+          <summary>why, and what to watch</summary>
+          <p class="body">${escapeHtml(row.rationale)}</p>
+          <p class="meta">watch out — ${escapeHtml(row.watch_out)}</p>
+          <p class="meta">source: ${escapeHtml(row.source)} · checked ${escapeHtml(
+            row.checked
+          )}</p>
+        </details>`;
+      host.appendChild(entry);
+    }
+    const badge = document.getElementById("market-source");
+    if (badge) {
+      badge.textContent = `${data.source} · reviewed ${data.reviewed}`;
+    }
+    const note = document.getElementById("market-note");
+    if (note) {
+      note.textContent =
+        `gross ${fmtNumber(data.gross_monthly_low)} – ${fmtNumber(
+          data.gross_monthly_high
+        )} ${data.currency}/mo across ${data.opportunity_count} moves — ${data.note}`;
+    }
+  } catch {
+    /* quiet: the panel keeps its intro line rather than claiming a number */
+  }
+}
+
+/* ======================================================================
    12 · BRAIN ROOM — insights, routines, runbooks, identity
    ====================================================================== */
 
@@ -2419,7 +2485,7 @@ const VIEW_SECTIONS = {
   watch: ["sec-anomalies", "sec-costs"],
   investigate: ["sec-investigation"],
   decide: ["sec-decisions", "sec-ledger"],
-  intel: ["sec-intelligence"],
+  intel: ["sec-intelligence", "sec-market"],
   brain: ["sec-brain"],
 };
 const ALL_SECTIONS = [...new Set(Object.values(VIEW_SECTIONS).flat())];
@@ -2838,5 +2904,6 @@ renderBrain();
 renderRoutines();
 renderSavedRoutines();
 renderBacktest();
+renderMarket();
 refreshIdentity();
 scan();
