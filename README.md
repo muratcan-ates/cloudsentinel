@@ -88,7 +88,7 @@ CloudSentinel is an agentic decision-support system that monitors cloud cost and
 
 - Anomaly detection on cloud cost data (per-service z-score, live threshold control)
 - **Analyst agent** — triages every anomaly (REAL / SEASONAL / DATA_ERROR / KNOWN_CHANGE) with cited evidence rows and a self-assessed confidence; self-reflects on critical signals
-- **Recommender agent** — proposes exactly two options (cautious / bold) with risk and rollback plans; estimated savings are computed deterministically in Python, never by the model
+- **Recommender agent** — proposes exactly two options (cautious / bold) with risk and rollback plans; savings figures are **scenario estimates** (30-day horizon, cautious/bold capture rates, assumes the excess persists) computed deterministically in Python, never by the model
 - **Debate-lite skeptic** — low-confidence or contested recommendations get one extra adversarial review; the transcript ships with the proposal
 - **Decision memory** — operator verdicts are stored and fed back into the Recommender's context, so repeated anomaly patterns meet an agent that remembers
 - **Human-in-the-loop lifecycle** — `proposed → approved/rejected → executed (simulated)` with idempotent decisions, request-triggered timeouts and a full audit trail; nothing ever executes without a human. Execution of the infrastructure change is simulated by design — and when an operator configures a webhook (`SENTINEL_EXECUTE_WEBHOOK_URL`), the decided incident is **really dispatched** to their endpoint and the delivery outcome lands in the audit detail
@@ -167,7 +167,7 @@ reason about it, and nothing touches infrastructure without a human hand:
 
 ```mermaid
 flowchart LR
-    CLOUD[("☁️ cloud cost &amp; security data<br/>mock today · live adapters in Sprint 3")] --> DET
+    CLOUD[("☁️ cloud cost &amp; security data<br/>bundled fixtures by default · env-gated live lanes:<br/>self-telemetry / billing CSV import / external JSON feeds")] --> DET
 
     subgraph deterministic core
         DET["Detector<br/>z-score per service"]
@@ -225,7 +225,7 @@ cloudsentinel/
 ├── configs/              mission YAMLs — finops, security, fraud
 ├── static/               dashboard — tokenized design system, 4 palettes, vendored Swagger UI
 ├── scripts/              smoke test, failure drill, detection benchmark, Gemini spike
-├── tests/                542 pytest cases incl. performance budgets
+├── tests/                545 pytest cases incl. performance budgets
 ├── docs/                 architecture & agent design
 ├── Makefile              setup / run / test / demo / smoke / drill
 └── ProjectManagement/    sprint evidence packs (boards, screenshots)
@@ -321,7 +321,7 @@ One deploy target, two honest postures — pick one per link, don't mix:
 | **Python 3.12** | Core language (pinned in venv, CI and Docker) |
 | **FastAPI + Uvicorn** | REST API and ASGI server |
 | **Pydantic v2** | Typed request/response models and validation |
-| **pytest + httpx** | Automated test suite (542 tests, incl. performance budgets) |
+| **pytest + httpx** | Automated test suite (545 tests, incl. performance budgets) |
 | **SQLite** (stdlib `sqlite3`) | WAL-mode persistence core: action lifecycle, decision memory, LLM cache, idempotency |
 | **Docker** | Containerized, deployment-ready packaging |
 | **Gemini** (`google-genai`) | LLM provider layer with quota-aware retry and rule-based fallback |
@@ -588,7 +588,7 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Remaining scope** (headline items — the backlog holds the detail):
   - **Live Gemini spike** — provision the billing-disabled key and measure real RPM/RPD with `scripts/spike_gemini.py`; the whole chain already runs on the deterministic provider, so this lights up narratives, not correctness.
-  - **Continuous integration** — ✅ landed at Sprint 2 close: [`ci.yml`](.github/workflows/ci.yml) runs ruff + the full suite (542 tests) on every push and PR; Sprint 3 grows it with browser E2E and a post-deploy smoke.
+  - **Continuous integration** — ✅ landed at Sprint 2 close: [`ci.yml`](.github/workflows/ci.yml) runs ruff + the full suite (545 tests) on every push and PR; Sprint 3 grows it with browser E2E and a post-deploy smoke.
   - **Deployment** — Render (`render.yaml` ready, non-root healthchecked image) with UptimeRobot on `/health` and `SENTINEL_READONLY=1` on the public link; the dashboard's LIVE banner switches on via `SENTINEL_ENV=render`.
   - **Live-data trial & market watch** — a credential-free real billing export through the source-agnostic loader, and the trend/news-driven "possible suggestions" table.
   - **User's-eye UX pass** — friction measured from the operator's seat; the four-palette switcher shipped with horizon as the default; EN/TR overview kept in sync ([Türkçe özet](docs/README.tr.md)).

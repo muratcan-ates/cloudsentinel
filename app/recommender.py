@@ -167,7 +167,13 @@ class RecommenderReport(BaseModel):
 
 
 def estimated_savings(anomaly: dict) -> dict:
-    """Deterministic projection — the only source of money figures."""
+    """Deterministic scenario projection — the only source of money figures.
+
+    A scenario estimate, not a forecast: it assumes the anomaly's daily
+    excess persists over the horizon and a capture factor of it is
+    contained. The method string says so, so no surface can quietly
+    present the figure as guaranteed financial gain.
+    """
     excess = max(
         0.0,
         float(anomaly.get("cost", 0.0)) - float(anomaly.get("service_mean", 0.0)),
@@ -179,8 +185,9 @@ def estimated_savings(anomaly: dict) -> dict:
         "method": (
             # "baseline", not "mean": under the MAD detector this figure is a
             # median, and the money math must describe itself honestly.
-            f"deviation projection: (cost - service baseline) x {PROJECTION_DAYS} days "
-            f"x containment factor ({CAUTIOUS_CONTAINMENT} cautious / {BOLD_CONTAINMENT} bold)"
+            f"scenario estimate (assumes the excess persists): "
+            f"(cost - service baseline) x {PROJECTION_DAYS} days "
+            f"x capture factor ({CAUTIOUS_CONTAINMENT} cautious / {BOLD_CONTAINMENT} bold)"
         ),
     }
 
