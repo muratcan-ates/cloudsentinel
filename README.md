@@ -105,7 +105,7 @@ CloudSentinel is an agentic decision-support system that monitors cloud cost and
 - **Shift-handover brief** (`GET /analytics/handover`) — the standing operator questions answered from persisted state, printable to one page; a **guided jury tour** (`?tour=1`) walks the rooms in reading order
 - **Fully self-contained** — every font is self-hosted (`static/fonts/`) and Swagger is vendored, so the CSP allows no remote host on any path; shareable deep links (`?threshold=&service=`) open on the exact scene, and a `[BOOT]` manifest names each instance on startup
 - **Live tape, simulated** — `SENTINEL_SIM_STREAM=1` (on in `make demo`) adds a trading-floor ticker to the watch room: per-service run-rates on a mean-reverting random walk with occasional spikes, sparklines refreshing every 2.5 s. Synthetic by construction and labeled as such on the strip and in the payload (`simulated: true`) — no billing data, no credentials, and the strip never appears on deployments without the flag. With `SENTINEL_COSTS_SOURCE=sim` (`make demo-sim`) the same stream also **drives the cost lane end to end**: the demo estate's own history — planted spikes and all — brought up to today, with TODAY projected live from the run-rate onto each service's own historical spread. A calm day stays quiet and a genuine excursion is flagged at a credible z-score (measured: the calm lane crosses the threshold under 5% of the time, a doubling reads z ~ 2.8), the trend chart carries a breathing marker on today's point, and the badge reads `SIMULATED LIVE` — never plain "live data"
-- REST API (FastAPI, 51 endpoints) with self-hosted Swagger documentation (no CDN); a `/health` liveness ping and a `/ready` readiness probe (database, mission config and dataset) for deploy/uptime gating
+- REST API (FastAPI, 57 endpoints) with self-hosted Swagger documentation (no CDN); a `/health` liveness ping and a `/ready` readiness probe (database, mission config and dataset) for deploy/uptime gating
 - **Live data modes, env-gated** — the bundled datasets are the default (hermetic tests, reproducible demo), and each lane can go live: `SENTINEL_COSTS_SOURCE=self` runs the cost lane over the app's **own request telemetry** (`GET /telemetry/usage` — real traffic, accumulating while the server runs, `make demo-live`); `SENTINEL_COSTS_FILE` serves a **real billing export** converted credential-free by `scripts/import_costs.py` (Azure Cost Management / AWS CUR CSV headers recognized); and `SENTINEL_COSTS_FEED_URL` / `SENTINEL_SECURITY_FEED_URL` / `SENTINEL_FRAUD_FEED_URL` poll external JSON feeds in the exact mock contract (TTL-cached, malformed records dropped, failures fall back feed → last good payload → fixture); `/health` names each lane's source **as served, not as configured** and the dashboard's data badge renders it honestly — the statistical organs still demand real accumulated history before they score a live lane (no fabricated days)
 - Demo operations, all env-gated: whole-week date rebase, demo reset with seeded verdict history, read-only public showcase mode; a borderline signal makes the sensitivity slider meaningful (lower it, a third warning surfaces)
 - **Decision brain** (`GET /insights`) — reflects on persisted history into observations, a run-rate cost projection and improvement recommendations, all computed not generated; a **self-review cycle** (`POST /insights/self-review`) proposes changes to the system itself (reflex candidates, threshold reviews, calibration, backlog) and applies nothing, publishing the cycle to the agent feed
@@ -229,7 +229,7 @@ cloudsentinel/
 ├── configs/              mission YAMLs — finops, security, fraud
 ├── static/               dashboard — tokenized design system, 4 palettes, vendored Swagger UI
 ├── scripts/              smoke test, failure drill, detection benchmark, Gemini spike
-├── tests/                580 pytest cases incl. performance budgets
+├── tests/                1160 pytest cases incl. performance budgets
 ├── docs/                 architecture & agent design
 ├── Makefile              setup / run / test / demo / smoke / drill
 └── ProjectManagement/    sprint evidence packs (boards, screenshots)
@@ -325,7 +325,7 @@ One deploy target, two honest postures — pick one per link, don't mix:
 | **Python 3.12** | Core language (pinned in venv, CI and Docker) |
 | **FastAPI + Uvicorn** | REST API and ASGI server |
 | **Pydantic v2** | Typed request/response models and validation |
-| **pytest + httpx** | Automated test suite (580 tests, incl. performance budgets) — **95% line coverage** over `app/` + `main.py` (`make coverage`) |
+| **pytest + httpx** | Automated test suite (1160 tests, incl. performance budgets) — **96% line coverage** over `app/` + `main.py` (`make coverage`) |
 | **Hypothesis** | Property-based tests: generated NaN / duplicate / extreme / reversed-window inputs against the detector |
 | **bandit + pip-audit** | The security product scans its own source and its own dependencies (`make audit`); both gate CI |
 | **SQLite** (stdlib `sqlite3`) | WAL-mode persistence core: action lifecycle, decision memory, LLM cache, idempotency |
