@@ -1,8 +1,9 @@
 # Render Blueprint — CloudSentinel (competition deployment, locked plan).
 # Free web service; the disk is ephemeral by design: the schema rebuilds on
-# every boot (seed-on-startup) and scans are request-triggered, so nothing
-# depends on persistence between deploys. Keep the service awake with an
-# external UptimeRobot monitor pointed at /health.
+# every boot (seed-on-startup), and the watchdog below refills the decision
+# rooms so a restart never greets a visitor with an empty desk. The service
+# is kept awake by the repo's own CI keepalive workflow pinging /health —
+# no third-party uptime monitor is used.
 services:
   - type: web
     name: cloudsentinel
@@ -26,7 +27,22 @@ services:
       # the jury link; drop only on a private instance.
       - key: SENTINEL_READONLY
         value: "1"
+      # The standing watch. WITHOUT this the deployed instance never runs a
+      # pulse, so the decision desk, the ledger and the intelligence room
+      # stay empty for every visitor — the read-only guard blocks the only
+      # other way to populate them. The watchdog is exempt from that guard
+      # by design (the system's own heartbeat, not a stranger's write), and
+      # a cold database is filled a few seconds after boot rather than one
+      # interval later, so a woken free instance is never shown empty.
+      - key: SENTINEL_WATCH_INTERVAL_SECONDS
+        value: "1800"
       # The live-data knobs (SENTINEL_COSTS_SOURCE=self, SENTINEL_COSTS_FILE,
       # SENTINEL_*_FEED_URL) stay unset here on purpose: the public demo
       # serves the reproducible fixture; a fresh ephemeral deploy has no
       # accumulated telemetry history to show.
+      # Optional showcase knobs, deliberately left off — set them in the
+      # dashboard to turn the public link into a moving demo:
+      #   SENTINEL_SIM_STREAM=1        the simulated live tape (read-only,
+      #                                in-process, costs nothing)
+      #   SENTINEL_COSTS_SOURCE=sim    the tape also drives the cost lane;
+      #                                the badge then reads "SIMULATED LIVE"

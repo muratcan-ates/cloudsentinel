@@ -11,6 +11,9 @@ Acceptance criteria:
 - the lifespan starts the thread when configured and stops it on exit.
 """
 
+import sqlite3
+import time
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -96,3 +99,51 @@ def test_lifespan_starts_and_stops_the_thread_when_configured(monkeypatch):
 
 def test_lifespan_leaves_the_watch_off_when_unconfigured(client):
     assert client.app.state.watchdog is None
+
+
+# --- the warm-up beat (a cold vitrine must not stay empty) -------------------
+
+
+def test_cold_vitrine_beats_once_before_the_first_interval(client, monkeypatch):
+    """A fresh instance fills its decision desk within seconds of boot.
+
+    On an ephemeral deploy disk every restart wipes the database; waiting
+    a whole interval would show the first visitor an empty desk.
+    """
+    monkeypatch.setattr("app.watchdog.WARMUP_DELAY_SECONDS", 0.01)
+    watchdog = Watchdog(interval=3600)  # far longer than this test will wait
+    assert watchdog._vitrine_is_cold() is True
+    watchdog.start()
+    try:
+        deadline = time.monotonic() + 10
+        while watchdog.ticks == 0 and time.monotonic() < deadline:
+            time.sleep(0.05)
+    finally:
+        watchdog.stop()
+    assert watchdog.ticks == 1, "the cold vitrine must beat once, and only once"
+    assert client.get("/actions").json()["actions"], "the desk is populated"
+
+
+def test_a_warm_vitrine_keeps_the_wait_first_cadence(client, monkeypatch):
+    """A database that already holds a pulse waits for its next beat —
+    no duplicate work on a restart with a persistent disk."""
+    monkeypatch.setattr("app.watchdog.WARMUP_DELAY_SECONDS", 0.01)
+    assert Watchdog(interval=3600).tick() is True  # this one warms it
+    watchdog = Watchdog(interval=3600)
+    assert watchdog._vitrine_is_cold() is False
+    watchdog.start()
+    try:
+        time.sleep(0.3)  # well past the warm-up delay, far short of the interval
+    finally:
+        watchdog.stop()
+    assert watchdog.ticks == 0, "a warm vitrine must not beat early"
+
+
+def test_warmup_check_survives_a_broken_database(monkeypatch):
+    """The watch survives its own bad days: a failed check is not cold."""
+
+    def explode(*args, **kwargs):
+        raise sqlite3.OperationalError("disk is on fire")
+
+    monkeypatch.setattr("app.db.connect_ready", explode)
+    assert Watchdog(interval=3600)._vitrine_is_cold() is False

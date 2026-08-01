@@ -32,6 +32,11 @@ logger = logging.getLogger("cloudsentinel.watchdog")
 
 WATCH_ENV = "SENTINEL_WATCH_INTERVAL_SECONDS"
 MIN_INTERVAL_SECONDS = 30.0  # a hot loop must not eat the LLM quota or the CPU
+# A cold vitrine beats once shortly after boot instead of waiting a whole
+# interval. Long enough to let startup and the platform's first healthcheck
+# settle, short enough that a visitor arriving on a fresh instance still
+# meets a populated decision desk.
+WARMUP_DELAY_SECONDS = 3.0
 
 
 def watch_interval() -> float | None:
@@ -84,8 +89,32 @@ class Watchdog:
             self._thread.join(timeout=5)
         log_tag(logger, "[WATCHDOG]", state="stopped", ticks=self.ticks)
 
+    def _vitrine_is_cold(self) -> bool:
+        """True when this database has never seen a pulse.
+
+        An ephemeral deploy disk starts empty after every restart, so
+        "cold" is the normal state of a free-tier instance that just woke
+        up — not an error.
+        """
+        conn = None
+        try:
+            conn = db.connect_ready()
+            return conn.execute("SELECT 1 FROM pulse_log LIMIT 1").fetchone() is None
+        except Exception as error:  # a failed check must not kill the watch
+            logger.warning("watchdog warm-up check failed: %s", error)
+            return False
+        finally:
+            if conn is not None:
+                conn.close()
+
     def _loop(self) -> None:
-        # wait-first: boot stays fast, the first beat lands one interval in
+        # A cold vitrine fills itself right away: on an ephemeral disk every
+        # restart wipes the database, and waiting a full interval would show
+        # the first visitor an empty decision desk. A warm one keeps the
+        # original wait-first cadence — boot stays fast, no duplicate beat.
+        if self._vitrine_is_cold() and not self._stop.wait(WARMUP_DELAY_SECONDS):
+            log_tag(logger, "[WATCHDOG]", state="warmup", reason="cold vitrine")
+            self.tick()
         while not self._stop.wait(self.interval):
             self.tick()
 
