@@ -43,6 +43,7 @@ from app.decisions import router as decisions_router
 from app.insights import router as insights_router
 from app.llm import provider_mode
 from app.logstream import log_tag
+from app.market import router as market_router
 from app.missions import MissionError, get_mission
 from app.ops import router as ops_router
 from app.pulse import router as pulse_router
@@ -178,6 +179,7 @@ app.include_router(analytics_router)
 app.include_router(decisions_router)
 app.include_router(fraud_router)
 app.include_router(insights_router)
+app.include_router(market_router)
 app.include_router(metrics_router)
 app.include_router(ops_router)
 app.include_router(reflex_router)

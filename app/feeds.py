@@ -366,6 +366,16 @@ def read_costs_file() -> dict:
     return payload
 
 
+def fetch_json_feed(name: str, url: str, validate) -> dict:
+    """Cached, single-flight fetch for lanes that own their own contract.
+
+    The three data lanes above validate here; the market catalogue keeps its
+    schema in app/market.py and borrows only the caching and fallback
+    discipline.
+    """
+    return _fetch(name, url, validate)
+
+
 def fetch_costs_feed() -> dict:
     return _fetch("costs", os.environ[COSTS_FEED_ENV].strip(), _validate_costs)
 

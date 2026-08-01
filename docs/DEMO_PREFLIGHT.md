@@ -37,7 +37,7 @@ memory and intelligence panels are never empty on camera.
 ## Verification sweep (second shell)
 
 ```bash
-make smoke                   # 13-step PASS/FAIL against the live server
+make smoke                   # 14-step PASS/FAIL against the live server
 ```
 
 ## Public link (Render) — warm-up
