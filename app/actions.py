@@ -32,8 +32,9 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Resp
 from app import bus, db, dispatch, history
 from app.auth import UserOut, enforce_decision_auth, optional_user
 from app.enrichment import (
+    attack_technique,
     blast_radius_tier,
-    framework_reference,
+    finops_capability,
     verification_plan,
 )
 from app.logstream import log_tag
@@ -44,6 +45,7 @@ from app.models import (
     ActionListReport,
     ActionRecord,
     ActionState,
+    FrameworkTag,
 )
 
 logger = logging.getLogger("cloudsentinel.actions")
@@ -307,6 +309,22 @@ def _expires_in_hours(row: sqlite3.Row) -> float | None:
     return round(ttl - age_hours, 1)
 
 
+def _framework_tag(detail: dict) -> FrameworkTag | None:
+    """The industry reference for a card, read off the category it carries.
+
+    Every filing site stamps a category — the cost lane's four, the fraud
+    lane's FRAUD_REVIEW, the budget guard's BUDGET_GUARD — so one lookup
+    covers all of them. A card from before categories existed gets None
+    rather than a guessed reference.
+    """
+    category = detail.get("category")
+    if not isinstance(category, str) or not category:
+        return None
+    if category.strip().upper() == "FRAUD_REVIEW":
+        return attack_technique(fraud=True)
+    return finops_capability(category)
+
+
 def _to_record(
     row: sqlite3.Row, trail: list[ActionHistoryEntry] | None = None
 ) -> ActionRecord:
@@ -325,6 +343,7 @@ def _to_record(
         # Lifted out of detail so the inbox can badge "3 repeats folded in"
         # without every reader having to know the detail schema.
         suppressed_count=suppressed_count(detail if isinstance(detail, dict) else {}),
+        framework=_framework_tag(detail if isinstance(detail, dict) else {}),
         history=trail or [],
     )
 
@@ -709,12 +728,17 @@ def _render_report(
             "",
         ]
         tier = blast_radius_tier(anomaly.get("z_score", 0.0))
-        framework = framework_reference(event_kind or "cost_anomaly")
+        framework = _framework_tag(detail) or (
+            attack_technique(anomaly.get("service"))
+            if event_kind and ("security" in event_kind or "fraud" in event_kind)
+            else finops_capability(None)
+        )
         lines += [
             "## Triage",
             "",
             f"- Blast radius: **{tier}**",
-            f"- Framework: {framework['framework']} — {framework['reference']}",
+            f"- Framework: {framework.framework} — {framework.reference}",
+            f"- Reference: {framework.url}",
             "",
         ]
         matches = match_runbooks(

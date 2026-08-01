@@ -6,6 +6,8 @@ persists its own event kind with stable ids, and never reaches the
 cost-scoped LLM agents.
 """
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -94,3 +96,29 @@ def test_pulse_sweeps_the_security_lane(client):
     finally:
         conn.close()
     assert count == 2
+
+
+def test_every_signal_carries_its_attack_technique(client):
+    """The lane speaks ATT&CK: a table lookup, identical on every scan."""
+    signals = client.get("/security/signals").json()["signals"]
+    assert signals
+    by_service = {signal["service"]: signal["framework"] for signal in signals}
+    assert by_service["auth-gateway"]["id"] == "T1110"
+    assert by_service["admin-portal"]["id"] == "T1078.004"
+    for tag in by_service.values():
+        assert tag["framework"] == "MITRE ATT&CK"
+        assert tag["url"].startswith("https://attack.mitre.org/techniques/")
+
+
+def test_the_technique_survives_persistence(client):
+    """The tag rides the persisted payload, not just the response."""
+    client.get("/security/signals")
+    conn = db.connect()
+    try:
+        row = conn.execute(
+            "SELECT payload_json FROM events WHERE kind = 'security_anomaly' "
+            "AND service = 'admin-portal' LIMIT 1"
+        ).fetchone()
+    finally:
+        conn.close()
+    assert json.loads(row["payload_json"])["framework"]["id"] == "T1078.004"

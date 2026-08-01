@@ -177,6 +177,22 @@ class SavingsReport(BaseModel):
     method: str
 
 
+class FrameworkTag(BaseModel):
+    """A recognized industry reference for one finding — looked up, not generated.
+
+    ``id`` carries the ATT&CK technique id; the FinOps Framework names
+    capabilities rather than numbering them, so that side leaves it None.
+    ``domain`` is the ATT&CK tactic or the FinOps domain, whichever applies.
+    """
+
+    framework: Literal["MITRE ATT&CK", "FinOps Framework"]
+    id: str | None = None
+    name: str
+    domain: str
+    url: str
+    reference: str
+
+
 class RecommendationResponse(BaseModel):
     event_id: int
     action_id: int
@@ -240,6 +256,9 @@ class ActionRecord(BaseModel):
     # Repeat signals folded into this card by alert suppression instead of
     # opening competing cards; 0 for a card that has absorbed none.
     suppressed_count: int = 0
+    # Which industry framework this card's category maps to — a table
+    # lookup, so the same card always reads the same way.
+    framework: FrameworkTag | None = None
     # Append-only lifecycle trail; empty for cards filed before it shipped.
     history: list[ActionHistoryEntry] = []
 
@@ -392,6 +411,9 @@ class SecuritySignal(BaseModel):
     z_score: float
     severity: Literal["critical", "warning"]
     detector: str
+    # Deterministic ATT&CK reference for the watched surface; optional so a
+    # signal persisted before the mapping shipped still validates on replay.
+    framework: FrameworkTag | None = None
 
 
 class SecuritySignalReport(BaseModel):
@@ -424,6 +446,9 @@ class FraudSignal(BaseModel):
     # Structured audit of the score: every point is attributable to a
     # published rule — the sum of hits IS the score (clamped at 100).
     rule_hits: list[FraudRuleHit] = Field(default_factory=list)
+    # Deterministic ATT&CK reference; optional so signals persisted before
+    # the mapping shipped still validate when they are replayed.
+    framework: FrameworkTag | None = None
 
 
 class FraudSignalReport(BaseModel):

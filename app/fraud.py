@@ -38,6 +38,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app import bus, db, feeds, history
 from app.detection import shift_iso, demo_rebase_delta
+from app.enrichment import attack_technique
 from app.logstream import log_tag
 from app.missions import MissionError, get_mission
 from app.models import FraudRuleHit, FraudSignal, FraudSignalReport
@@ -186,6 +187,9 @@ def score_events() -> list[FraudSignal]:
                 band=band_for(score, hold_band, review_band),
                 reasons=[hit.detail for hit in hits],
                 rule_hits=hits,
+                # Same deterministic table the security lane uses; the
+                # fraud surface maps to ATT&CK's Impact tactic.
+                framework=attack_technique(fraud=True),
             )
         )
     signals.sort(key=lambda signal: signal.score, reverse=True)

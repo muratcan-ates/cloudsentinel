@@ -181,3 +181,11 @@ def test_pulse_sweeps_the_fraud_lane(client):
     finally:
         conn.close()
     assert rows == 3
+
+
+def test_fraud_signals_carry_the_impact_technique(client):
+    signals = client.get("/fraud/signals").json()["signals"]
+    assert signals
+    for signal in signals:
+        assert signal["framework"]["id"] == "T1657"
+        assert signal["framework"]["domain"] == "Impact"

@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app import db, feeds
 from app.detection import DEFAULT_THRESHOLD, shift_iso, demo_rebase_delta, run_detection
+from app.enrichment import attack_technique
 from app.logstream import log_tag
 from app.missions import MissionError, get_mission
 from app.models import SecuritySignal, SecuritySignalReport
@@ -122,6 +123,10 @@ def scan_security(threshold: float | None = None) -> SecuritySignalReport:
             z_score=anomaly.z_score,
             severity=anomaly.severity,
             detector=anomaly.detector,
+            # Table lookup, never a model call: the same surface always
+            # maps to the same technique, so an analyst who speaks ATT&CK
+            # reads our finding without translating it first.
+            framework=attack_technique(anomaly.service),
         )
         for anomaly in run.anomalies
     ]
