@@ -69,3 +69,29 @@ deterministic arithmetic, not ML. Each boundary keeps the build honest and
 demoable; the road out of them is section B of
 [docs/sprint3_backlog.md](docs/sprint3_backlog.md), and the closeout plan is
 [docs/CLOSEOUT_48H.md](docs/CLOSEOUT_48H.md).
+
+Four of those boundaries were moved deliberately rather than quietly, and
+each moved only as far as it could be defended:
+
+- **The audit trail stops asking to be believed.** Every decision and
+  lifecycle transition is sealed with the hash of the one before it, and
+  `GET /audit/verify` walks the chain and names the first broken link.
+  The ledger still lives on the ephemeral disk — the chain proves the
+  history was not rewritten, it does not make the history survive a
+  restart. That remains Postgres's job.
+- **The safety knobs are audited at boot.** Read-only mode, the approver
+  requirement, the provider choice and the outbound escape hatch are all
+  environment variables that default to off, which is right for a laptop
+  and silent everywhere else. Under `SENTINEL_ENV=production` a demo
+  posture now refuses to boot; every other profile, this deployment
+  included, is unchanged and only logs its findings.
+- **Outbound targets are checked before the socket opens.** The feed and
+  webhook URLs are configuration rather than user input today, but an
+  unguarded fetch is a server-side request forgery waiting for the day
+  they are not: https only, no loopback, private or link-local
+  destination, and no redirect-following into one.
+- **Execution is still simulated; delivery is not.** Approving an action
+  mutates nothing in any cloud. What genuinely leaves the building is the
+  incident record itself, to an operator-configured webhook, after the
+  transaction commits — the honest half of an integration rather than a
+  claimed one.
