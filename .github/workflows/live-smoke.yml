@@ -1,0 +1,34 @@
+# The 14-step smoke sweep against the LIVE deploy — scheduled observability
+# with zero new services: the repo's own runner curls the public link and
+# fails loudly when the live product regresses. Also hand-triggerable for
+# post-deploy verification.
+name: live-smoke
+
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Base URL to smoke (defaults to the Render deploy)"
+        required: false
+        default: "https://cloudsentinel.onrender.com"
+
+env:
+  LIVE_URL: ${{ inputs.base_url || 'https://cloudsentinel.onrender.com' }}
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: warm the free tier first (cold start ~46s)
+        run: curl -s -o /dev/null --max-time 90 "$LIVE_URL/health" || true
+      - name: identity check — this must be OUR app, not a squatter
+        run: |
+          title=$(curl -s --max-time 90 "$LIVE_URL/openapi.json" | python3 -c "import json,sys; print(json.load(sys.stdin).get('info',{}).get('title',''))" || echo "")
+          echo "openapi title: $title"
+          test "$title" = "CloudSentinel API"
+      - name: 14-step smoke sweep
+        run: bash scripts/smoke.sh "$LIVE_URL"
