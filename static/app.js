@@ -3127,7 +3127,11 @@ try {
   /* storage can be unavailable (private mode) — the default carries */
 }
 applyTheme(
-  THEMES.includes(themeParam) ? themeParam : THEMES.includes(storedTheme) ? storedTheme : "horizon"
+  // vivid is the default: the product is a control surface before it is a
+  // broadsheet, and the light card palette is the one that says so on first
+  // paint. ?theme= still wins for a review link, and the four editorial
+  // palettes are one click away in the colophon — nothing was removed.
+  THEMES.includes(themeParam) ? themeParam : THEMES.includes(storedTheme) ? storedTheme : "vivid"
 );
 
 /* ---------- motion: the two switches and the tab's own attention ----------
