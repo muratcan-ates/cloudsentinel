@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Response
 
-from app import bus, db
+from app import bus, db, dispatch
 from app.auth import UserOut, optional_user
 from app.enrichment import (
     blast_radius_tier,
@@ -369,6 +369,13 @@ def execute_action(
     log_tag(
         logger, "[HITL]", action_id=action_id, transition="executed", mode="SIMULATION"
     )
+    # Opt-in real-world side effect, strictly AFTER the commit (db.py's
+    # locked rule: no network inside an open transaction). Replayed
+    # executions return above and never re-fire the webhook; a failed
+    # delivery never fails the execute — see app/dispatch.py.
+    dispatch.dispatch_execution(
+        conn, record, lambda: _compose_report(conn, action_id) or ""
+    )
     return record
 
 
@@ -500,6 +507,29 @@ def _render_report(
     return "\n".join(lines)
 
 
+def _compose_report(conn: sqlite3.Connection, action_id: int) -> str | None:
+    """Load one action and render its incident report; None when it is gone.
+
+    The single report-building path: the download endpoint serves it and
+    the webhook dispatch ships it, so both always tell the same story.
+    """
+    row = conn.execute("SELECT * FROM actions WHERE id = ?", (action_id,)).fetchone()
+    if row is None:
+        return None
+    decision = conn.execute(
+        "SELECT verdict, rationale, created_at FROM decisions "
+        "WHERE action_id = ? ORDER BY id DESC LIMIT 1",
+        (action_id,),
+    ).fetchone()
+    event_kind = None
+    if row["event_id"] is not None:
+        event = conn.execute(
+            "SELECT kind FROM events WHERE id = ?", (row["event_id"],)
+        ).fetchone()
+        event_kind = event["kind"] if event else None
+    return _render_report(_to_record(row), decision, event_kind)
+
+
 @router.get(
     "/{action_id}/report",
     responses={404: {"description": "No action with this id exists."}},
@@ -514,23 +544,11 @@ def action_report(
     savings, the human decision and rationale, and the (simulated) execution
     marker into one downloadable document. No state is mutated.
     """
-    row = conn.execute("SELECT * FROM actions WHERE id = ?", (action_id,)).fetchone()
-    if row is None:
+    markdown = _compose_report(conn, action_id)
+    if markdown is None:
         raise HTTPException(
             status_code=404, detail=f"action {action_id} does not exist"
         )
-    decision = conn.execute(
-        "SELECT verdict, rationale, created_at FROM decisions "
-        "WHERE action_id = ? ORDER BY id DESC LIMIT 1",
-        (action_id,),
-    ).fetchone()
-    event_kind = None
-    if row["event_id"] is not None:
-        event = conn.execute(
-            "SELECT kind FROM events WHERE id = ?", (row["event_id"],)
-        ).fetchone()
-        event_kind = event["kind"] if event else None
-    markdown = _render_report(_to_record(row), decision, event_kind)
     filename = f"cloudsentinel-incident-{action_id}.md"
     return Response(
         content=markdown,

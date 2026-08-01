@@ -91,7 +91,7 @@ CloudSentinel is an agentic decision-support system that monitors cloud cost and
 - **Recommender agent** — proposes exactly two options (cautious / bold) with risk and rollback plans; estimated savings are computed deterministically in Python, never by the model
 - **Debate-lite skeptic** — low-confidence or contested recommendations get one extra adversarial review; the transcript ships with the proposal
 - **Decision memory** — operator verdicts are stored and fed back into the Recommender's context, so repeated anomaly patterns meet an agent that remembers
-- **Human-in-the-loop lifecycle** — `proposed → approved/rejected → executed (simulated)` with idempotent decisions, request-triggered timeouts and a full audit trail; nothing ever executes without a human
+- **Human-in-the-loop lifecycle** — `proposed → approved/rejected → executed (simulated)` with idempotent decisions, request-triggered timeouts and a full audit trail; nothing ever executes without a human. Execution of the infrastructure change is simulated by design — and when an operator configures a webhook (`SENTINEL_EXECUTE_WEBHOOK_URL`), the decided incident is **really dispatched** to their endpoint and the delivery outcome lands in the audit detail
 - **Pulse + Chronicler** — one call drives the whole chain (detect → analyze → debate → recommend → inbox) with a tagged JSON log stream; a chronicler agent narrates every run into an operator briefing, and the last run survives reloads (`GET /pulse/last`)
 - **Agent trace** — every proposal persists a hop-by-hop record of how the chain actually ran (source, model, measured duration, reflection/skeptic outcome, memory recalled) and shows it on the card
 - **Agent bus + live feed** — every inter-agent hop (pickup, handoff, skeptic challenge and verdict, briefing, operator decision) publishes to a persisted feed; the dashboard's side panel streams the conversation live, and `GET /agents` names the six-agent team with roles, triggers and guardrails
@@ -123,7 +123,7 @@ The whole contract on one table — the right column is design, not backlog:
 |---|---|
 | Detects cost & security anomalies over a rolling baseline (z-score / MAD, weekly seasonality, min-history discipline) | Connect to real cloud providers — synthetic data by design; the detection pipeline is source-agnostic |
 | Reasons about every cost signal with AI agents: evidence-cited triage, two remediation options with risk + rollback, adversarial review of contested calls | Let a model invent numbers — every figure the operator acts on is deterministic Python arithmetic, post-checked ±5% against the narrative |
-| Files proposals into a human decision inbox with rationale + actor capture and a full audit trail | Execute anything on real infrastructure — execution is simulated by design, and nothing runs unapproved |
+| Files proposals into a human decision inbox with rationale + actor capture and a full audit trail; a decided incident can be **really dispatched** to an operator-configured webhook, delivery recorded in the audit detail | Execute anything on real infrastructure — the infrastructure mutation is simulated by design, and nothing runs unapproved |
 | Scores payment events with published, hand-reproducible rules (per-rule point attribution) — an experimental lane showing the governance rails generalize past cost & security | Run ML fraud models, auto-block payments, hide the scoring arithmetic, or present fraud as the core product |
 | Remembers operator verdicts and feeds them back into future recommendations, disclosing how many were considered | Learn silently — memory use is visible on the card, and the chain's execution is traced hop by hop |
 | Accounts for its own AI spend (call ledger, cache hits, fallbacks, quota view) under a per-run call budget | Burn quota unbounded, retry forever, or fail when the LLM is unavailable — every agent degrades to a labeled rule-based fallback |
@@ -583,7 +583,7 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 2. **Tune the watch** — drag the sensitivity slider or pick a service; section I re-scans live. Prefer the dark room? Flip the palette to **night** in the control rail — the choice persists.
 3. **Investigate** — hit *investigate →* on a signal: evidence sparkline, baseline, deviation, then *run analyst agent →* for triage with cited rows.
 4. **Watch them talk** — open the **agent feed** rail (bottom right): every hop of the chain — pickups, handoffs, skeptic challenges, verdicts, briefings — streams in live as it happens.
-5. **Decide** — *file recommendation →*, type a rationale, then approve or reject in the inbox. Execution is always a simulation, and the ledger remembers every hand that touched it.
+5. **Decide** — *file recommendation →*, type a rationale, then approve or reject in the inbox. Execution of the infrastructure change is always a simulation — though with `SENTINEL_EXECUTE_WEBHOOK_URL` set, the decided incident report really ships to your webhook — and the ledger remembers every hand that touched it.
 
 # In Short
 

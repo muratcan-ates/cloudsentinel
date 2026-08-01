@@ -99,6 +99,13 @@ Analyst's critical-severity second pass, not a separate roster entry.
   lands in the `ai_usage` ledger that `/analytics/ai` accounts for (calls,
   cache hits, fallbacks and free-tier quota usage — no monetary pricing, the
   project runs zero-cost by construction).
+- **Real dispatch, simulated mutation** — executing an approved action can
+  really deliver the incident report to an operator-configured webhook
+  (`SENTINEL_EXECUTE_WEBHOOK_URL`), strictly after the execute transaction
+  commits (no network inside a write lock); the outcome — host only, the
+  URL may embed a secret — lands in the action's audit detail, and a failed
+  delivery never fails the execute. Infrastructure mutation itself stays
+  SIMULATION.
 
 ## Storage (sqlite3, WAL, seed-on-startup)
 
