@@ -27,7 +27,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from app import bus, db, history
+from app import bus, db, history, telemetry
 from app.actions import TIMEOUT_ACTOR, expire_stale_proposals, suppressed_count
 from app.benchmark import evaluate, standard_scenarios
 from app.detection import build_daily_series, load_dataset
@@ -1343,5 +1343,83 @@ def decision_quality(
             "human verdict), so timeout expiries and reopened cards cannot "
             "flatter it; decisions without a recorded confidence stay out "
             "of the calibration buckets"
+        ),
+    )
+
+
+# --- run receipts: what one pulse actually cost -----------------------------
+
+
+class RunReceipt(BaseModel):
+    pulse_id: int
+    ran_at: str
+    mission: str | None
+    signals: int
+    analyzed: int
+    proposals_filed: int
+    proposals_reused: int
+    agent_turns: int
+    panel_seats_answered: int
+    unmeasured_turns: int
+    reflex_ms: float | None
+    agent_ms: float
+    wall_clock_ms: float
+    llm_budget: int
+    llm_calls_used: int
+    budget_exhausted: bool
+    usd: float | None
+
+
+class RunReceiptsReport(BaseModel):
+    method: str
+    count: int
+    receipts: list[RunReceipt]
+    totals: dict
+    note: str
+
+
+@router.get("/receipts")
+def run_receipts(
+    limit: int = Query(10, ge=1, le=100, description="How many recent pulses."),
+    conn: sqlite3.Connection = Depends(db.get_db),
+) -> RunReceiptsReport:
+    """What each watch cycle cost: turns, measured time, calls, money.
+
+    The agentic equivalent of an itemised bill. Assembled entirely on the
+    read side from records the pulse already leaves behind, so asking for
+    the receipt never changes what the run costs.
+    """
+    price = llm_price_per_call()
+    rows = [
+        RunReceipt(
+            **receipt,
+            usd=(
+                round(receipt["llm_calls_used"] * price, 6)
+                if price is not None
+                else None
+            ),
+        )
+        for receipt in telemetry.run_receipts(conn, limit=limit)
+    ]
+    return RunReceiptsReport(
+        method=telemetry.RECEIPT_METHOD,
+        count=len(rows),
+        receipts=rows,
+        totals={
+            "agent_turns": sum(row.agent_turns for row in rows),
+            "agent_ms": round(sum(row.agent_ms for row in rows), 1),
+            "wall_clock_ms": round(sum(row.wall_clock_ms for row in rows), 1),
+            "llm_calls_used": sum(row.llm_calls_used for row in rows),
+            "usd": (
+                round(sum(row.usd or 0.0 for row in rows), 6)
+                if price is not None
+                else None
+            ),
+        },
+        note=(
+            "agent_ms is measured hop time, not the HTTP round trip; a "
+            "dollar column appears only when "
+            f"{LLM_PRICE_ENV} prices a call, because the deployment runs "
+            "billing-disabled and an invented price would be a claim"
         ),
     )

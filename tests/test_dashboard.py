@@ -40,6 +40,7 @@ def test_dashboard_hidden_from_openapi_schema():
         "/analytics/handover",
         "/analytics/headline",
         "/analytics/quality",
+        "/analytics/receipts",
         "/analytics/roi",
         "/analytics/whatif",
         "/anomalies/{event_id}/analyze",

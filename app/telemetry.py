@@ -14,6 +14,7 @@ requests/day units (dataset currency "req"). The statistics stay honest
 detector will score it, and that history is earned, never fabricated.
 """
 
+import json
 import logging
 import os
 import threading
@@ -185,3 +186,110 @@ def usage_dataset() -> dict:
 def get_telemetry_usage() -> TelemetryUsageReport:
     """The app's own request history — the live dataset behind self mode."""
     return TelemetryUsageReport(**usage_dataset())
+
+
+# --- run receipts -----------------------------------------------------------
+#
+# Every pulse already leaves three separate records: the report it filed
+# in pulse_log (signals, proposals, calls charged against the budget), the
+# measured per-hop durations inside each card's orchestration trace, and
+# the reflex latency the fast lane clocked. Nobody had put them on one
+# piece of paper. A receipt does exactly that — what the run did, how many
+# agent turns it took, how long those turns actually ran, and what it
+# spent — assembled here on the READ side, so pulse.py stays untouched
+# and running the watch costs nothing extra.
+
+# Hops that are an agent taking a turn. 'memory' is a SQL read with no
+# model behind it, so counting it as a turn would inflate the receipt.
+AGENT_HOP_STEPS = ("analyst", "recommender", "skeptic", "panel")
+
+RECEIPT_METHOD = (
+    "assembled on read from pulse_log, the persisted orchestration traces "
+    "and the reflex latency — measured figures only, nothing estimated"
+)
+
+
+def _trace_of(detail_json: str) -> list[dict]:
+    try:
+        trace = json.loads(detail_json).get("trace")
+    except (json.JSONDecodeError, AttributeError, TypeError):
+        return []
+    return trace if isinstance(trace, list) else []
+
+
+def run_receipts(conn, limit: int = 10) -> list[dict]:
+    """One receipt per recent pulse, newest first.
+
+    Agent time is the sum of MEASURED hop durations, not the HTTP
+    round trip: it is what the agents actually ran for, which is the
+    figure that means something when the same run is compared across
+    missions or providers. Cards filed before the trace carried
+    durations contribute turns but no milliseconds, and the receipt
+    says how many hops were unmeasured rather than guessing at them.
+    """
+    receipts = []
+    for row in conn.execute(
+        "SELECT id, report_json, created_at FROM pulse_log ORDER BY id DESC LIMIT ?",
+        (limit,),
+    ).fetchall():
+        try:
+            report = json.loads(row["report_json"])
+        except (json.JSONDecodeError, TypeError):
+            continue
+        chain = report.get("chain") or []
+        # A reused card's trace belongs to the pulse that EARNED it. A later
+        # run that recognised the same open proposal spent no agent turn on
+        # it, and a receipt that charged it anyway would make an idempotent
+        # re-poll look as expensive as the first sweep.
+        action_ids = [
+            link["action_id"]
+            for link in chain
+            if isinstance(link, dict)
+            and isinstance(link.get("action_id"), int)
+            and not link.get("reused")
+        ]
+        turns, measured_ms, unmeasured, seats = 0, 0.0, 0, 0
+        if action_ids:
+            placeholders = ",".join("?" for _ in action_ids)
+            for action in conn.execute(
+                f"SELECT detail_json FROM actions WHERE id IN ({placeholders})",  # noqa: S608
+                action_ids,
+            ):
+                for hop in _trace_of(action["detail_json"]):
+                    if not isinstance(hop, dict):
+                        continue
+                    if hop.get("step") not in AGENT_HOP_STEPS:
+                        continue
+                    turns += 1
+                    # A panel turn is several reviewers in one hop; the
+                    # seat count is what the quota actually paid for.
+                    if hop.get("step") == "panel":
+                        seats += int(hop.get("answered") or 0)
+                    duration = hop.get("duration_ms")
+                    if isinstance(duration, (int, float)):
+                        measured_ms += float(duration)
+                    else:
+                        unmeasured += 1
+        reflex_ms = report.get("reflex_ms")
+        reflex_ms = float(reflex_ms) if isinstance(reflex_ms, (int, float)) else None
+        receipts.append(
+            {
+                "pulse_id": row["id"],
+                "ran_at": row["created_at"],
+                "mission": report.get("mission"),
+                "signals": report.get("signals", 0),
+                "analyzed": report.get("analyzed", 0),
+                "proposals_filed": report.get("proposals_filed", 0),
+                "proposals_reused": report.get("proposals_reused", 0),
+                "agent_turns": turns,
+                "panel_seats_answered": seats,
+                "unmeasured_turns": unmeasured,
+                "reflex_ms": reflex_ms,
+                "agent_ms": round(measured_ms, 1),
+                "wall_clock_ms": round(measured_ms + (reflex_ms or 0.0), 1),
+                "llm_budget": report.get("llm_budget", 0),
+                "llm_calls_used": report.get("llm_calls_used", 0),
+                "budget_exhausted": bool(report.get("budget_exhausted", False)),
+            }
+        )
+    return receipts
