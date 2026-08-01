@@ -646,10 +646,16 @@ function renderTrend() {
    slider currently holds. Precision and FN ride each bar's tooltip, and the
    server's own caveat note (why MAD wins the contaminated baseline) is
    surfaced verbatim instead of being dropped. */
+/* Two families, and the colours say so: the flat-baseline scorers in ink and
+   turquoise, the trend-fitting ones in sky blue. Every scorer the API
+   reports gets a bar — a mode missing here would vanish from the chart
+   while the endpoint still measured it. */
 const BACKTEST_MODES = [
   { mode: "zscore", cls: "zscore" },
   { mode: "mad", cls: "mad" },
   { mode: "zscore+loo", cls: "loo" },
+  { mode: "residual", cls: "residual" },
+  { mode: "residual+loo", cls: "residual-loo" },
 ];
 
 let backtestSequence = 0; // last-writer-wins: a stale backtest must never overwrite a newer one
@@ -666,7 +672,10 @@ function drawBacktestChart() {
     svg = svgEl("svg", {
       class: "backtest-svg",
       role: "img",
-      "aria-label": "Detection backtest — recall per scenario for z-score, MAD and leave-one-out",
+      "aria-label":
+        "Detection backtest — recall per scenario for z-score, MAD, " +
+        "z-score with leave-one-out, the forecast-residual scorer and " +
+        "residual with leave-one-out",
     });
     host.textContent = "";
     host.appendChild(svg);

@@ -1387,9 +1387,15 @@ button:disabled:hover {
   letter-spacing: 0.08em;
   fill: var(--ink-faint);
 }
+/* Two families, told apart by hue rather than by legend order: the
+   flat-baseline scorers in ink and turquoise, the trend-fitting ones in
+   sky blue. Reading the chart, "the blue pair caught what the others
+   missed" is the finding. */
 .backtest-svg .bt-bar.zscore { fill: var(--ink-faint); }
 .backtest-svg .bt-bar.mad { fill: var(--accent); }
 .backtest-svg .bt-bar.loo { fill: var(--ink-dim); }
+.backtest-svg .bt-bar.residual { fill: var(--info); }
+.backtest-svg .bt-bar.residual-loo { fill: var(--info); opacity: 0.5; }
 .backtest-svg .bar-value { fill: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .backtest-legend { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; }
 .backtest-legend .legend-item { display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
@@ -1397,6 +1403,8 @@ button:disabled:hover {
 .backtest-legend .swatch.zscore { background: var(--ink-faint); }
 .backtest-legend .swatch.mad { background: var(--accent); }
 .backtest-legend .swatch.loo { background: var(--ink-dim); }
+.backtest-legend .swatch.residual { background: var(--info); }
+.backtest-legend .swatch.residual-loo { background: var(--info); opacity: 0.5; }
 
 /* ---------- 14 · decision inbox ---------- */
 
@@ -1939,6 +1947,10 @@ footer {
   .backtest-svg .bt-bar.zscore { fill: #aaa; }
   .backtest-svg .bt-bar.mad { fill: #000; }
   .backtest-svg .bt-bar.loo { fill: #555; }
+  /* five series on paper: hue is gone, so the two trend scorers take the
+     lightest and an outlined step so they stay apart in grayscale */
+  .backtest-svg .bt-bar.residual { fill: #888; opacity: 1; }
+  .backtest-svg .bt-bar.residual-loo { fill: #ccc; opacity: 1; stroke: #555; stroke-width: 0.5; }
   .backtest-legend .swatch { border: 1px solid #000; print-color-adjust: exact; }
 }
 
@@ -2051,3 +2063,441 @@ footer {
 /* the trend chart's live edge — today's point on the simulated lane */
 .live-point { fill: var(--accent); }
 .live-point { animation: live-breathe 2.4s ease-in-out infinite; }
+
+/* ======================================================================
+   23 · vivid — the card system
+   ----------------------------------------------------------------------
+   The four palettes above are editorial: ink on a dark surface, hairlines,
+   a broadsheet's restraint. They read beautifully and they hide things —
+   a hairline-separated list gives every row the same weight, so the six
+   capabilities that landed this week look exactly like the six that were
+   always there.
+
+   `vivid` is the opposite instrument: a light surface, white cards with a
+   real shadow, one saturated blue for anything actionable, and colour used
+   as a *category* signal rather than decoration. It exists so the product
+   can show its surface area — every lane, every measurement, every proof
+   it can offer — as objects a visitor can scan, not paragraphs they must
+   read. The other palettes stay exactly as they were; this is a fifth
+   choice, not a replacement.
+   ====================================================================== */
+
+:root[data-theme="vivid"] {
+  --surface: #eef3f9;
+  --surface-raised: #ffffff;
+  --ink: #0e1f38;
+  --ink-dim: rgba(14, 31, 56, 0.66);
+  --ink-faint: rgba(14, 31, 56, 0.44);
+  --hair: rgba(14, 31, 56, 0.1);
+  --accent: #1d5cff;
+  --alert: #e0443f;
+  --info: #7b3fe4;
+  --chart-line: #1d5cff;
+  --chart-area-hi: rgba(29, 92, 255, 0.16);
+  --chart-area-lo: rgba(29, 92, 255, 0.02);
+  --chart-band: rgba(14, 31, 56, 0.07);
+  --dot-a: rgba(14, 31, 56, 0.02);
+  --dot-b: rgba(14, 31, 56, 0.015);
+  --glow-a: rgba(29, 92, 255, 0.09);
+  --glow-b: rgba(123, 63, 228, 0.07);
+  --selection-bg: #1d5cff;
+  --selection-fg: #ffffff;
+
+  /* card system — only this palette raises real surfaces */
+  --card-bg: #ffffff;
+  --card-radius: 16px;
+  --card-shadow: 0 1px 2px rgba(14, 31, 56, 0.06), 0 8px 24px rgba(14, 31, 56, 0.06);
+  --card-shadow-lift: 0 2px 6px rgba(14, 31, 56, 0.08), 0 16px 40px rgba(14, 31, 56, 0.1);
+  --chip-bg: #ffffff;
+  --chip-on: #1d5cff;
+  --tint-cost: #1d5cff;
+  --tint-security: #e0443f;
+  --tint-fraud: #b0138e;
+  --tint-market: #0e8f6a;
+  --tint-proof: #7b3fe4;
+  --tint-ops: #b26a00;
+}
+
+/* The dark palettes have no raised cards; the same markup degrades to the
+   hairline panels they already use, so a room does not fall apart when a
+   visitor switches back mid-demo. */
+:root {
+  --card-bg: var(--surface-raised);
+  --card-radius: 10px;
+  --card-shadow: none;
+  --card-shadow-lift: none;
+  --chip-bg: transparent;
+  --chip-on: var(--accent);
+  --tint-cost: var(--accent);
+  --tint-security: var(--alert);
+  --tint-fraud: var(--alert);
+  --tint-market: var(--accent);
+  --tint-proof: var(--info);
+  --tint-ops: var(--info);
+}
+
+:root[data-theme="vivid"] body { background-image: none; background: var(--surface); }
+:root[data-theme="vivid"] .top-nav { background: rgba(255, 255, 255, 0.92); border-bottom: 1px solid var(--hair); }
+:root[data-theme="vivid"] .masthead h1 { color: var(--ink); }
+
+/* ---------- the card ---------- */
+.cs-card {
+  background: var(--card-bg);
+  border: 1px solid var(--hair);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  padding: var(--sp-5);
+}
+.cs-card + .cs-card { margin-top: var(--sp-4); }
+.cs-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+.cs-card-title { font-size: var(--fs-base); font-weight: 600; letter-spacing: 0; }
+.cs-card-sub { font-size: var(--fs-meta); color: var(--ink-dim); line-height: var(--lh-body); }
+
+/* An interactive card lifts on hover and, crucially, on keyboard focus —
+   a mouse-only affordance is not an affordance. */
+a.cs-card, button.cs-card { display: block; width: 100%; text-align: left; cursor: pointer; }
+a.cs-card:hover, button.cs-card:hover,
+a.cs-card:focus-visible, button.cs-card:focus-visible {
+  box-shadow: var(--card-shadow-lift);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+/* ---------- category badge ---------- */
+.cs-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 2px var(--sp-2);
+  border-radius: 999px;
+  font-size: var(--fs-micro);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--badge-tint, var(--accent));
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+.cs-badge[data-lane="cost"] { --badge-tint: var(--tint-cost); }
+.cs-badge[data-lane="security"] { --badge-tint: var(--tint-security); }
+.cs-badge[data-lane="fraud"] { --badge-tint: var(--tint-fraud); }
+.cs-badge[data-lane="market"] { --badge-tint: var(--tint-market); }
+.cs-badge[data-lane="proof"] { --badge-tint: var(--tint-proof); }
+.cs-badge[data-lane="ops"] { --badge-tint: var(--tint-ops); }
+:root[data-theme="vivid"] .cs-badge { background: color-mix(in srgb, var(--badge-tint, var(--accent)) 8%, #fff); border-color: transparent; }
+
+/* ---------- filter chips ---------- */
+.cs-chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.cs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  border: 1px solid var(--hair);
+  border-radius: 999px;
+  background: var(--chip-bg);
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+.cs-chip:hover, .cs-chip:focus-visible { border-color: var(--accent); color: var(--ink); }
+.cs-chip[aria-pressed="true"] {
+  background: var(--chip-on);
+  border-color: var(--chip-on);
+  color: #fff;
+}
+:root:not([data-theme="vivid"]) .cs-chip[aria-pressed="true"] { color: var(--surface); }
+
+/* ---------- three-figure stat block (the estate at a glance) ---------- */
+.cs-stat3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-3);
+  text-align: center;
+}
+.cs-stat3 > div + div { border-left: 1px solid var(--hair); }
+.cs-stat-fig { font-size: 28px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.cs-stat-label { font-size: var(--fs-micro); letter-spacing: var(--track-caps); text-transform: uppercase; color: var(--ink-faint); }
+
+/* ---------- capability rows (what the system can prove) ---------- */
+.cs-rows { list-style: none; }
+.cs-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--hair);
+}
+.cs-row:last-child { border-bottom: 0; }
+.cs-row-name { font-size: var(--fs-body); }
+.cs-row-note { font-size: var(--fs-meta); color: var(--ink-faint); }
+.cs-row-value { font-size: var(--fs-meta); color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cs-row-value.is-off { color: var(--ink-faint); }
+
+/* ---------- the desk grid: rail · feed · rail ---------- */
+.cs-desk {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) minmax(240px, 320px);
+  gap: var(--sp-5);
+  align-items: start;
+}
+@media (max-width: 1180px) { .cs-desk { grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); } .cs-desk-left { grid-column: 1 / -1; } }
+@media (max-width: 860px) { .cs-desk { grid-template-columns: minmax(0, 1fr); } .cs-desk-left { grid-column: auto; } }
+.cs-sticky { position: sticky; top: 72px; }
+@media (max-width: 1180px) { .cs-sticky { position: static; } }
+
+/* ---------- hero action card ---------- */
+.cs-hero {
+  display: flex;
+  gap: var(--sp-4);
+  align-items: flex-start;
+  border-left: 3px solid var(--accent);
+}
+.cs-hero-mark {
+  flex: none;
+  width: 40px; height: 40px;
+  border-radius: 12px;
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: 20px;
+}
+.cs-hero-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
+
+/* ---------- primary button ---------- */
+.cs-btn {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font: inherit; font-size: var(--fs-meta);
+  cursor: pointer;
+}
+:root:not([data-theme="vivid"]) .cs-btn { color: var(--surface); }
+.cs-btn.ghost { background: transparent; color: var(--accent); }
+.cs-btn:hover, .cs-btn:focus-visible { filter: brightness(1.06); }
+
+/* ---------- mega menu ---------- */
+.cs-mega-wrap { position: relative; }
+.cs-mega {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: var(--z-sticky);
+  min-width: min(680px, 92vw);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-4) var(--sp-6);
+  padding: var(--sp-5);
+  background: var(--card-bg);
+  border: 1px solid var(--hair);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow-lift);
+}
+:root:not([data-theme="vivid"]) .cs-mega { background: var(--surface); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45); }
+@media (max-width: 720px) { .cs-mega { grid-template-columns: 1fr; min-width: min(420px, 92vw); } }
+.cs-mega[hidden] { display: none; }
+.cs-mega-item { display: block; text-decoration: none; color: inherit; padding: var(--sp-2); border-radius: 10px; }
+.cs-mega-item:hover, .cs-mega-item:focus-visible { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.cs-mega-item b { display: block; font-size: var(--fs-base); color: var(--accent); font-weight: 600; }
+.cs-mega-item span { display: block; font-size: var(--fs-meta); color: var(--ink-dim); line-height: var(--lh-body); }
+.cs-mega-col-head {
+  grid-column: 1 / -1;
+  font-size: var(--fs-micro); letter-spacing: var(--track-caps);
+  text-transform: uppercase; color: var(--ink-faint);
+}
+
+/* ======================================================================
+   24 · accessibility — preferences the visitor sets, not the designer
+   ----------------------------------------------------------------------
+   The site already respected `prefers-reduced-motion`; this layer adds the
+   settings an operating system cannot express — text scale, line height,
+   letter spacing, a readable face, highlighted links and headings, a
+   reading mask, a larger pointer, forced contrast.
+
+   Every switch is a data attribute on :root plus a variable, so the panel
+   in app.js only ever sets attributes: no inline styles (the CSP forbids
+   them anyway), no third-party overlay, nothing loaded from another host.
+   An accessibility widget that phones home is a privacy problem wearing a
+   kindness costume.
+   ====================================================================== */
+
+:root {
+  --a11y-scale: 1;
+  --a11y-line: 1;
+  --a11y-track: 0em;
+}
+
+:root[data-a11y-scale] body { font-size: calc(var(--fs-base) * var(--a11y-scale)); }
+:root[data-a11y-scale] .meta,
+:root[data-a11y-scale] .microcap,
+:root[data-a11y-scale] p,
+:root[data-a11y-scale] li,
+:root[data-a11y-scale] td,
+:root[data-a11y-scale] th,
+:root[data-a11y-scale] button,
+:root[data-a11y-scale] input,
+:root[data-a11y-scale] select { font-size: calc(1em * var(--a11y-scale)); }
+
+:root[data-a11y-line] p,
+:root[data-a11y-line] li,
+:root[data-a11y-line] .meta { line-height: calc(var(--lh-body) * var(--a11y-line)); }
+
+:root[data-a11y-track] p,
+:root[data-a11y-track] li,
+:root[data-a11y-track] .meta { letter-spacing: var(--a11y-track); }
+
+/* A readable face: the display faces (blackletter nameplate, the serif
+   figures) are the first thing to go — they are the least legible and the
+   most decorative, which is exactly the trade this switch is making. */
+:root[data-a11y-font="readable"] body,
+:root[data-a11y-font="readable"] .fraktur,
+:root[data-a11y-font="readable"] .pixel-black,
+:root[data-a11y-font="readable"] .hero-figure,
+:root[data-a11y-font="readable"] .sum-fig,
+:root[data-a11y-font="readable"] .section-word,
+:root[data-a11y-font="readable"] h1,
+:root[data-a11y-font="readable"] h2,
+:root[data-a11y-font="readable"] h3 {
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif !important;
+  font-style: normal !important;
+  letter-spacing: 0.01em;
+}
+
+:root[data-a11y-links="on"] a:not(.cs-card):not(.nav-brand) {
+  text-decoration: underline !important;
+  text-underline-offset: 3px;
+  outline: 1px dashed color-mix(in srgb, var(--accent) 60%, transparent);
+  outline-offset: 2px;
+}
+
+:root[data-a11y-headings="on"] h1,
+:root[data-a11y-headings="on"] h2,
+:root[data-a11y-headings="on"] h3,
+:root[data-a11y-headings="on"] .section-word {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: -4px 0 0 var(--accent);
+  padding-left: var(--sp-2);
+}
+
+:root[data-a11y-align="left"] p, :root[data-a11y-align="left"] li { text-align: left; }
+:root[data-a11y-align="center"] p, :root[data-a11y-align="center"] li { text-align: center; }
+:root[data-a11y-align="right"] p, :root[data-a11y-align="right"] li { text-align: right; }
+
+/* The pointer is a 32px SVG carried inline as a data URI — no request, no
+   host, and it survives the strict CSP because img-src already allows data:. */
+:root[data-a11y-cursor="big"] { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpath d='M6 2l0 22 5.5-5.5 3.5 8 4-1.8-3.4-7.7H24z' fill='%23000' stroke='%23fff' stroke-width='1.6'/%3E%3C/svg%3E") 4 2, auto; }
+:root[data-a11y-cursor="big-light"] { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpath d='M6 2l0 22 5.5-5.5 3.5 8 4-1.8-3.4-7.7H24z' fill='%23fff' stroke='%23000' stroke-width='1.6'/%3E%3C/svg%3E") 4 2, auto; }
+
+/* Forced contrast: pure values, not the palette's considered ones. This is
+   deliberately blunt — a visitor who needs it does not need our taste. */
+:root[data-a11y-contrast="high"] {
+  --surface: #000;
+  --surface-raised: #000;
+  --card-bg: #000;
+  --ink: #fff;
+  --ink-dim: #fff;
+  --ink-faint: #e6e6e6;
+  --hair: #fff;
+  --accent: #ffe600;
+  --alert: #ff6b6b;
+  --info: #7fd7ff;
+  --card-shadow: none;
+  --chip-bg: #000;
+}
+:root[data-a11y-contrast="high"] body { background-image: none; background: #000; }
+:root[data-a11y-contrast="high"] .cs-card,
+:root[data-a11y-contrast="high"] .cs-chip { border-width: 2px; }
+:root[data-a11y-contrast="high"] .cs-btn { background: #ffe600; color: #000; border-color: #ffe600; }
+
+/* Motion off — the switch the panel flips, on top of the media query the
+   stylesheet already honours. */
+:root[data-a11y-motion="off"] *,
+:root[data-a11y-motion="off"] *::before,
+:root[data-a11y-motion="off"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Reading mask: two dimmed bands that follow the pointer, leaving a lit
+   strip. Pointer-events off, so it never intercepts a click. */
+#a11y-mask { position: fixed; inset: 0; z-index: 60; pointer-events: none; display: none; }
+:root[data-a11y-mask="on"] #a11y-mask { display: block; }
+#a11y-mask .band { position: absolute; left: 0; right: 0; background: rgba(0, 0, 0, 0.62); }
+#a11y-mask .band.top { top: 0; height: var(--mask-top, 0px); }
+#a11y-mask .band.bottom { top: var(--mask-bottom, 100%); bottom: 0; }
+
+/* ---------- the panel itself ---------- */
+.a11y-launch {
+  position: fixed;
+  right: var(--sp-4);
+  bottom: var(--sp-4);
+  z-index: 61;
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  border: 1px solid var(--hair);
+  background: var(--accent);
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+:root:not([data-theme="vivid"]) .a11y-launch { color: var(--surface); }
+.a11y-panel {
+  position: fixed;
+  right: var(--sp-4);
+  bottom: calc(var(--sp-4) + 58px);
+  z-index: 61;
+  width: min(380px, calc(100vw - var(--sp-5)));
+  max-height: min(72vh, 720px);
+  overflow: auto;
+  padding: var(--sp-5);
+  background: var(--card-bg);
+  border: 1px solid var(--hair);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow-lift), 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+:root:not([data-theme="vivid"]) .a11y-panel { background: var(--surface); }
+.a11y-panel[hidden] { display: none; }
+.a11y-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); margin-bottom: var(--sp-3); }
+.a11y-group { margin-top: var(--sp-4); }
+.a11y-group > .microcap { display: block; margin-bottom: var(--sp-2); }
+.a11y-switch {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-3);
+  border: 1px solid var(--hair);
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  margin-bottom: var(--sp-2);
+}
+.a11y-switch:hover, .a11y-switch:focus-visible { border-color: var(--accent); }
+.a11y-switch[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.a11y-switch b { display: block; font-size: var(--fs-body); font-weight: 600; }
+.a11y-switch span { display: block; font-size: var(--fs-meta); color: var(--ink-dim); }
+.a11y-state { flex: none; font-size: var(--fs-micro); letter-spacing: var(--track-caps); text-transform: uppercase; color: var(--ink-faint); }
+.a11y-switch[aria-pressed="true"] .a11y-state { color: var(--accent); }
+.a11y-stepper { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-2); }
+.a11y-stepper .a11y-step-label { flex: 1; font-size: var(--fs-body); }
+.a11y-stepper button {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 1px solid var(--hair); background: transparent; color: inherit;
+  font: inherit; cursor: pointer;
+}
+.a11y-stepper button:hover, .a11y-stepper button:focus-visible { border-color: var(--accent); color: var(--accent); }
+.a11y-stepper output { min-width: 46px; text-align: center; font-size: var(--fs-meta); font-variant-numeric: tabular-nums; }

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CloudSentinel — Anomaly Watch</title>
-  <link rel="stylesheet" href="/static/style.css?v=s8.2" />
+  <link rel="stylesheet" href="/static/style.css?v=s9.0" />
   <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
   <meta name="description" content="CloudSentinel — cloud cost and security anomaly watch: detection, evidence-cited AI triage and human-approved remediation, execution simulated by design." />
   <meta property="og:title" content="CloudSentinel — Anomaly Watch" />
@@ -23,6 +23,25 @@
       <a class="view-tab" href="/intel" data-view="intel" aria-pressed="false">intelligence</a>
       <a class="view-tab" href="/brain" data-view="brain" aria-pressed="false">brain</a>
       <a class="view-tab" href="/broadsheet" data-view="all" aria-pressed="false">broadsheet</a>
+      <span class="cs-mega-wrap">
+        <button class="view-tab" type="button" id="mega-toggle" aria-expanded="false" aria-controls="mega-panel">what it can prove ▾</button>
+        <div class="cs-mega" id="mega-panel" hidden>
+          <p class="cs-mega-col-head">proof the system offers about itself</p>
+          <a class="cs-mega-item" href="/audit/verify"><b>Ledger integrity</b><span>Every decision sealed with the hash of the one before it — walk the chain, name the first broken link.</span></a>
+          <a class="cs-mega-item" href="/analytics/quality"><b>Decision quality</b><span>Acceptance rate, time to decide, recurrence, cost per decision, confidence calibration.</span></a>
+          <a class="cs-mega-item" href="/analytics/receipts"><b>Run receipts</b><span>Agent turns, measured milliseconds and model calls for every watch cycle.</span></a>
+          <a class="cs-mega-item" href="/runbooks/effectiveness"><b>Runbook hit rate</b><span>Whether the playbooks it suggests were any good — recomputed, never stored.</span></a>
+          <a class="cs-mega-item" href="/metrics/backtest"><b>Detector backtest</b><span>Every scorer in the registry against planted ground truth, side by side.</span></a>
+          <a class="cs-mega-item" href="/metrics"><b>Prometheus metrics</b><span>Cards, verdicts, model calls and the watch's condition, in scrape format.</span></a>
+          <p class="cs-mega-col-head">operations</p>
+          <a class="cs-mega-item" href="/ops/preflight"><b>Pre-flight</b><span>The demo runbook as code: ten checks, one honest ok.</span></a>
+          <a class="cs-mega-item" href="/ops/health/watch"><b>Watch vitals</b><span>Is the sentinel still watching? /health only knows the process is up.</span></a>
+          <a class="cs-mega-item" href="/ready"><b>Readiness</b><span>Database, mission config and dataset — the probe a deploy gates on.</span></a>
+          <a class="cs-mega-item" href="/telemetry/usage"><b>Self telemetry</b><span>The app's own request history, which can itself become the cost dataset.</span></a>
+          <a class="cs-mega-item" href="/decisions/export" download><b>Decision ledger (CSV)</b><span>The whole audit trail, portable.</span></a>
+          <a class="cs-mega-item" href="/docs"><b>API surface</b><span>Fifty-eight endpoints, self-hosted Swagger, no CDN.</span></a>
+        </div>
+      </span>
     </div>
     <span class="nav-live microcap"><span class="live-dot" aria-hidden="true"></span><span id="nav-live-label">demo</span></span>
   </nav>
@@ -102,13 +121,68 @@
           <button class="row-action" type="button" data-theme-choice="horizon" aria-pressed="true">horizon</button> /
           <button class="row-action" type="button" data-theme-choice="mission" aria-pressed="false">night</button> /
           <button class="row-action" type="button" data-theme-choice="paper" aria-pressed="false">paper</button> /
-          <button class="row-action" type="button" data-theme-choice="dawn" aria-pressed="false">dawn</button>
+          <button class="row-action" type="button" data-theme-choice="dawn" aria-pressed="false">dawn</button> /
+          <button class="row-action" type="button" data-theme-choice="vivid" aria-pressed="false">vivid</button>
         </p>
       </div>
       <p class="meta" id="pulse-note" aria-live="polite"></p>
     </section>
 
     <main id="main-content" tabindex="-1">
+      <section class="ledger-wide" id="sec-desk" aria-labelledby="desk-heading">
+        <header class="section-head">
+          <span class="numeral">0</span>
+          <h2 class="section-word" id="desk-heading">the desk</h2>
+        </header>
+        <p class="meta">everything the estate is holding right now — the lanes it watches, the proofs it can produce, and the four things waiting on a human</p>
+        <div class="cs-desk">
+          <div class="cs-desk-left">
+            <div class="cs-sticky">
+              <div class="cs-card" id="desk-identity">
+                <p class="cs-card-title" id="desk-who">the operator's desk</p>
+                <p class="cs-card-sub" id="desk-who-sub">not signed in — decisions carry the operator field</p>
+                <div class="cs-stat3" id="desk-stats"></div>
+              </div>
+              <div class="cs-card">
+                <div class="cs-card-head"><p class="cs-card-title">what it can prove</p></div>
+                <p class="cs-card-sub">each row is a live endpoint, not a claim — the value is read from it</p>
+                <ul class="cs-rows" id="desk-capabilities"></ul>
+              </div>
+            </div>
+          </div>
+          <div class="cs-desk-main">
+            <div class="cs-card cs-hero">
+              <span class="cs-hero-mark" aria-hidden="true">◎</span>
+              <div>
+                <p class="cs-card-title">Run the whole chain</p>
+                <p class="cs-card-sub">detect → analyst triage → recommender options → the decision desk. Nothing executes: the hand decides, and every figure is computed rather than generated.</p>
+                <div class="cs-hero-actions">
+                  <button class="cs-btn" type="button" id="desk-pulse">Pulse ▸</button>
+                  <button class="cs-btn ghost" type="button" id="desk-rescan">Re-scan</button>
+                  <a class="cs-btn ghost" href="/decide" data-room="decide">Go to the decisions</a>
+                </div>
+                <p class="meta" id="desk-pulse-note" aria-live="polite"></p>
+              </div>
+            </div>
+            <div class="cs-chips" id="desk-chips" role="group" aria-label="Filter the desk by lane"></div>
+            <div id="desk-feed" aria-live="polite"></div>
+          </div>
+          <div class="cs-desk-right">
+            <div class="cs-sticky">
+              <div class="cs-card">
+                <div class="cs-card-head"><p class="cs-card-title">waiting on you</p></div>
+                <ul class="cs-rows" id="desk-actionable"></ul>
+              </div>
+              <div class="cs-card">
+                <div class="cs-card-head"><p class="cs-card-title">worth doing anyway</p></div>
+                <p class="cs-card-sub">standing opportunities — priced against this estate's own run rate</p>
+                <ul class="cs-rows" id="desk-market"></ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="ledger-col" id="sec-anomalies">
         <header class="section-head">
           <span class="numeral">I</span>
@@ -279,12 +353,14 @@
         </div>
         <div class="brain-backtest">
           <h3 class="microcap">detection backtest</h3>
-          <p class="meta">recall on planted synthetic ground truth at the current sensitivity — z-score vs MAD vs leave-one-out; precision and misses ride each bar; measured, not narrated</p>
+          <p class="meta">recall on planted synthetic ground truth at the current sensitivity — every scorer in the registry side by side, flat baselines against the trend-fitting one; precision and misses ride each bar; measured, not narrated</p>
           <div class="backtest-table" id="backtest-table"></div>
           <p class="meta backtest-legend" id="backtest-legend" hidden>
             <span class="legend-item"><span class="swatch zscore" aria-hidden="true"></span> z-score</span>
             <span class="legend-item"><span class="swatch mad" aria-hidden="true"></span> MAD</span>
             <span class="legend-item"><span class="swatch loo" aria-hidden="true"></span> z-score + leave-one-out</span>
+            <span class="legend-item"><span class="swatch residual" aria-hidden="true"></span> residual</span>
+            <span class="legend-item"><span class="swatch residual-loo" aria-hidden="true"></span> residual + leave-one-out</span>
           </p>
           <p class="meta" id="backtest-note"></p>
         </div>
@@ -343,6 +419,75 @@
     </div>
   </aside>
 
-  <script src="/static/app.js?v=s8.2"></script>
+  <div id="a11y-mask" aria-hidden="true"><span class="band top"></span><span class="band bottom"></span></div>
+  <button class="a11y-launch" type="button" id="a11y-launch" aria-expanded="false" aria-controls="a11y-panel" title="Accessibility settings" aria-label="Accessibility settings">&#9788;</button>
+  <div class="a11y-panel" id="a11y-panel" role="dialog" aria-modal="false" aria-labelledby="a11y-title" hidden>
+    <div class="a11y-head">
+      <p class="cs-card-title" id="a11y-title">Accessibility</p>
+      <button class="row-action" type="button" id="a11y-reset">reset</button>
+    </div>
+    <p class="cs-card-sub">Set here, kept in this browser. Nothing is sent anywhere — no third-party overlay, no request to another host.</p>
+
+    <div class="a11y-group">
+      <span class="microcap">Reading</span>
+      <div class="a11y-stepper">
+        <span class="a11y-step-label">Text size</span>
+        <button type="button" data-a11y-step="scale" data-dir="-1" aria-label="Smaller text">&minus;</button>
+        <output id="a11y-scale-out">100%</output>
+        <button type="button" data-a11y-step="scale" data-dir="1" aria-label="Larger text">+</button>
+      </div>
+      <div class="a11y-stepper">
+        <span class="a11y-step-label">Line height</span>
+        <button type="button" data-a11y-step="line" data-dir="-1" aria-label="Tighter lines">&minus;</button>
+        <output id="a11y-line-out">100%</output>
+        <button type="button" data-a11y-step="line" data-dir="1" aria-label="Looser lines">+</button>
+      </div>
+      <div class="a11y-stepper">
+        <span class="a11y-step-label">Letter spacing</span>
+        <button type="button" data-a11y-step="track" data-dir="-1" aria-label="Tighter letters">&minus;</button>
+        <output id="a11y-track-out">0.00em</output>
+        <button type="button" data-a11y-step="track" data-dir="1" aria-label="Looser letters">+</button>
+      </div>
+      <button class="a11y-switch" type="button" data-a11y-toggle="font" data-on="readable" aria-pressed="false">
+        <span><b>Readable face</b><span>Drops the display faces for one plain sans</span></span>
+        <span class="a11y-state">off</span>
+      </button>
+      <button class="a11y-switch" type="button" data-a11y-toggle="mask" data-on="on" aria-pressed="false">
+        <span><b>Reading mask</b><span>Dims the page except the line you are on</span></span>
+        <span class="a11y-state">off</span>
+      </button>
+    </div>
+
+    <div class="a11y-group">
+      <span class="microcap">Seeing</span>
+      <button class="a11y-switch" type="button" data-a11y-toggle="contrast" data-on="high" aria-pressed="false">
+        <span><b>High contrast</b><span>Black surface, white text, one signal yellow</span></span>
+        <span class="a11y-state">off</span>
+      </button>
+      <button class="a11y-switch" type="button" data-a11y-toggle="links" data-on="on" aria-pressed="false">
+        <span><b>Highlight links</b><span>Underlines and outlines every link</span></span>
+        <span class="a11y-state">off</span>
+      </button>
+      <button class="a11y-switch" type="button" data-a11y-toggle="headings" data-on="on" aria-pressed="false">
+        <span><b>Highlight headings</b><span>Marks the structure of the page</span></span>
+        <span class="a11y-state">off</span>
+      </button>
+      <button class="a11y-switch" type="button" data-a11y-toggle="cursor" data-on="big" aria-pressed="false">
+        <span><b>Large pointer</b><span>A bigger, higher-contrast cursor</span></span>
+        <span class="a11y-state">off</span>
+      </button>
+    </div>
+
+    <div class="a11y-group">
+      <span class="microcap">Moving</span>
+      <button class="a11y-switch" type="button" data-a11y-toggle="motion" data-on="off" aria-pressed="false">
+        <span><b>Reduce motion</b><span>Stops the radar sweep, the tape and every transition</span></span>
+        <span class="a11y-state">off</span>
+      </button>
+      <p class="meta" id="a11y-motion-note"></p>
+    </div>
+  </div>
+
+  <script src="/static/app.js?v=s9.0"></script>
 </body>
 </html>
