@@ -28,7 +28,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from app import bus, db, history
-from app.actions import TIMEOUT_ACTOR, expire_stale_proposals
+from app.actions import TIMEOUT_ACTOR, expire_stale_proposals, suppressed_count
 from app.benchmark import evaluate, standard_scenarios
 from app.detection import build_daily_series, load_dataset
 from app.logstream import log_tag
@@ -1044,4 +1044,304 @@ def cost_trend(
         change=total_change,
         change_pct=total_pct,
         services=rows,
+    )
+
+
+# --- decision quality: are the DECISIONS good, not just the model? ----------
+#
+# The honest read of this product is that a better model is not the lever.
+# What decides whether an operator trusts the desk is decision quality:
+# how often proposals survive review, how long they sit, how often the
+# same alert comes back, what the intelligence costs per decision, and
+# whether the agents' confidence means anything. All five are derivable
+# from tables the pipeline already writes — no model is called here.
+
+QUALITY_METHOD = (
+    "plain SQL over decisions, actions, the append-only trail and the AI "
+    "usage ledger — no model is called and no figure is estimated"
+)
+
+LLM_PRICE_ENV = "SENTINEL_LLM_PRICE_PER_CALL"
+
+INTELLIGENCE_COST_NOTE = (
+    "the deployment runs on a billing-disabled free tier, so the real "
+    "scarce unit is CALLS against the daily quota, not money; a dollar "
+    f"figure appears only when {LLM_PRICE_ENV} sets a price per live call"
+)
+
+
+def llm_price_per_call() -> float | None:
+    """Configured price of one live model call, or None when unpriced."""
+    raw = os.environ.get(LLM_PRICE_ENV, "").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        return None
+    return value if value > 0 else None
+
+
+class AcceptanceRow(BaseModel):
+    dimension: str  # service | severity | agent_model
+    key: str
+    decided: int
+    approved: int
+    acceptance_rate: float | None
+
+
+class RecurrenceRow(BaseModel):
+    service: str
+    anomaly_days: int
+    cards_opened: int
+    folded_repeats: int
+    recurrences: int
+    first_seen: str
+    last_seen: str
+
+
+class IntelligenceCost(BaseModel):
+    llm_calls: int
+    live_calls: int
+    cached_calls: int
+    human_decisions: int
+    calls_per_decision: float | None
+    live_calls_per_decision: float | None
+    price_per_call_usd: float | None
+    usd_per_decision: float | None
+    note: str
+
+
+class UncertaintyTally(BaseModel):
+    code: str
+    label: str
+    occurrences: int
+
+
+class DecisionQualityReport(BaseModel):
+    method: str
+    human_decisions: int
+    acceptance_rate: float | None
+    mean_time_to_decision_hours: float | None
+    median_time_to_decision_hours: float | None
+    acceptance: list[AcceptanceRow]
+    recurrence: list[RecurrenceRow]
+    intelligence_cost: IntelligenceCost
+    avg_agent_confidence: float | None
+    top_uncertainty_sources: list[UncertaintyTally]
+    calibration: list[CalibrationBucket]
+    calibration_method: str
+    note: str
+
+
+def _acceptance_rows(conn: sqlite3.Connection) -> list[AcceptanceRow]:
+    """Approval rate sliced three ways, all read off the decision's context.
+
+    ``input_context_json`` is the proposal exactly as the operator saw it,
+    so severity and the model that drafted it are recoverable per decision
+    without joining back through actions (which a reopen would have moved).
+    """
+    tallies: dict[tuple[str, str], list[int]] = {}
+
+    def tally(dimension: str, key: str, approved: bool) -> None:
+        counts = tallies.setdefault((dimension, key), [0, 0])
+        counts[0] += 1
+        counts[1] += int(approved)
+
+    for row in conn.execute("SELECT service, verdict, input_context_json FROM decisions"):
+        approved = row["verdict"] == "approved"
+        tally("service", row["service"], approved)
+        try:
+            context = json.loads(row["input_context_json"])
+        except (json.JSONDecodeError, TypeError):
+            context = {}
+        if not isinstance(context, dict):
+            context = {}
+        anomaly = context.get("anomaly")
+        severity = anomaly.get("severity") if isinstance(anomaly, dict) else None
+        tally("severity", severity if isinstance(severity, str) else "unstated", approved)
+        model = context.get("model")
+        # The agent "version" that matters operationally is which model
+        # drafted the proposal — that is what changes when we swap seats.
+        tally("agent_model", model if isinstance(model, str) else "unstated", approved)
+
+    return [
+        AcceptanceRow(
+            dimension=dimension,
+            key=key,
+            decided=decided,
+            approved=approved,
+            acceptance_rate=round(approved / decided, 4) if decided else None,
+        )
+        for (dimension, key), (decided, approved) in sorted(tallies.items())
+    ]
+
+
+def _recurrence_rows(conn: sqlite3.Connection) -> list[RecurrenceRow]:
+    """How often the same source came back — the operator's real workload.
+
+    A service flagged on eight separate days is one problem seen eight
+    times, not eight problems. ``folded_repeats`` counts the days alert
+    suppression absorbed into an open card, so the row separates "we saw
+    it again" from "we bothered a human again".
+    """
+    folded: dict[str, int] = {}
+    for row in conn.execute(
+        "SELECT a.detail_json AS detail_json, e.service AS service FROM actions a "
+        "JOIN events e ON e.id = a.event_id WHERE e.kind = 'cost_anomaly'"
+    ):
+        try:
+            detail = json.loads(row["detail_json"])
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if isinstance(detail, dict):
+            folded[row["service"]] = folded.get(row["service"], 0) + suppressed_count(
+                detail
+            )
+
+    rows = []
+    for row in conn.execute(
+        "SELECT e.service AS service, "
+        "count(DISTINCT e.occurred_on) AS days, "
+        "min(e.occurred_on) AS first_seen, max(e.occurred_on) AS last_seen, "
+        "count(DISTINCT a.id) AS cards "
+        "FROM events e LEFT JOIN actions a ON a.event_id = e.id "
+        "WHERE e.kind = 'cost_anomaly' GROUP BY e.service ORDER BY days DESC, e.service"
+    ):
+        rows.append(
+            RecurrenceRow(
+                service=row["service"],
+                anomaly_days=row["days"],
+                cards_opened=row["cards"],
+                folded_repeats=folded.get(row["service"], 0),
+                # The first sighting is the problem; everything after it is
+                # the problem coming back.
+                recurrences=max(0, row["days"] - 1),
+                first_seen=row["first_seen"],
+                last_seen=row["last_seen"],
+            )
+        )
+    return rows
+
+
+def _intelligence_cost(conn: sqlite3.Connection, decisions: int) -> IntelligenceCost:
+    """What one human decision cost in model calls (and money, if priced)."""
+    total = conn.execute("SELECT count(*) FROM ai_usage").fetchone()[0]
+    cached = conn.execute(
+        "SELECT count(*) FROM ai_usage WHERE from_cache = 1"
+    ).fetchone()[0]
+    live = conn.execute(
+        "SELECT count(*) FROM ai_usage WHERE source = 'gemini' AND from_cache = 0"
+    ).fetchone()[0]
+    price = llm_price_per_call()
+    return IntelligenceCost(
+        llm_calls=total,
+        live_calls=live,
+        cached_calls=cached,
+        human_decisions=decisions,
+        calls_per_decision=round(total / decisions, 2) if decisions else None,
+        live_calls_per_decision=round(live / decisions, 2) if decisions else None,
+        price_per_call_usd=price,
+        usd_per_decision=(
+            round(live * price / decisions, 4) if price and decisions else None
+        ),
+        note=INTELLIGENCE_COST_NOTE,
+    )
+
+
+def _confidence_and_uncertainty(
+    conn: sqlite3.Connection,
+) -> tuple[float | None, list[UncertaintyTally]]:
+    """Average agent confidence and the uncertainty that fires most often.
+
+    Read off the persisted orchestration trace, so it covers every agent
+    that spoke on a card — analyst, recommender and the review panel —
+    rather than the single headline confidence the card displays.
+    """
+    scores: list[float] = []
+    counts: dict[str, int] = {}
+    labels: dict[str, str] = {}
+    for row in conn.execute("SELECT detail_json FROM actions"):
+        try:
+            trace = json.loads(row["detail_json"]).get("trace")
+        except (json.JSONDecodeError, AttributeError, TypeError):
+            continue
+        if not isinstance(trace, list):
+            continue
+        for step in trace:
+            if not isinstance(step, dict):
+                continue
+            score = step.get("confidence")
+            if isinstance(score, (int, float)):
+                scores.append(float(score))
+            for source in step.get("uncertainty_sources") or []:
+                if not isinstance(source, dict) or "code" not in source:
+                    continue
+                code = source["code"]
+                counts[code] = counts.get(code, 0) + 1
+                labels.setdefault(code, source.get("label", code))
+    # Most frequent first; the code breaks ties so the order is stable.
+    tallies = [
+        UncertaintyTally(code=code, label=labels[code], occurrences=count)
+        for code, count in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    ]
+    return (round(sum(scores) / len(scores), 4) if scores else None, tallies)
+
+
+@router.get("/quality")
+def decision_quality(
+    conn: sqlite3.Connection = Depends(db.get_db),
+) -> DecisionQualityReport:
+    """Is the DESK working? Acceptance, latency, recurrence, cost, calibration.
+
+    The metrics that move when the product gets better at deciding rather
+    than better at generating — deliberately the ones a bigger model would
+    not improve on its own.
+    """
+    verdicts = {
+        row["verdict"]: row["n"]
+        for row in conn.execute(
+            "SELECT verdict, count(*) AS n FROM decisions GROUP BY verdict"
+        )
+    }
+    decided = sum(verdicts.values())
+
+    # Trail-derived, so timeouts (which record no human verdict) and
+    # reopened cards cannot distort the figure.
+    action_ids = [
+        row["id"]
+        for row in conn.execute("SELECT id FROM actions WHERE decided_at IS NOT NULL")
+    ]
+    latencies = sorted(history.deliberation_hours(conn, action_ids).values())
+    middle = len(latencies) // 2
+    median = (
+        None
+        if not latencies
+        else round(latencies[middle], 4)
+        if len(latencies) % 2
+        else round((latencies[middle - 1] + latencies[middle]) / 2, 4)
+    )
+
+    avg_confidence, uncertainty_tallies = _confidence_and_uncertainty(conn)
+    return DecisionQualityReport(
+        method=QUALITY_METHOD,
+        human_decisions=decided,
+        acceptance_rate=(
+            round(verdicts.get("approved", 0) / decided, 4) if decided else None
+        ),
+        mean_time_to_decision_hours=(
+            round(sum(latencies) / len(latencies), 4) if latencies else None
+        ),
+        median_time_to_decision_hours=median,
+        acceptance=_acceptance_rows(conn),
+        recurrence=_recurrence_rows(conn),
+        intelligence_cost=_intelligence_cost(conn, decided),
+        avg_agent_confidence=avg_confidence,
+        top_uncertainty_sources=uncertainty_tallies,
+        calibration=confidence_calibration(conn).buckets,
+        calibration_method=CALIBRATION_METHOD,
+        note=(
+            "latency is measured from the append-only trail (filed → first "
+            "human verdict), so timeout expiries and reopened cards cannot "
+            "flatter it; decisions without a recorded confidence stay out "
+            "of the calibration buckets"
+        ),
     )
