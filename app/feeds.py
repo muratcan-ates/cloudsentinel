@@ -76,16 +76,19 @@ def feed_ttl_seconds() -> float:
 
 
 def costs_source() -> str:
-    """Resolve the cost lane's source: self | file | feed | mock.
+    """Resolve the cost lane's source: self | sim | file | feed | mock.
 
-    An explicit SENTINEL_COSTS_SOURCE (self or mock) wins over the
+    An explicit SENTINEL_COSTS_SOURCE (self, sim or mock) wins over the
     other knobs, so a demo can flip lanes without unsetting them; an
     imported billing file wins over a feed URL (local truth beats a
-    remote poll).
+    remote poll). "sim" is the simulated stream — synthetic and labeled
+    as such all the way to /health.
     """
     raw = os.environ.get(COSTS_SOURCE_ENV, "").strip().lower()
     if raw == "self":
         return "self"
+    if raw == "sim":
+        return "sim"
     if raw == "mock":
         return "mock"
     if os.environ.get(COSTS_FILE_ENV, "").strip():

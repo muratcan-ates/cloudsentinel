@@ -136,6 +136,12 @@ def load_dataset() -> dict:
         from app import telemetry
 
         return telemetry.usage_dataset()
+    if source == "sim":
+        # Local import: the generator seeds itself from load_mock_dataset,
+        # so the lazy import here is what keeps the cycle open.
+        from app import stream
+
+        return stream.sim_dataset()
     if source == "file":
         try:
             return feeds.read_costs_file()
@@ -146,6 +152,12 @@ def load_dataset() -> dict:
             return feeds.fetch_costs_feed()
         except feeds.FeedUnavailable:
             feeds.record_fallback("costs")  # /health must not claim live data
+    return load_mock_dataset()
+
+
+def load_mock_dataset() -> dict:
+    """The bundled fixture, demo-rebased — the mock path serves it and the
+    sim generator seeds from it (bypassing source resolution on purpose)."""
     with DATA_FILE.open() as f:
         dataset = json.load(f)
     delta = demo_rebase_delta()

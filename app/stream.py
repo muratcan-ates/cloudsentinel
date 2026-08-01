@@ -9,13 +9,15 @@ read-only: state lives in memory, advances lazily on read, and never touches
 the database, so the endpoint is safe on the read-only vitrine too.
 """
 
+import hashlib
 import os
 import random
 import time
+from datetime import date, timedelta
 
 from fastapi import APIRouter, HTTPException
 
-from app.detection import load_daily_costs
+from app.detection import load_mock_dataset
 from app.models import StreamReport, StreamService
 
 router = APIRouter(prefix="/stream", tags=["stream"])
@@ -28,8 +30,10 @@ MAX_CATCHUP_TICKS = 240  # an idle server fast-forwards at most this many
 SPIKE_START_CHANCE = 0.005  # per service per tick
 SPIKE_TICKS = (6, 14)
 WALK_SIGMA = 0.012  # per-tick drift; small keeps the tape calm, not jittery
-SPIKE_DRIFT = 0.06
+SPIKE_DRIFT = 0.08
+REVERSION = 0.05  # pull toward base — calm lanes stay calm, spikes stand out
 BAND = (0.45, 2.6)  # the walk stays within base × band — no runaways
+HISTORY_DAYS = 13  # the sim dataset's stable synthetic fortnight
 
 _rng = random.Random()
 _lanes: dict[str, dict] = {}
@@ -57,7 +61,7 @@ def _seed() -> None:
     if _lanes:
         return
     by_service: dict[str, list[float]] = {}
-    for record in load_daily_costs():
+    for record in load_mock_dataset()["daily_costs"]:
         by_service.setdefault(record["service"], []).append(record["cost"])
     for service, costs in sorted(by_service.items()):
         base = max(sum(costs) / len(costs) / 24.0, 0.01)
@@ -75,7 +79,9 @@ def _seed() -> None:
 def _tick_once() -> None:
     for lane in _lanes.values():
         lane["prev"] = lane["rate"]
-        drift = _rng.gauss(0.0, WALK_SIGMA)
+        drift = _rng.gauss(0.0, WALK_SIGMA) + REVERSION * (
+            lane["base"] - lane["rate"]
+        ) / lane["base"]
         if lane["spike"] > 0:
             drift += SPIKE_DRIFT
             lane["spike"] -= 1
@@ -98,6 +104,53 @@ def _advance(now: float) -> None:
     _last_tick += ticks * TICK_SECONDS
     for _ in range(min(ticks, MAX_CATCHUP_TICKS)):
         _tick_once()
+
+
+def sim_dataset() -> dict:
+    """Cost-lane dataset from the generator: a stable synthetic fortnight
+    plus TODAY projected live from the current run-rates (rate × 24 h).
+
+    History is hash-seeded per (service, day) so it never rewrites itself
+    between requests — only today moves. A stream spike therefore projects
+    into an anomalous daily figure the detector can genuinely flag: the
+    whole chain reacts live, on data that says synthetic everywhere.
+    """
+    _seed()
+    _advance(time.monotonic())
+    today = date.today()
+    records = []
+    for name, lane in sorted(_lanes.items()):
+        base_daily = lane["base"] * 24.0
+        for offset in range(HISTORY_DAYS, 0, -1):
+            day = (today - timedelta(days=offset)).isoformat()
+            digest = int(hashlib.sha256(f"{name}:{day}".encode()).hexdigest()[:8], 16)
+            jitter = (digest % 1700 - 850) / 10000.0  # deterministic ±8.5%
+            records.append(
+                {
+                    "date": day,
+                    "service": name,
+                    "cost": round(base_daily * (1.0 + jitter), 2),
+                }
+            )
+        records.append(
+            {
+                "date": today.isoformat(),
+                "service": name,
+                "cost": round(lane["rate"] * 24.0, 2),
+            }
+        )
+    return {
+        "description": (
+            "synthetic live simulation — today is projected from the "
+            "simulated run-rate; no real billing data involved"
+        ),
+        "currency": "USD",
+        "period": {
+            "start": (today - timedelta(days=HISTORY_DAYS)).isoformat(),
+            "end": today.isoformat(),
+        },
+        "daily_costs": records,
+    }
 
 
 @router.get(

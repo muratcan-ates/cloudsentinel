@@ -8,7 +8,7 @@ UVICORN := $(VENV)/bin/uvicorn
 PYTEST := $(VENV)/bin/pytest
 RUFF := $(VENV)/bin/ruff
 
-.PHONY: setup run test demo demo-live smoke drill
+.PHONY: setup run test demo demo-live demo-sim smoke drill
 
 setup:
 	$(PYTHON) -m venv $(VENV)
@@ -27,6 +27,14 @@ test:
 demo:
 	SENTINEL_FAKE_LLM=1 SENTINEL_REBASE_DATES=1 SENTINEL_DEMO_RESET=1 \
 		SENTINEL_SIM_STREAM=1 \
+		$(UVICORN) main:app --host 127.0.0.1 --port 8000
+
+# Synthetic-live stage: the cost lane rides the simulated stream — today is
+# projected from the live run-rate, so a spike becomes a genuine detector
+# signal while the camera rolls. Security/fraud stay on the rebased mock.
+demo-sim:
+	SENTINEL_FAKE_LLM=1 SENTINEL_REBASE_DATES=1 SENTINEL_DEMO_RESET=1 \
+		SENTINEL_SIM_STREAM=1 SENTINEL_COSTS_SOURCE=sim \
 		$(UVICORN) main:app --host 127.0.0.1 --port 8000
 
 # Live-data stage: the cost lane serves the app's own request telemetry

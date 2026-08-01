@@ -195,10 +195,21 @@ const utcNow = () =>
    (self = the app's own telemetry, feed = external URL). A lane whose feed
    fell back reports "mock (feed unavailable)" — that is mock, not live. */
 function dataBadge() {
-  const lanes = Object.entries(state.dataSources || {})
-    .filter(([, source]) => source && !String(source).startsWith("mock"))
+  const entries = Object.entries(state.dataSources || {});
+  const sim = entries
+    .filter(([, source]) => String(source).startsWith("sim"))
     .map(([lane, source]) => `${lane}: ${source}`);
-  return lanes.length ? `LIVE DATA (${lanes.join(", ")})` : "MOCK DATA";
+  const live = entries
+    .filter(
+      ([, source]) =>
+        source && !String(source).startsWith("mock") && !String(source).startsWith("sim")
+    )
+    .map(([lane, source]) => `${lane}: ${source}`);
+  const parts = [];
+  if (live.length) parts.push(`LIVE DATA (${live.join(", ")})`);
+  // sim is deliberately NOT "live data": the badge says what it is
+  if (sim.length) parts.push(`SIMULATED LIVE (${sim.join(", ")})`);
+  return parts.length ? parts.join(" — ") : "MOCK DATA";
 }
 
 /* "4d ago" for a YYYY-MM-DD — relative context without touching the data. */
@@ -2986,6 +2997,25 @@ function renderTape(frame) {
     .join("");
 }
 
+/* Sim source only: today's projected point rides the tape, so the BIG
+   trend chart and the cost rows breathe at tape cadence — history stays
+   fixed, only today moves. */
+async function refreshSimCosts() {
+  try {
+    const [costs, daily] = await Promise.all([
+      fetchJson("/costs/summary"),
+      fetchJson("/costs/daily"),
+    ]);
+    state.costs = costs;
+    state.daily = daily;
+    renderTrend();
+    renderCosts(costs, new Set((state.anomalies || []).map((a) => a.service)));
+    if (tapeState.lastFrame) feedCostLedgerFromTape(tapeState.lastFrame);
+  } catch {
+    /* a missed frame is fine — the next scan repaints anyway */
+  }
+}
+
 async function pollTape() {
   const tape = document.getElementById("live-tape");
   if (!tape) return;
@@ -2993,10 +3023,18 @@ async function pollTape() {
     const frame = await fetchJson("/stream/metrics");
     tape.hidden = false;
     tapeState.failures = 0;
+    tapeState.lastFrame = frame;
+    tapeState.frames = (tapeState.frames || 0) + 1;
     document.getElementById("tape-label").textContent =
       `live tape — simulated stream · ${frame.unit} · synthetic figures, no real billing`;
     renderTape(frame);
     feedCostLedgerFromTape(frame);
+    if (
+      String(state.dataSources?.costs || "").startsWith("sim") &&
+      tapeState.frames % 2 === 0
+    ) {
+      refreshSimCosts();
+    }
     if (!tapeState.timer) {
       tapeState.timer = setInterval(pollTape, (frame.interval_seconds || 2.5) * 1000);
     }

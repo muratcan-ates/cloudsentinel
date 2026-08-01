@@ -65,3 +65,51 @@ def test_stream_survives_the_readonly_vitrine(tape, monkeypatch):
     """A read-only deployment may still run the tape — GET is never a write."""
     monkeypatch.setenv("SENTINEL_READONLY", "1")
     assert tape.get("/stream/metrics").status_code == 200
+
+
+def test_sim_source_feeds_the_cost_lane(monkeypatch):
+    """SENTINEL_COSTS_SOURCE=sim serves the generator's dataset and /health
+    names the lane honestly — sim, never "live"."""
+    monkeypatch.setenv("SENTINEL_COSTS_SOURCE", "sim")
+    from app import detection
+
+    dataset = detection.load_dataset()
+    assert "synthetic" in dataset["description"]
+    assert dataset["currency"] == "USD"
+    days = {record["date"] for record in dataset["daily_costs"]}
+    assert len(days) == stream.HISTORY_DAYS + 1
+    assert client.get("/health").json()["data_sources"]["costs"] == "sim"
+
+
+def test_sim_history_is_stable_but_today_moves(monkeypatch):
+    """Hash-seeded history never rewrites itself; only today's projection
+    rides the walk."""
+    monkeypatch.setenv("SENTINEL_COSTS_SOURCE", "sim")
+    from datetime import date
+
+    from app import detection
+
+    first = detection.load_dataset()["daily_costs"]
+    monkeypatch.setattr(stream, "TICK_SECONDS", 0.000001)
+    second = detection.load_dataset()["daily_costs"]
+    today = date.today().isoformat()
+    assert [r for r in first if r["date"] != today] == [
+        r for r in second if r["date"] != today
+    ]
+    assert {r["service"]: r["cost"] for r in first if r["date"] == today} != {
+        r["service"]: r["cost"] for r in second if r["date"] == today
+    }
+
+
+def test_sim_spike_becomes_a_real_signal(monkeypatch):
+    """A stream spike projects into today's figure and the detector
+    genuinely flags it — the whole chain reacts to the simulation."""
+    monkeypatch.setenv("SENTINEL_COSTS_SOURCE", "sim")
+    from datetime import date
+
+    stream._seed()
+    lane = stream._lanes["compute"]
+    lane["rate"] = lane["base"] * 2.5
+    body = client.get("/anomalies").json()
+    flagged = {(a["service"], a["date"]) for a in body["anomalies"]}
+    assert ("compute", date.today().isoformat()) in flagged
