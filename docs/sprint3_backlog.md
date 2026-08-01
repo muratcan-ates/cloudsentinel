@@ -21,7 +21,7 @@ is aimed at.
 
 | # | Story | Notes | Status |
 |---|---|---|---|
-| A1 | **Live Gemini key spike** | Provision the billing-disabled key; measure real RPM/RPD, JSON-validity rate and latency with [`scripts/spike_gemini.py`](../scripts/spike_gemini.py); record results here and in the README | open |
+| A1 | **Live Gemini key spike** | Provision the billing-disabled key; measure real RPM/RPD, JSON-validity rate and latency with [`scripts/spike_gemini.py`](../scripts/spike_gemini.py); record results here and in the README | ✅ spike run Aug 1 (fresh free-tier key): schema-parse OK end to end; latency flash-latest 2.7s · flash-lite-latest 0.8s · 3.5-flash 2.9s; 2.5-family 404s for new keys and pro-tier free quota is 0 → defaults moved to -latest aliases, panel's third seat pinned to gemini-3.5-flash; demo stays on the deterministic provider by decision |
 | A2 | **Continuous integration** | `ci.yml` — ruff + full suite on every push and PR | ✅ landed July 18 |
 | A3 | **Deployment** | Render (`render.yaml`, non-root healthchecked image) + UptimeRobot on `/health`; **the public link ships with `SENTINEL_READONLY=1`** so strangers' clicks cannot mutate shared state | open |
 | A4 | **Live-data trial** | One provider, file-based and credential-free (bootcamp-safe): ingest a real cloud billing export (Azure Cost Management / AWS CUR CSV) through the existing source-agnostic loader behind a flag, and re-run the detection benchmark on it | 🟡 mechanism landed July 26 (`scripts/import_costs.py` + `SENTINEL_COSTS_FILE` lane, plus self-telemetry and feed-URL modes); remaining: run it on a real export from the team — **keep the real export out of git** (feed it from a path outside the repo via `SENTINEL_COSTS_FILE`, or gitignore it first) |

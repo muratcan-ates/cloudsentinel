@@ -38,14 +38,20 @@ except ImportError:  # pragma: no cover
 
 logger = logging.getLogger("cloudsentinel.llm")
 
-# Quota-starved backup, if ever needed: gemini-2.5-flash-lite.
-DEFAULT_MODEL = "gemini-2.5-flash"
+# "-latest" aliases: Google retires pinned families for NEW keys (the
+# spike caught gemini-2.5-flash returning 404 on a fresh project); the
+# aliases always resolve to the current generation.
+DEFAULT_MODEL = "gemini-flash-latest"
 # Heterogeneous review panel (critical contested calls): genuinely
 # different Gemini variants argue the same decision on one billing-
 # disabled key — model diversity without a new SDK or a second bill.
 # Comma-separated SENTINEL_PANEL_MODELS overrides (jury-day quota
 # pressure may force swapping pro out without a deploy).
-DEFAULT_PANEL_MODELS = ("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro")
+# Third seat is a PINNED previous-generation flash, not pro: the free
+# tier now grants pro models zero quota (limit: 0 — measured live), and
+# a permanently-abstaining juror is no juror. A different generation is
+# still a genuinely different model.
+DEFAULT_PANEL_MODELS = ("gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3.5-flash")
 PANEL_MODELS_ENV = "SENTINEL_PANEL_MODELS"
 
 MAX_ATTEMPTS = 4
