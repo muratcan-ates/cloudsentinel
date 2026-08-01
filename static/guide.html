@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="vivid">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CloudSentinel — Handbook</title>
+  <link rel="stylesheet" href="/static/style.css?v=s9.0" />
+  <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
+  <meta name="description" content="CloudSentinel handbook — what the product is, the five beats, the rooms, the agents, the detection maths, the mission DSL, the human-in-the-loop lifecycle, what is simulated, and how to run it." />
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+
+  <nav class="top-nav" aria-label="Site">
+    <a class="nav-brand pixel-black" href="/">cloudsentinel<span class="period">.</span></a>
+    <div class="nav-links">
+      <a class="view-tab" href="/watch">watch</a>
+      <a class="view-tab" href="/investigate">investigation</a>
+      <a class="view-tab" href="/decide">decision desk</a>
+      <a class="view-tab" href="/intel">intelligence</a>
+      <a class="view-tab" href="/brain">brain</a>
+      <a class="view-tab" href="/broadsheet">broadsheet</a>
+      <a class="view-tab" href="/static/guide.html" aria-pressed="true" aria-current="page">handbook</a>
+    </div>
+  </nav>
+
+  <div class="page">
+
+    <header class="masthead">
+      <p class="corner left">the handbook</p>
+      <p class="corner right">Group 60 — YZTA MMXXVI</p>
+      <p class="kicker">the machine <span class="fraktur k-fr">watches</span> — the human <em class="k-em">decides</em></p>
+      <h1 class="pixel-black">cloudsentinel<span class="period">.</span></h1>
+      <p class="masthead-tag"><span class="fraktur">the whole product, in ten minutes</span></p>
+      <p class="meta">every claim on this page is taken from the repository, not from the pitch</p>
+    </header>
+
+    <nav class="cs-chips" aria-label="Contents">
+      <a class="cs-chip" href="#thesis">the thesis</a>
+      <a class="cs-chip" href="#beats">the five beats</a>
+      <a class="cs-chip" href="#rooms">the rooms</a>
+      <a class="cs-chip" href="#agents">the agents</a>
+      <a class="cs-chip" href="#maths">the maths</a>
+      <a class="cs-chip" href="#missions">the missions</a>
+      <a class="cs-chip" href="#desk">the decision lifecycle</a>
+      <a class="cs-chip" href="#real">real vs simulated</a>
+      <a class="cs-chip" href="#safety">the safety boundaries</a>
+      <a class="cs-chip" href="#api">the API</a>
+      <a class="cs-chip" href="#run">run it</a>
+    </nav>
+
+    <main id="main-content" tabindex="-1">
+
+      <!-- ============================ 0 · the thesis ============================ -->
+      <section class="ledger-wide" id="thesis" aria-labelledby="thesis-heading">
+        <header class="section-head">
+          <span class="numeral">0</span>
+          <h2 class="section-word" id="thesis-heading">the thesis</h2>
+        </header>
+        <p class="meta">one line, and then everything that had to be true for the line to be honest</p>
+
+        <div class="cs-card cs-hero">
+          <span class="cs-hero-mark" aria-hidden="true">◎</span>
+          <div>
+            <p class="cs-card-title">The machine watches. The human decides.</p>
+            <p class="cs-card-sub">
+              CloudSentinel is an agentic decision-support system for cloud operations. It detects anomalies in
+              cost and security data, has AI agents reason about each signal and propose evidence-backed
+              remediation options, and leaves every critical decision to a human operator. Detection is
+              deterministic Python. The agents interpret and narrate; they never invent a number. Nothing
+              executes without an approval, and the execution itself is simulated by design.
+            </p>
+            <div class="cs-hero-actions">
+              <a class="cs-btn" href="/">Open the dashboard ▸</a>
+              <a class="row-action" href="/docs">the API surface</a>
+              <a class="row-action" href="/decide">the decision desk</a>
+              <a class="row-action" href="/agents">the agent roster</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="cs-card">
+          <div class="cs-card-head">
+            <p class="cs-card-title">The shape of it</p>
+            <span class="cs-badge" data-lane="ops">competition build</span>
+          </div>
+          <div class="cs-stat3">
+            <div>
+              <p class="cs-stat-fig">3</p>
+              <p class="cs-stat-label">lanes watched</p>
+            </div>
+            <div>
+              <p class="cs-stat-fig">6</p>
+              <p class="cs-stat-label">agents in the loop</p>
+            </div>
+            <div>
+              <p class="cs-stat-fig">60</p>
+              <p class="cs-stat-label">documented endpoints</p>
+            </div>
+          </div>
+          <p class="meta">
+            FastAPI and Python 3.12, sqlite3 in WAL mode as the store, a vanilla-JS dashboard under a strict
+            content-security policy, and a Gemini provider behind an abstraction with a deterministic fake
+            provider so the whole demo runs offline. 1190 pytest cases, ruff clean, no agent framework and no
+            runtime dependency the dashboard has to fetch from anyone else.
+          </p>
+        </div>
+
+        <div class="cs-card">
+          <div class="cs-card-head">
+            <p class="cs-card-title">What it is not</p>
+          </div>
+          <p class="cs-card-sub">Each row is a decision that was made and written down, not a task nobody got to.</p>
+          <ul class="cs-rows">
+            <li class="cs-row">
+              <span><span class="cs-row-name">Not a cloud connector.</span> <span class="cs-row-note">No provider SDK, no credential, anywhere. The detection line is source-agnostic; the data is synthetic.</span></span>
+              <span class="cs-row-value is-off">by design</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">Not an actuator.</span> <span class="cs-row-note">Approving an action never changes any infrastructure. The mutation is simulated; only the record and an optional webhook delivery are real.</span></span>
+              <span class="cs-row-value is-off">by design</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">Not machine learning.</span> <span class="cs-row-note">Detection is a rolling-baseline z-score. Fraud is four published rules. Nothing is trained; nothing is learned beyond the arithmetic.</span></span>
+              <span class="cs-row-value is-off">by design</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">Not a system of record.</span> <span class="cs-row-note">SQLite on an ephemeral disk. The hash chain proves the history was not rewritten; it does not make the history survive a restart.</span></span>
+              <span class="cs-row-value is-off">known limit</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">Not multi-tenant, not SSO.</span> <span class="cs-row-note">One deployment serves one estate. Identity is local PBKDF2 accounts with four roles — no OIDC, no MFA, no recovery.</span></span>
+              <span class="cs-row-value is-off">known limit</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============================ I · the five beats ============================ -->
+      <section class="ledger-wide" id="beats" aria-labelledby="beats-heading">
+        <header class="section-head">
+          <span class="numeral">I</span>
+          <h2 class="section-word" id="beats-heading">the five beats</h2>
+        </header>
+        <p class="meta">the product read left to right — a signal enters at the top row and leaves as a measured outcome at the bottom</p>
+
+        <div class="cs-card">
+          <ul class="cs-rows">
+            <li class="cs-row">
+              <span><span class="cs-row-name">1 · Detect.</span> <span class="cs-row-note">A deterministic detector scores three lanes against a rolling baseline: cloud cost, security event counts, and payment events (the last by published rule score, not statistics).</span></span>
+              <span class="cs-row-value">app/detection.py</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">2 · Reason.</span> <span class="cs-row-note">The Analyst triages each cost anomaly with cited evidence. The Recommender proposes one cautious and one bold option with risk and rollback. A Skeptic reviews contested calls. A Chronicler narrates the run. Every money figure is computed in Python.</span></span>
+              <span class="cs-row-value">app/analyst.py</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">3 · Decide.</span> <span class="cs-row-note">Proposals wait in a decision inbox. An operator approves or rejects with a recorded rationale. Nothing executes unapproved, and execution stays simulated.</span></span>
+              <span class="cs-row-value">app/actions.py</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">4 · Remember.</span> <span class="cs-row-note">Verdicts become decision memory that future recommendations consume — and disclose, on the card, as a count of how many were considered. A hop-by-hop trace shows how the chain actually ran.</span></span>
+              <span class="cs-row-value">app/decisions.py</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">5 · Account.</span> <span class="cs-row-note">Analytics turn the persisted history into a HITL funnel, approved savings, trend, forecast, what-if and ROI figures — plus a self-FinOps view of the system's own model usage.</span></span>
+              <span class="cs-row-value">app/analytics.py</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="cs-card">
+          <div class="cs-card-head">
+            <p class="cs-card-title">One call runs all five</p>
+            <span class="cs-badge" data-lane="cost">POST /pulse</span>
+          </div>
+          <p class="cs-card-sub">
+            The pulse resolves the active mission, runs the scan, triages every cost anomaly, escalates the
+            contested ones to debate, files proposals into the inbox, and asks the Chronicler for a briefing —
+            under a per-run call budget of 14 model calls by default. Exhausting the budget degrades every
+            agent to its rule-based fallback, labelled as such on the card. The last run survives a reload at
+            <strong>GET /pulse/last</strong>.
+          </p>
+        </div>
+      </section>
+
+      <!-- ============================ II · the rooms ============================ -->
+      <section class="ledger-wide" id="rooms" aria-labelledby="rooms-heading">
+        <header class="section-head">
+          <span class="numeral">II</span>
+          <h2 class="section-word" id="rooms-heading">the rooms</h2>
+        </header>
+        <p class="meta">the dashboard is one page with six rooms; each room is a real URL, so back, forward and sharing all work</p>
+
+        <div class="cs-card">
+          <div class="cs-card-head">
+            <p class="cs-card-title">Six rooms, in reading order</p>
+          </div>
+          <ul class="cs-rows">
+            <li class="cs-row">
+              <span><a class="cs-row-name row-action" href="/watch">Watch</a> <span class="cs-row-note">Signals surface. The desk (what the estate is holding right now), the anomaly feed with the live sentinel radar, and the cost ledger with share-of-spend.</span></span>
+              <span class="cs-row-value">/watch</span>
+            </li>
+            <li class="cs-row">
+              <span><a class="cs-row-name row-action" href="/investigate">Investigation</a> <span class="cs-row-note">Evidence and triage. One open signal at a time: the cited evidence rows, the Analyst's classification and confidence, the sparkline of that service's own history.</span></span>
+              <span class="cs-row-value">/investigate</span>
+            </li>
+            <li class="cs-row">
+              <span><a class="cs-row-name row-action" href="/decide">Decision desk</a> <span class="cs-row-note">The hand decides. The decision inbox with both options, risk, rollback and computed savings, plus the append-only decision ledger underneath it.</span></span>
+              <span class="cs-row-value">/decide</span>
+            </li>
+            <li class="cs-row">
+              <span><a class="cs-row-name row-action" href="/intel">Intelligence</a> <span class="cs-row-note">Results measured. The HITL funnel, approved savings, trend and month-end forecast, what-if and ROI, the AI-usage ledger — and market watch, the standing moves worth doing anyway.</span></span>
+              <span class="cs-row-value">/intel</span>
+            </li>
+            <li class="cs-row">
+              <span><a class="cs-row-name row-action" href="/brain">Brain</a> <span class="cs-row-note">Memory and reflection. Observations, projections and improvement recommendations from persisted history; the self-review cycle; saved routines; the runbook library; the detector backtest; operator sign-in.</span></span>
+              <span class="cs-row-value">/brain</span>
+            </li>
+            <li class="cs-row">
+              <span><a class="cs-row-name row-action" href="/broadsheet">Broadsheet</a> <span class="cs-row-note">The story told. Every panel on one scrolling page — the view the printed shift handover is taken from.</span></span>
+              <span class="cs-row-value">/broadsheet</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="cs-card">
+          <div class="cs-card-head">
+            <p class="cs-card-title">The nine panels behind the six rooms</p>
+          </div>
+          <p class="cs-card-sub">A room is a selection of panels. These are the panels, in the order the broadsheet prints them.</p>
+          <ul class="cs-rows">
+            <li class="cs-row"><span><span class="cs-row-name">0 · the desk</span> <span class="cs-row-note">Identity and estate stats, the lanes, the proofs the system can produce on demand, and everything waiting on a human.</span></span><span class="cs-row-value">watch</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">I · anomalies</span> <span class="cs-row-note">The scored signals at the current sensitivity, sortable, with the live radar and the simulated tape when it is enabled.</span></span><span class="cs-row-value">watch</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">II · cost ledger</span> <span class="cs-row-note">Per-service totals, each service's share of overall spend, click-to-filter, CSV export in FOCUS 1.4 shape.</span></span><span class="cs-row-value">watch</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">III · investigation</span> <span class="cs-row-note">The evidence pack for one signal: cited rows, triage badge, confidence, reflection and skeptic outcome, the hop-by-hop agent trace.</span></span><span class="cs-row-value">investigate</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">IV · decision inbox</span> <span class="cs-row-note">Proposed actions with two options, blast-radius tier, framework reference, verification plan and a cited runbook. Approve, reject with a rationale, reopen, execute.</span></span><span class="cs-row-value">decide</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">V · decision ledger</span> <span class="cs-row-note">The append-only trail: who decided what, when, and why — rendered as a per-card timeline.</span></span><span class="cs-row-value">decide</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">VI · operations intelligence</span> <span class="cs-row-note">Funnel, approved value, trend, forecast with a budget signal, what-if, ROI, calibration and the system's own AI spend.</span></span><span class="cs-row-value">intel</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">VII · market watch</span> <span class="cs-row-note">Standing published moves — commitment discounts, ARM families, non-prod scheduling, tiering, spot, idle sweeps, egress routing — costed against this estate's own run rate. Suggestions only; this lane never files an action.</span></span><span class="cs-row-value">intel</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">the brain</span> <span class="cs-row-note">Insights, self-review, routines, runbook search, detection backtest, identity.</span></span><span class="cs-row-value">brain</span></li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============================ III · the agents ============================ -->
+      <section class="ledger-wide" id="agents" aria-labelledby="agents-heading">
+        <header class="section-head">
+          <span class="numeral">III</span>
+          <h2 class="section-word" id="agents-heading">the agents</h2>
+        </header>
+        <p class="meta">six members, and the guardrails are part of the definition — the roster below is the one <strong>GET /agents</strong> returns, read out of the code</p>
+
+        <div class="cs-card">
+          <ul class="cs-rows">
+            <li class="cs-row">
+              <span><span class="cs-row-name">Reflex</span> <span class="cs-row-note">Deterministic first responder. Resolves the mission's detection settings, runs the scan and reports its own measured latency. May not call a model at all. Fires on every scan and every pulse.</span></span>
+              <span class="cs-row-value">pure Python</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">Analyst</span> <span class="cs-row-note">Triage. Classifies each cost anomaly REAL / SEASONAL / DATA_ERROR / KNOWN_CHANGE with cited evidence rows and a self-assessed confidence. Its citations are validated against the real evidence window; a critical signal gets a second self-review pass. Answers are cached; fallbacks never are.</span></span>
+              <span class="cs-row-value">model or fallback</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">Recommender</span> <span class="cs-row-note">Remediation. Drafts exactly one cautious and one bold option, each with risk and a rollback plan, and consumes decision memory while disclosing how much it considered. Savings are computed in Python and its narrative is post-checked to within ±5% of them. One open card per signal.</span></span>
+              <span class="cs-row-value">model or fallback</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">Skeptic</span> <span class="cs-row-note">Adversarial review. Challenges a contested draft and may overturn the stance, on the record. At most one call per decision, and the transcript is persisted with the proposal.</span></span>
+              <span class="cs-row-value">model or fake</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">Chronicler</span> <span class="cs-row-note">Narration. Turns the run's computed facts into an operator briefing — headline, summary, watch-next. Never invents a figure, is charged against the pulse budget, and is cached by the exact facts it was given.</span></span>
+              <span class="cs-row-value">model or fallback</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">Operator</span> <span class="cs-row-note">The human. Approves, rejects and (simulated) executes; every verdict feeds decision memory. Nothing executes unapproved, decisions are idempotent, and a rejection must carry a rationale.</span></span>
+              <span class="cs-row-value">human in the loop</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="cs-card">
+          <div class="cs-card-head">
+            <p class="cs-card-title">The debate ladder</p>
+            <span class="cs-badge" data-lane="proof">escalation</span>
+          </div>
+          <p class="cs-card-sub">
+            A confident, uncontested warning goes straight to the inbox. A <strong>contested warning</strong> — low
+            recommender confidence, an analyst/recommender disagreement, a service that has tripped the reflex on
+            three anomaly days inside two weeks, or a BOLD answer under the stakes-raised bar — earns one Skeptic
+            review. A <strong>contested critical</strong> signal convenes a three-seat review panel: three Gemini
+            variants when a live key is configured, three deterministic personas (stability, throughput, evidence)
+            offline. The majority over answered seats decides the stance; dissent and abstentions stay in the
+            transcript, a dead seat abstains, and a below-quorum panel keeps the draft rather than inventing a verdict.
+          </p>
+        </div>
+
+        <div class="cs-card">
+          <div class="cs-card-head">
+            <p class="cs-card-title">What no agent is allowed to do</p>
+          </div>
+          <ul class="cs-rows">
+            <li class="cs-row"><span><span class="cs-row-name">Produce a number the operator acts on.</span> <span class="cs-row-note">Savings, costs, z-scores and fraud points are Python arithmetic. Money-looking figures in agent prose are post-checked ±5% against the computed value and flagged on the card when they cannot be verified.</span></span><span class="cs-row-value is-off">never</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Touch a security or fraud signal.</span> <span class="cs-row-note">Those lanes are operator-facing facts. The agent endpoints answer 409 on a foreign event kind, and the HITL funnel counts cost anomalies only.</span></span><span class="cs-row-value is-off">never</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Take instructions from the data.</span> <span class="cs-row-note">Every untrusted payload enters a prompt between delimiters, as data. Model-cited evidence ids are checked against the real evidence window before they are shown.</span></span><span class="cs-row-value is-off">never</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Execute anything.</span> <span class="cs-row-note">Only the operator can move a card out of <strong>proposed</strong>, and the execute transition mutates no infrastructure.</span></span><span class="cs-row-value is-off">never</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Fail the run.</span> <span class="cs-row-note">A dead provider, an exhausted budget or a transport timeout degrades an agent to its rule-based fallback, tagged <strong>source: fallback</strong>. The card is still filed.</span></span><span class="cs-row-value is-off">never</span></li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============================ IV · the maths | V · the missions ============================ -->
+      <section class="ledger-col" id="maths" aria-labelledby="maths-heading">
+        <header class="section-head">
+          <span class="numeral">IV</span>
+          <h2 class="section-word" id="maths-heading">the maths</h2>
+        </header>
+        <p class="meta">how a number becomes a signal — all of it in <strong>app/detection.py</strong>, none of it trained</p>
+
+        <div class="cs-card">
+          <div class="cs-card-head"><p class="cs-card-title">The window</p></div>
+          <p class="cs-card-sub">
+            Statistics come from a true calendar window: the last 28 days ending at the dataset's newest date,
+            not from a service's whole history. A months-old regime cannot poison today's baseline, and a
+            service whose data stopped before the window ages out instead of being scored against fossils.
+            A service needs at least <strong>7 records inside the window</strong> to be scored at all; below that
+            it is reported in <strong>insufficient_data_services</strong> rather than guessed at.
+            A record whose cost is missing, non-numeric or non-finite is dropped before any statistic runs, and
+            the drop is counted — never silently treated as zero.
+          </p>
+        </div>
+
+        <div class="cs-card">
+          <div class="cs-card-head"><p class="cs-card-title">The score</p></div>
+          <p class="cs-card-sub">
+            For each service the detector computes a <strong>centre</strong> and a <strong>spread</strong> over the
+            window, then scores every record as <em>(cost − centre) ÷ spread</em>. A record is flagged when the
+            absolute value of that score meets the mission's threshold (2.0 by default), and it is
+            <strong>critical</strong> at 3.0 or above, a <strong>warning</strong> otherwise. A perfectly flat window
+            has zero spread and produces no score — there is nothing to be unusual against.
+          </p>
+        </div>
+
+        <div class="cs-card">
+          <div class="cs-card-head"><p class="cs-card-title">Two ways to be "normal"</p></div>
+          <ul class="cs-rows">
+            <li class="cs-row"><span><span class="cs-row-name">zscore</span> <span class="cs-row-note">Mean and population standard deviation. The default. Simple and familiar — and one big spike inflates both, hiding the next one.</span></span><span class="cs-row-value">default</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">mad</span> <span class="cs-row-note">Median plus median-absolute-deviation scaled by 1.4826, chosen with <strong>SENTINEL_DETECTOR=mad</strong>. A single extreme value cannot move it. If more than half the window is identical the MAD collapses to zero, so it falls back to the classic z-score rather than hiding every spike.</span></span><span class="cs-row-value">opt-in</span></li>
+          </ul>
+        </div>
+
+        <div class="cs-card">
+          <div class="cs-card-head"><p class="cs-card-title">Three switches, all off by default</p><span class="cs-badge" data-lane="ops">env</span></div>
+          <ul class="cs-rows">
+            <li class="cs-row"><span><span class="cs-row-name">Weekly seasonality</span> <span class="cs-row-note">Compares Mondays with Mondays. It engages only when every weekday bucket holds at least 3 records <em>and</em> is large enough for the requested threshold to be mathematically reachable — otherwise it keeps the flat baseline instead of silently muting the lane. Switch: <strong>SENTINEL_SEASONAL</strong>.</span></span><span class="cs-row-value">off</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Leave-one-out</span> <span class="cs-row-note">Scores each record against a baseline that excludes that record, so an outlier cannot inflate the centre and spread it is then measured against. Switch: <strong>SENTINEL_LEAVE_ONE_OUT</strong>.</span></span><span class="cs-row-value">off</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Baseline window</span> <span class="cs-row-note">The 28-day default is tunable through <strong>SENTINEL_BASELINE_WINDOW_DAYS</strong>, with a floor at the 7-record minimum and a ceiling at a year — a "rolling" baseline longer than that is not rolling.</span></span><span class="cs-row-value">28 days</span></li>
+          </ul>
+          <p class="meta">Every flagged anomaly records which detector and which parameters produced it, so "why was this flagged" has a durable answer in the event payload.</p>
+        </div>
+
+        <div class="cs-card">
+          <div class="cs-card-head">
+            <p class="cs-card-title">The fraud lane does none of that</p>
+            <span class="cs-badge" data-lane="fraud">rule score</span>
+          </div>
+          <p class="cs-card-sub">Four published rules, summed and clamped to 100, with every hit returned as rule / points / detail so any score can be recomputed by hand.</p>
+          <ul class="cs-rows">
+            <li class="cs-row"><span><span class="cs-row-name">Amount vs the account's typical</span> <span class="cs-row-note">ratio ≥ 10, ≥ 3, ≥ 1.5</span></span><span class="cs-row-value">+40 / +25 / +10</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Velocity</span> <span class="cs-row-note">≥ 5 transactions in 10 minutes, ≥ 3</span></span><span class="cs-row-value">+25 / +15</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Geography</span> <span class="cs-row-note">transaction country differs from the home country</span></span><span class="cs-row-value">+20</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Account age</span> <span class="cs-row-note">younger than the configured cutoff (30 days)</span></span><span class="cs-row-value">+15</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Bands</span> <span class="cs-row-note">70 and above suggests a hold, 40 and above asks for review, below that is clear</span></span><span class="cs-row-value">mission config</span></li>
+          </ul>
+          <p class="meta">It suggests a hold. It never blocks a payment, and no model is involved.</p>
+        </div>
+      </section>
+
+      <section class="ledger-col col-rule" id="missions" aria-labelledby="missions-heading">
+        <header class="section-head">
+          <span class="numeral">V</span>
+          <h2 class="section-word" id="missions-heading">the missions</h2>
+        </header>
+        <p class="meta">one engine, three YAMLs — a mission is the declarative description of one watch</p>
+
+        <div class="cs-card">
+          <div class="cs-card-head"><p class="cs-card-title">What a mission file says</p></div>
+          <p class="cs-card-sub">
+            Missions live in <strong>configs/&lt;name&gt;.yaml</strong>, are parsed as data with a
+            safe loader and validated hard by Pydantic before anything runs. Each file declares its own name,
+            an organizational intent, a per-role intent, a <strong>detection</strong> block (source, threshold,
+            critical z, detector, baseline window, seasonality) and an <strong>escalation</strong> block (the
+            confidence bar below which debate fires).
+          </p>
+          <p class="meta">
+            Precedence everywhere: explicit argument &gt; environment variable &gt; mission YAML &gt; code default.
+          </p>
+        </div>
+
+        <div class="cs-card">
+          <div class="cs-card-head"><p class="cs-card-title">How the three differ</p></div>
+          <p class="cs-card-sub">
+            The numbers are deliberately identical today — threshold 2.0, critical 3.0, z-score, 28-day window,
+            seasonality off, debate bar 0.6 in all three. What differs is the source, the intent the agents
+            inherit, and how much of the file is actually live.
+          </p>
+          <ul class="cs-rows">
+            <li class="cs-row">
+              <span><span class="cs-row-name">finops</span> <span class="cs-row-note">Source: cost. The only mission whose signals reach the agent chain — analyst triage, recommender options, debate, decision inbox. Its role intents name the analyst, the recommender and the operator.</span></span>
+              <span class="cs-row-value">full chain</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">security</span> <span class="cs-row-note">Source: security event counts per source. Identical detection line, own event kind, no LLM agent — signals are operator-facing facts. The escalation block is kept for schema uniformity and does not fire.</span></span>
+              <span class="cs-row-value">detection only</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">fraud</span> <span class="cs-row-note">Source: payment events. Its detection block is schema-mandated but <strong>inert</strong> — no statistical pass runs. Only its extra <strong>rules</strong> block (band thresholds and the new-account cutoff) is live configuration.</span></span>
+              <span class="cs-row-value">rules only</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="cs-card">
+          <div class="cs-card-head"><p class="cs-card-title">The loader refuses rather than guesses</p></div>
+          <p class="cs-card-sub">
+            An unknown key is a knob that does nothing. A duplicate key is silently won by the last one. A lax
+            coercion (<strong>"2.0"</strong> for a number) hides a template that never got
+            substituted. A value the detector would quietly override means the number in the file never runs.
+            A shadowing file is the one you edit without it ever being the one that loads. All of them refuse
+            to load, and the message names the file, the key and the range that would have been accepted.
+            Mission names are allow-listed to a strict slug, so a path traversal can never reach outside
+            <strong>configs/</strong>.
+          </p>
+        </div>
+
+        <div class="cs-card">
+          <div class="cs-card-head">
+            <p class="cs-card-title">Switching live</p>
+            <span class="cs-badge" data-lane="cost">on stage</span>
+          </div>
+          <p class="cs-card-sub">
+            The dashboard's mission dropdown flips the active mission through
+            <strong>POST /pulse?mission=</strong> as an in-memory override. Thresholds, detector
+            and the debate bar re-read from another YAML, and every mission-following surface flips with them.
+          </p>
+        </div>
+      </section>
+
+      <!-- ============================ VI · the decision lifecycle ============================ -->
+      <section class="ledger-wide" id="desk" aria-labelledby="desk-heading">
+        <header class="section-head">
+          <span class="numeral">VI</span>
+          <h2 class="section-word" id="desk-heading">the decision lifecycle</h2>
+        </header>
+        <p class="meta">human-in-the-loop is a state machine, not a checkbox — every transition is persisted with a timestamp and an actor</p>
+
+        <div class="cs-card">
+          <div class="cs-card-head">
+            <p class="cs-card-title">The states</p>
+            <span class="cs-badge" data-lane="ops">state machine</span>
+          </div>
+          <p class="cs-card-sub">
+            <strong>proposed → approved | rejected → executed (simulated)</strong>, plus
+            <strong>rejected → proposed</strong> when the hand reconsiders.
+          </p>
+          <ul class="cs-rows">
+            <li class="cs-row"><span><span class="cs-row-name">proposed</span> <span class="cs-row-note">The Recommender filed a card with both options, the evidence pack, the trace and the memory it consulted. This is the only decidable state.</span></span><span class="cs-row-value">agent</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">approved</span> <span class="cs-row-note">A human said yes. The verdict, the rationale and the input context are written to decision memory.</span></span><span class="cs-row-value">operator</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">rejected</span> <span class="cs-row-note">A human said no — and had to say why. A rejection without a non-empty rationale is refused with 422, because a terminal "no" is the memory a future recommendation will read.</span></span><span class="cs-row-value">operator</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">reopened</span> <span class="cs-row-note">A rejected (or expired) card can return to <strong>proposed</strong> with a fresh TTL. The hand is allowed to reconsider; the trail keeps both moves.</span></span><span class="cs-row-value">operator</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">executed</span> <span class="cs-row-note">Only reachable from <strong>approved</strong>, enforced by a database constraint. Writes a SIMULATION marker; may really deliver the incident report to a configured webhook after the transaction commits.</span></span><span class="cs-row-value">operator</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">expired</span> <span class="cs-row-note">A proposal older than 72 hours is rejected on the next read and attributed to <strong>system:timeout</strong>. Expiry happens on request, not on a clock — the deploy target sleeps between requests and no scheduler could run there.</span></span><span class="cs-row-value">system</span></li>
+          </ul>
+        </div>
+
+        <div class="cs-card">
+          <div class="cs-card-head"><p class="cs-card-title">The rules around the states</p></div>
+          <ul class="cs-rows">
+            <li class="cs-row"><span><span class="cs-row-name">Idempotent decisions.</span> <span class="cs-row-note">An <strong>Idempotency-Key</strong> is claimed inside the same write transaction as the state change, so a double-clicked approve replays the first response instead of executing twice. Keys are scoped to action id plus verb, so one client key can never replay a foreign answer. Only successful decisions are stored for replay.</span></span><span class="cs-row-value">100%</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Alert suppression.</span> <span class="cs-row-note">While a card is still undecided, a later signal for the same service on the same lane folds into it as a counted repeat instead of opening a second card — 24 hours by default. The moment a human decides, the conversation is closed and the next signal earns its own card. Suppression never crosses lanes.</span></span><span class="cs-row-value">24 h</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Server-derived identity.</span> <span class="cs-row-note">A signed-in operator's identity is taken from the session, not from the request body, so the audit trail is not free browser text. With the approver gate on, the three decision verbs demand an approver or admin session while reads stay public.</span></span><span class="cs-row-value">auth</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">A sealed trail.</span> <span class="cs-row-note">Every decision and lifecycle transition is sealed with the hash of the one before it. <strong>GET /audit/verify</strong> walks the chain and names the first broken link. It proves the history was not rewritten; it does not make the history survive a restart.</span></span><span class="cs-row-value">/audit/verify</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Decision memory.</span> <span class="cs-row-note">Verdicts feed the Recommender's frozen memory prompt slot, and how many were considered is shown on the card. Nothing is learned silently.</span></span><span class="cs-row-value">/decisions</span></li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============================ VII · real vs simulated | VIII · safety ============================ -->
+      <section class="ledger-col" id="real" aria-labelledby="real-heading">
+        <header class="section-head">
+          <span class="numeral">VII</span>
+          <h2 class="section-word" id="real-heading">real vs simulated</h2>
+        </header>
+        <p class="meta">the one table a juror should read before believing anything else on the page</p>
+
+        <div class="cs-card">
+          <ul class="cs-rows">
+            <li class="cs-row"><span><span class="cs-row-name">The cost, security and payment data</span> <span class="cs-row-note">Bundled fixtures by default. No real cloud bill has ever passed through this system.</span></span><span class="cs-row-value is-off">synthetic</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">The infrastructure change</span> <span class="cs-row-note">Executing an approved action writes a SIMULATION marker. Nothing in any cloud is touched, ever.</span></span><span class="cs-row-value is-off">simulated</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">The live tape</span> <span class="cs-row-note">A bounded random walk seeded from the fixture's real history. Labelled SIMULATED LIVE on the badge and pinned <strong>simulated: true</strong> in its payload — deliberately never the plain "live data" wording.</span></span><span class="cs-row-value is-off">simulated</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">The model on the public demo</span> <span class="cs-row-note">The deterministic fake provider. Confidence reads a fixed 0.50 there — that is the fake speaking, not a measured belief, and because 0.50 sits under the debate bar the escalation ladder runs on essentially every card.</span></span><span class="cs-row-value is-off">fake provider</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">The detection arithmetic</span> <span class="cs-row-note">Real code over whatever data is served, with the detector and its parameters recorded on every flag.</span></span><span class="cs-row-value">real</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">The decision record</span> <span class="cs-row-note">Real: the verdict, the rationale, the operator identity behind it, and the append-only hash-sealed trail.</span></span><span class="cs-row-value">real</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">The outbound dispatch</span> <span class="cs-row-note">Real: with a webhook configured, the incident report genuinely leaves the building after the execute commits, and the delivery outcome lands in the audit detail. A failed delivery never fails the execute.</span></span><span class="cs-row-value">real</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">The live data paths</span> <span class="cs-row-note">Wired end to end and env-gated: external JSON feeds, an imported billing CSV, or the app's own request telemetry as the cost dataset. Real code — but never exercised against a production estate.</span></span><span class="cs-row-value">opt-in</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">The savings figures</span> <span class="cs-row-note">Scenario estimates: the anomaly's daily excess projected over 30 days with a capture factor of 0.35 cautious, 0.70 bold. The assumption travels with the number on every surface that shows it. Computed, never generated — and not finance-grade.</span></span><span class="cs-row-value">estimate</span></li>
+          </ul>
+          <p class="meta">If something in the demo looks like it does more than this admits, this is the one to believe. The long version is <strong>docs/LIMITATIONS.md</strong>.</p>
+        </div>
+      </section>
+
+      <section class="ledger-col col-rule" id="safety" aria-labelledby="safety-heading">
+        <header class="section-head">
+          <span class="numeral">VIII</span>
+          <h2 class="section-word" id="safety-heading">the boundaries</h2>
+        </header>
+        <p class="meta">where the build stops on purpose, and what stops it</p>
+
+        <div class="cs-card">
+          <div class="cs-card-head"><p class="cs-card-title">Around the model</p></div>
+          <ul class="cs-rows">
+            <li class="cs-row"><span><span class="cs-row-name">Call budget</span> <span class="cs-row-note">A per-pulse cap (14 by default, overridable per run). Exhaustion degrades every agent to a labelled fallback — never a failure.</span></span><span class="cs-row-value">14 / pulse</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Hard timeout</span> <span class="cs-row-note">Every transport call is bounded at 30 seconds, so a hung request fails into retry and fallback instead of wedging a worker.</span></span><span class="cs-row-value">30 s</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Model allowlist</span> <span class="cs-row-note">A model must be on a short allowlist before it may serve live traffic. Membership means one thing: the free tier grants it non-zero quota, measured against a real key. A typo 404s into a silent abstention; a plausible name buys a panel seat that can never answer.</span></span><span class="cs-row-value">4 models</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Prompt spotlighting</span> <span class="cs-row-note">Untrusted payloads enter prompts between delimiters, as data and never as instructions.</span></span><span class="cs-row-value">always</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Quota discipline</span> <span class="cs-row-note">Answers are cached by exact request; fallbacks are never cached; every call — live, fake, cached or fallback — lands in a usage ledger the analytics account for. The project runs zero-cost by construction.</span></span><span class="cs-row-value">/analytics/ai</span></li>
+          </ul>
+        </div>
+
+        <div class="cs-card">
+          <div class="cs-card-head"><p class="cs-card-title">Around the process</p></div>
+          <ul class="cs-rows">
+            <li class="cs-row"><span><span class="cs-row-name">Strict CSP</span> <span class="cs-row-note">Scripts are locked to <strong>'self'</strong> on every path. Fonts are self-hosted and Swagger is vendored, so no external host is allowed anywhere — the API browser runs under the same policy as the dashboard.</span></span><span class="cs-row-value">every path</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Outbound guard</span> <span class="cs-row-note">Feed and webhook URLs are checked before the socket opens: https only, no loopback, link-local, private or reserved destination, and no redirect-following into one. A guard against being aimed inward.</span></span><span class="cs-row-value">app/netguard.py</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Boot-time posture audit</span> <span class="cs-row-note">Read-only mode, the approver requirement, the provider choice and the outbound escape hatch are all environment variables defaulting to off. Under a production profile a demo posture refuses to boot; every other profile logs its findings.</span></span><span class="cs-row-value">on startup</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Failure envelope</span> <span class="cs-row-note">A contended database answers 503 with a <strong>Retry-After</strong>; anything unhandled answers a JSON 500. A traceback goes to the log and never to the wire. The pulse endpoint is rate-limited.</span></span><span class="cs-row-value">JSON, always</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Two honest postures</span> <span class="cs-row-note">Showcase mode refuses every write, including login, and the UI disables the verbs it cannot honour rather than offering buttons that 403. Live-ops mode gates the three decision verbs behind an approver session while reads stay public and self-registration stays viewer-only.</span></span><span class="cs-row-value">pick one</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">It scans itself</span> <span class="cs-row-note">bandit over the source and pip-audit over the shipped dependencies both gate CI, alongside ruff and the full suite on every push and pull request.</span></span><span class="cs-row-value">make audit</span></li>
+          </ul>
+        </div>
+
+        <div class="cs-card">
+          <div class="cs-card-head"><p class="cs-card-title">Named non-goals</p></div>
+          <p class="cs-card-sub">
+            Real cloud provider adapters, PostgreSQL and migrations, background schedulers, bundled chat-platform
+            integrations, and ML-based fraud models. Each is a deliberate boundary of this build rather than an
+            oversight; none is required to demonstrate the thesis. There has been no load test and no external
+            penetration test, and the agent-chain evaluation is a 200-case golden set of the team's own making —
+            honest about its false positives, and not an independent benchmark.
+          </p>
+        </div>
+      </section>
+
+      <!-- ============================ IX · the API ============================ -->
+      <section class="ledger-wide" id="api" aria-labelledby="api-heading">
+        <header class="section-head">
+          <span class="numeral">IX</span>
+          <h2 class="section-word" id="api-heading">the api</h2>
+        </header>
+        <p class="meta">sixty documented endpoints, grouped the way the OpenAPI schema groups them — the browsable version is at <a class="row-action" href="/docs">/docs</a></p>
+
+        <div class="cs-card">
+          <ul class="cs-rows">
+            <li class="cs-row">
+              <span><span class="cs-row-name">Detection &amp; costs</span> <span class="cs-row-note">GET /anomalies · /costs/summary · /costs/summary/export (CSV, FOCUS 1.4 shape) · /costs/daily · /health · /ready · /metrics</span></span>
+              <span class="cs-row-value">7</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">Agents</span> <span class="cs-row-note">POST /anomalies/{id}/analyze · /anomalies/{id}/recommend · /pulse — GET /pulse/last · /agents (the roster) · /agents/feed (the live cursor stream)</span></span>
+              <span class="cs-row-value">6</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">Actions (HITL)</span> <span class="cs-row-note">GET /actions · /actions/{id}/report — POST /actions/{id}/approve · reject · reopen · execute</span></span>
+              <span class="cs-row-value">6</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">Analytics</span> <span class="cs-row-note">GET /analytics/decisions · costs/trend · costs/forecast · whatif · roi · ai · calibration · headline · handover · quality · receipts — GET /metrics/detection · /metrics/backtest</span></span>
+              <span class="cs-row-value">13</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">Memory</span> <span class="cs-row-note">GET /decisions (search) · /decisions/similar · /decisions/export (CSV)</span></span>
+              <span class="cs-row-value">3</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">Identity</span> <span class="cs-row-note">POST /auth/register · /auth/login · /auth/logout — GET /auth/me. Four roles: viewer, analyst, approver, admin. Salted PBKDF2, 12-hour sessions.</span></span>
+              <span class="cs-row-value">4</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">Routines</span> <span class="cs-row-note">GET /routines · /routines/suggestions · /routines/{id} — POST /routines · /routines/{id}/run — DELETE /routines/{id}. Saved, read-only analysis playbooks.</span></span>
+              <span class="cs-row-value">6</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">Runbooks</span> <span class="cs-row-note">GET /runbooks · /runbooks/match (keyword retrieval, RAG-lite, offline) · /runbooks/effectiveness</span></span>
+              <span class="cs-row-value">3</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">Brain</span> <span class="cs-row-note">GET /insights — POST /insights/self-review. The self-review proposes changes to the system itself and applies none of them.</span></span>
+              <span class="cs-row-value">2</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">Ops</span> <span class="cs-row-note">GET /ops/preflight (the demo runbook as code) · /ops/health/watch (is the sentinel still watching) — POST /ops/demo-reset (env-gated)</span></span>
+              <span class="cs-row-value">3</span>
+            </li>
+            <li class="cs-row">
+              <span><span class="cs-row-name">Single-endpoint lanes</span> <span class="cs-row-note">GET /security/signals · /fraud/signals (band and min-score filters) · /market/opportunities · /reflex/suggestions · /audit/verify · /telemetry/usage · /stream/metrics (env-gated simulated ticker)</span></span>
+              <span class="cs-row-value">7</span>
+            </li>
+          </ul>
+          <p class="meta">
+            Every response echoes an <strong>X-Request-ID</strong>. The dashboard itself is served
+            at <a class="row-action" href="/">/</a>, and each room is a real route so a deep link opens on the exact scene.
+          </p>
+        </div>
+      </section>
+
+      <!-- ============================ X · run it ============================ -->
+      <section class="ledger-wide" id="run" aria-labelledby="run-heading">
+        <header class="section-head">
+          <span class="numeral">X</span>
+          <h2 class="section-word" id="run-heading">run it</h2>
+        </header>
+        <p class="meta">two commands to a running product — pip and venv, no other toolchain</p>
+
+        <div class="cs-card">
+          <div class="cs-card-head"><p class="cs-card-title">The commands</p></div>
+          <ul class="cs-rows">
+            <li class="cs-row"><span><span class="cs-row-name"><code>make setup</code></span> <span class="cs-row-note">Creates the virtualenv and installs the runtime and dev requirements. Once per clone.</span></span><span class="cs-row-value">first</span></li>
+            <li class="cs-row"><span><span class="cs-row-name"><code>make demo</code></span> <span class="cs-row-note">The demo stage: fake provider (no quota, no key), fixture dates rebased to this week, demo reset armed, simulated tape on. Serves on port 8000.</span></span><span class="cs-row-value">then</span></li>
+            <li class="cs-row"><span><span class="cs-row-name"><code>make smoke</code></span> <span class="cs-row-note">From another shell: a PASS/FAIL sweep over the live chain, asserting on the answers and not just the status codes.</span></span><span class="cs-row-value">verify</span></li>
+            <li class="cs-row"><span><span class="cs-row-name"><code>make test</code></span> <span class="cs-row-note">ruff, then the full suite on the fake provider — 1190 cases, deterministic and quota-free.</span></span><span class="cs-row-value">gate</span></li>
+            <li class="cs-row"><span><span class="cs-row-name"><code>make run</code></span> <span class="cs-row-note">Plain local run without the demo staging. Or by hand: <code>.venv/bin/uvicorn main:app --reload</code>.</span></span><span class="cs-row-value">plain</span></li>
+            <li class="cs-row"><span><span class="cs-row-name"><code>make drill</code></span> <span class="cs-row-note">The failure drill: proves the zero-budget fallback path and the rate limit.</span></span><span class="cs-row-value">optional</span></li>
+          </ul>
+          <p class="meta">
+            Then open <a class="row-action" href="/">the dashboard</a>, or drive the whole chain with one call and
+            watch the tagged log stream: <code>curl -X POST localhost:8000<wbr>/pulse</code>. Docker works too —
+            the image is non-root with a stdlib healthcheck. On Windows, replace <code>.venv/bin/</code> with
+            <code>.venv\Scripts\</code>.
+          </p>
+        </div>
+
+        <div class="cs-card">
+          <div class="cs-card-head"><p class="cs-card-title">Where to look next</p></div>
+          <ul class="cs-rows">
+            <li class="cs-row"><span><span class="cs-row-name">What does this field mean, in what unit, from where?</span></span><span class="cs-row-value">docs/DATA_DICTIONARY.md</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">What do we promise about serving it, and how is that measured?</span></span><span class="cs-row-value">docs/SLO.md</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">What does this build deliberately not do?</span></span><span class="cs-row-value">docs/LIMITATIONS.md</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Why was a locked choice made, and what did it cost?</span></span><span class="cs-row-value">docs/adr/</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">How does the whole thing fit together?</span></span><span class="cs-row-value">docs/architecture.md</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">How is the demo staged, reset and recovered?</span></span><span class="cs-row-value">docs/DEMO_PREFLIGHT.md</span></li>
+          </ul>
+        </div>
+      </section>
+
+    </main>
+
+    <footer>
+      <p class="agent-line">
+        Agent layer: a <em class="k-em">six-member loop</em> — four AI agents (analyst, recommender, skeptic,
+        chronicler), a deterministic reflex responder and the human <span class="fraktur">operator</span>;
+        debate-lite guards contested calls, and every action awaits a human hand.
+      </p>
+      <div class="footer-grid">
+        <div>
+          <p class="microcap">the product</p>
+          <p class="meta">Cost, security and fraud signals through one detection line; six agents reason in the open; nothing executes without a human hand. All data synthetic, execution simulated by design.</p>
+        </div>
+        <div>
+          <p class="microcap">rooms</p>
+          <p class="meta footer-links">
+            <a class="row-action" href="/">the dashboard</a>
+            <a class="row-action" href="/watch">watch</a>
+            <a class="row-action" href="/investigate">investigation</a>
+            <a class="row-action" href="/decide">decision desk</a>
+            <a class="row-action" href="/intel">intelligence</a>
+            <a class="row-action" href="/brain">brain</a>
+            <a class="row-action" href="/broadsheet">broadsheet</a>
+          </p>
+        </div>
+        <div>
+          <p class="microcap">under the hood</p>
+          <p class="meta footer-links">
+            <a class="row-action" href="/docs">api docs</a>
+            <a class="row-action" href="/health">health</a>
+            <a class="row-action" href="/ready">readiness</a>
+            <a class="row-action" href="/agents">agent roster</a>
+            <a class="row-action" href="/audit/verify">ledger integrity</a>
+            <a class="row-action" href="/ops/preflight">pre-flight</a>
+          </p>
+        </div>
+      </div>
+      <p class="meta credits">CloudSentinel — Group 60, YZTA Bootcamp 2026 · MIT licensed · synthetic data, simulated execution, by design</p>
+    </footer>
+
+  </div>
+</body>
+</html>
