@@ -391,7 +391,7 @@ In line with [docs/architecture.md](docs/architecture.md) and the sprint point p
 | Security-signal ingestion through the same detection pipeline (mock events) | Sprint 3 → pulled forward | ✅ shipped |
 | Fraud rule-score lane + cross-lane HITL cards (holds, budget guard) | Sprint 3 → pulled forward | ✅ shipped |
 | Mission DSL, reflex engine, guardrail pack, operations analytics, chronicler, agent bus + live feed | Sprint 3 → pulled forward | ✅ shipped |
-| Continuous integration — tests on every push | Sprint 2 → 3 | ✅ shipped — [`ci.yml`](.github/workflows/ci.yml) runs ruff + the full suite on every push and PR |
+| Continuous integration — tests on every push | Sprint 2 → 3 | ✅ shipped — [`ci.yml`](.github/workflows/ci.yml) runs ruff + the full suite on every push and PR, plus a second `audit` job: bandit over our own source and pip-audit over the dependencies that ship |
 | Dashboard palette revision after UI reference research | Sprint 2 → 3 | ✅ shipped — four-palette switcher (horizon default · night · paper · dawn), persisted |
 | Live Gemini key spike (real RPM/RPD measurement) | Sprint 3 | planned |
 | User's-eye UX pass — gaps, friction and flow measured from the operator's seat | Sprint 3 | planned |
