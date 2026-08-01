@@ -128,6 +128,9 @@ UNTYPED_SUCCESS_RESPONSES = {
     # File downloads: the body is a CSV attachment, declared as text/csv.
     "GET /costs/summary/export 200": "text/csv download",
     "GET /decisions/export 200": "text/csv download",
+    # Prometheus text exposition: the body is a line-oriented text format a
+    # scraper parses, not JSON. Declared text/plain, so a client is told.
+    "GET /metrics 200": "Prometheus text exposition, declared text/plain",
     # A 204 has no body at all, by definition.
     "DELETE /routines/{routine_id} 204": "204 carries no content",
     # Known documentation gap, recorded rather than hidden: the handler is
@@ -220,6 +223,7 @@ UNTAGGED_OPERATIONS = {
     "GET /costs/summary",
     "GET /costs/summary/export",
     "GET /health",
+    "GET /metrics",
     "GET /ready",
 }
 
@@ -447,6 +451,7 @@ EXPECTED_SURFACE = {
     "GET /health 200",
     "GET /insights 200",
     "GET /market/opportunities 200,422",
+    "GET /metrics 200",
     "GET /metrics/backtest 200,422",
     "GET /metrics/detection 200,422",
     "GET /ops/health/watch 200",

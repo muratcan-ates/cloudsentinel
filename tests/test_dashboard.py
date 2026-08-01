@@ -61,6 +61,7 @@ def test_dashboard_hidden_from_openapi_schema():
         "/insights",
         "/insights/self-review",
         "/market/opportunities",
+        "/metrics",
         "/metrics/backtest",
         "/metrics/detection",
         "/ops/demo-reset",

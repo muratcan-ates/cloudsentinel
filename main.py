@@ -27,12 +27,12 @@ from typing import Literal
 from fastapi import Depends, FastAPI, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 import sqlite3
 
-from app import auth, configcheck, db, feeds, logstream, telemetry, watchdog
+from app import auth, configcheck, db, feeds, logstream, metrics, telemetry, watchdog
 from app.actions import router as actions_router
 from app.analyst import router as analyst_router
 from app.auth import router as auth_router
@@ -414,6 +414,34 @@ def health_check() -> HealthStatus:
         readonly=readonly_enabled(),
         data_sources=feeds.data_sources(),
     )
+
+
+@app.get("/metrics", response_class=PlainTextResponse)
+def prometheus_metrics(
+    conn: sqlite3.Connection = Depends(db.get_db),
+) -> PlainTextResponse:
+    """Prometheus exposition of what this instance already counts.
+
+    Cards by state, verdicts, model calls, requests served and the
+    standing watch's own condition — read from the tables that hold them
+    rather than from a registry kept warm between scrapes, so a scraper
+    that never arrives costs nothing. A source that cannot be read is
+    omitted, not reported as zero: on a graph those mean different
+    things and only one of them would be true.
+    """
+    try:
+        watch = watchdog.health(conn)
+    except Exception:  # the watch's own trouble must not fail the scrape
+        watch = None
+    body = metrics.render(
+        conn,
+        version=app.version,
+        env=os.environ.get("SENTINEL_ENV", "local"),
+        provider=provider_mode(),
+        readonly=readonly_enabled(),
+        watch=watch,
+    )
+    return PlainTextResponse(body, media_type=metrics.CONTENT_TYPE)
 
 
 @app.get("/ready")
