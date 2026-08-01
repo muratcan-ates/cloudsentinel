@@ -44,7 +44,7 @@ hiçbir şey çalışmaz; yürütme tasarım gereği simülasyondur.
 make setup && make demo     # sahte sağlayıcı ile, çevrimdışı tam demo
 # panel: http://127.0.0.1:8000/  ·  API dokümanı: /docs
 make test                   # 1139 test, ~35 sn
-make smoke                  # canlı zincir üzerinde 14 adımlı kontrol
+make smoke                  # canlı zincir üzerinde 26 adımlı kontrol
 ```
 
 ## Durum (18 Temmuz 2026)
