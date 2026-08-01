@@ -20,12 +20,14 @@ whole transaction back (claim included), which keeps error outcomes
 deterministic without persisting them.
 """
 
+import html
 import json
 import logging
 import math
 import os
 import sqlite3
 from datetime import datetime, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Response
 
@@ -684,140 +686,432 @@ def execute_action(
     return record
 
 
-def _render_report(
-    record: ActionRecord, decision: sqlite3.Row | None, event_kind: str | None = None
-) -> str:
-    """Compose a shareable Markdown incident report from one action.
+def _rows(*pairs: tuple[str, object]) -> list[tuple[str, str]]:
+    """Label/value pairs with empty values dropped, everything stringified."""
+    return [(label, str(value)) for label, value in pairs if value not in (None, "")]
 
-    Read-only and defensive: every field is optional, so a partially
-    populated or legacy action still renders a coherent document.
+
+def _stance_saving(savings: dict, stance: object) -> str:
+    """The computed monthly projection for one stance, or an em dash."""
+    key = {"CAUTIOUS": "cautious_monthly", "BOLD": "bold_monthly"}.get(str(stance))
+    value = savings.get(key) if key else None
+    return "—" if value is None else str(value)
+
+
+def _build_report_document(
+    record: ActionRecord,
+    decision: sqlite3.Row | None,
+    event_kind: str | None = None,
+) -> dict:
+    """The incident report as structured data, before any markup.
+
+    One document, two renderings: Markdown for a repo or a webhook payload,
+    HTML for a browser or a mail thread. Building the content once is what
+    keeps the two from drifting into different stories about one decision.
+
+    Read-only and defensive throughout: every field is optional, so a
+    partially populated or legacy action still renders a coherent document.
     """
     detail = record.detail if isinstance(record.detail, dict) else {}
     anomaly = detail.get("anomaly") or {}
     savings = detail.get("savings") or {}
     options = detail.get("options") or []
     execution = detail.get("execution") or {}
+    transcript = detail.get("transcript") or {}
+    suppression = detail.get("suppression") or {}
 
-    lines = [
-        f"# CloudSentinel Incident Report — action #{record.id}",
-        "",
-        f"**{record.title}**",
-        "",
-        f"- **State:** {record.state}",
-        f"- **Proposed:** {record.proposed_at}",
-    ]
-    if record.decided_at:
-        lines.append(f"- **Decided:** {record.decided_at} by `{record.decided_by}`")
-    if record.executed_at:
-        lines.append(f"- **Executed:** {record.executed_at} (simulated)")
-    lines.append("")
+    sections: list[dict] = []
 
     if anomaly:
-        cost = anomaly.get("cost", "—")
-        base = anomaly.get("service_mean", "—")
-        z = anomaly.get("z_score", "—")
-        sev = anomaly.get("severity", "—")
-        det = anomaly.get("detector", "—")
-        lines += [
-            "## Signal",
-            "",
-            f"- **Service:** {anomaly.get('service', '—')}",
-            f"- **Date:** {anomaly.get('date', '—')}",
-            f"- **Cost:** {cost} (baseline {base})",
-            f"- **z-score:** {z} · **severity:** {sev} · **detector:** {det}",
-            "",
-        ]
-        tier = blast_radius_tier(anomaly.get("z_score", 0.0))
         framework = _framework_tag(detail) or (
             attack_technique(anomaly.get("service"))
             if event_kind and ("security" in event_kind or "fraud" in event_kind)
             else finops_capability(None)
         )
-        lines += [
-            "## Triage",
-            "",
-            f"- Blast radius: **{tier}**",
-            f"- Framework: {framework.framework} — {framework.reference}",
-            f"- Reference: {framework.url}",
-            "",
-        ]
+        sections.append(
+            {
+                "heading": "Signal",
+                "rows": _rows(
+                    ("Service", anomaly.get("service", "—")),
+                    ("Date", anomaly.get("date", "—")),
+                    (
+                        "Cost",
+                        f"{anomaly.get('cost', '—')} "
+                        f"(baseline {anomaly.get('service_mean', '—')})",
+                    ),
+                    ("z-score", anomaly.get("z_score", "—")),
+                    ("Severity", anomaly.get("severity", "—")),
+                    ("Detector", anomaly.get("detector", "—")),
+                ),
+            }
+        )
+        sections.append(
+            {
+                "heading": "Triage",
+                "rows": _rows(
+                    ("Blast radius", blast_radius_tier(anomaly.get("z_score", 0.0))),
+                    ("Framework", framework.framework),
+                    (
+                        "Technique" if framework.id else "Capability",
+                        framework.reference,
+                    ),
+                    ("Reference", framework.url),
+                ),
+            }
+        )
         matches = match_runbooks(
             f"{anomaly.get('service', '')} {event_kind or 'cost'}", limit=1
         )
         if matches:
             runbook = matches[0][0]
-            lines += ["## Suggested runbook", "", f"**{runbook.title}**", ""]
-            lines += [f"- {step}" for step in runbook.steps]
-            lines.append("")
+            sections.append(
+                {
+                    "heading": "Suggested runbook",
+                    "lead": runbook.title,
+                    "bullets": list(runbook.steps),
+                }
+            )
+
+    if suppression:
+        repeats = suppression.get("repeats")
+        repeats = repeats if isinstance(repeats, list) else []
+        sections.append(
+            {
+                "heading": "Suppressed repeats",
+                "paragraphs": [
+                    "Later signals for this service on this lane folded into "
+                    "this card instead of opening competing ones. Nothing was "
+                    "discarded — every fold is listed here and on the trail."
+                ],
+                "rows": _rows(
+                    ("Repeats absorbed", record.suppressed_count),
+                    ("Window", f"{suppression.get('window_hours', '—')} hours"),
+                ),
+                "bullets": [
+                    f"{repeat.get('date', 'unknown date')}"
+                    + (
+                        f" — z {repeat['z_score']}"
+                        if repeat.get("z_score") is not None
+                        else ""
+                    )
+                    for repeat in repeats
+                    if isinstance(repeat, dict)
+                ],
+            }
+        )
 
     if savings:
-        lines += [
-            "## Computed savings",
-            "",
-            f"- Daily excess: {savings.get('daily_excess', '—')}",
-            f"- Cautious / month: {savings.get('cautious_monthly', '—')}",
-            f"- Bold / month: {savings.get('bold_monthly', '—')}",
-        ]
-        if savings.get("method"):
-            lines.append(f"- Method: {savings['method']}")
-        lines += ["", "> Money figures are computed in Python, not generated.", ""]
+        sections.append(
+            {
+                "heading": "Computed savings",
+                "rows": _rows(
+                    ("Daily excess", savings.get("daily_excess", "—")),
+                    ("Cautious / month", savings.get("cautious_monthly", "—")),
+                    ("Bold / month", savings.get("bold_monthly", "—")),
+                    ("Method", savings.get("method")),
+                ),
+                "note": "Money figures are computed in Python, not generated.",
+            }
+        )
 
     if options:
-        lines += ["## Recommended options", ""]
-        for opt in options:
-            if not isinstance(opt, dict):
-                continue
-            lines += [f"### {opt.get('stance', '—')} — {opt.get('title', '—')}", ""]
-            if opt.get("description"):
-                lines += [str(opt["description"]), ""]
-            lines += [
-                f"- Risk: {opt.get('risk', '—')}",
-                f"- Estimated monthly saving: {opt.get('estimated_monthly_saving', '—')}",
-                f"- Rollback: {opt.get('rollback', '—')}",
-                "",
-            ]
+        sections.append(
+            {
+                "heading": "Recommended options",
+                "subsections": [
+                    {
+                        "heading": (
+                            f"{option.get('stance', '—')} — {option.get('title', '—')}"
+                        ),
+                        "paragraphs": (
+                            [str(option["description"])]
+                            if option.get("description")
+                            else []
+                        ),
+                        "rows": _rows(
+                            ("Risk", option.get("risk", "—")),
+                            (
+                                "Estimated monthly saving",
+                                # The stored option carries narrative only;
+                                # the figure is the stance's own computed
+                                # projection, never a number from the model.
+                                option.get("estimated_monthly_saving")
+                                or _stance_saving(savings, option.get("stance")),
+                            ),
+                            ("Rollback", option.get("rollback", "—")),
+                        ),
+                    }
+                    for option in options
+                    if isinstance(option, dict)
+                ],
+            }
+        )
 
     if detail.get("escalation_reason"):
-        lines += ["## Escalation", "", str(detail["escalation_reason"]), ""]
+        sections.append(
+            {
+                "heading": "Escalation",
+                "paragraphs": [str(detail["escalation_reason"])],
+            }
+        )
 
-    lines += ["## Human decision", ""]
+    if transcript:
+        reviewers = transcript.get("reviewers")
+        reviewers = reviewers if isinstance(reviewers, list) else []
+        votes = transcript.get("votes") or {}
+        sections.append(
+            {
+                "heading": (
+                    "Review panel" if transcript.get("mode") == "panel" else "Debate"
+                ),
+                "rows": _rows(
+                    ("Trigger", transcript.get("trigger")),
+                    ("Original stance", transcript.get("original_preferred")),
+                    ("Final stance", transcript.get("final_preferred")),
+                    (
+                        "Outcome",
+                        "consensus"
+                        if transcript.get("agreed")
+                        else "OVERRULED — the stance was revised",
+                    ),
+                    (
+                        "Votes",
+                        ", ".join(f"{k} {v}" for k, v in votes.items()) if votes else "",
+                    ),
+                    ("Verdict", transcript.get("skeptic_rationale")),
+                ),
+                # One line per seat, abstentions included: a panel that lost a
+                # reviewer must say so rather than quietly shrinking.
+                "bullets": [
+                    f"{reviewer.get('persona', 'reviewer')} "
+                    f"({reviewer.get('model', 'unknown model')}): "
+                    f"{reviewer.get('stance') or 'abstained'} — "
+                    f"{reviewer.get('argument', '—')}"
+                    for reviewer in reviewers
+                    if isinstance(reviewer, dict)
+                ],
+            }
+        )
+
+    human: dict = {"heading": "Human decision"}
     if decision is not None:
-        rationale = decision["rationale"] or "(none recorded)"
-        lines += [
-            f"- **Verdict:** {decision['verdict']}",
-            f"- **By:** `{record.decided_by}` at {decision['created_at']}",
-            f"- **Rationale:** {rationale}",
-            "",
-        ]
+        human["rows"] = _rows(
+            ("Verdict", decision["verdict"]),
+            ("By", record.decided_by),
+            ("At", decision["created_at"]),
+            ("Rationale", decision["rationale"] or "(none recorded)"),
+        )
     elif record.state == DECIDABLE_STATE:
-        lines += ["- Awaiting an operator decision.", ""]
+        human["bullets"] = ["Awaiting an operator decision."]
     else:
-        lines += [f"- {record.state} (no rationale on record).", ""]
+        human["bullets"] = [f"{record.state} (no rationale on record)."]
+    sections.append(human)
 
     if execution:
-        lines += ["## Execution", "", f"- Mode: **{execution.get('mode', '—')}**"]
-        if execution.get("note"):
-            lines.append(f"- {execution['note']}")
-        lines.append("")
+        sections.append(
+            {
+                "heading": "Execution",
+                "rows": _rows(
+                    ("Mode", execution.get("mode", "—")),
+                    ("Note", execution.get("note")),
+                ),
+            }
+        )
+
+    if record.history:
+        sections.append(
+            {
+                "heading": "Lifecycle timeline",
+                "paragraphs": [
+                    "Append-only: every transition this card took, in order, "
+                    "with the actor who caused it."
+                ],
+                "bullets": [
+                    f"{entry.at} — **{entry.transition}**"
+                    f"{f' by `{entry.actor}`' if entry.actor else ''}"
+                    f"{f' — {entry.note}' if entry.note else ''}"
+                    for entry in record.history
+                ],
+            }
+        )
 
     if anomaly:
-        lines += ["## Verification", ""]
-        lines += [f"- {step}" for step in verification_plan(anomaly, savings)]
-        lines.append("")
+        sections.append(
+            {
+                "heading": "Verification",
+                "bullets": verification_plan(anomaly, savings),
+            }
+        )
 
-    lines += [
-        "---",
-        "",
-        "*CloudSentinel — the machine watches, the human decides.*",
-        "",
-        "*Execution is simulated by design; data is synthetic for the "
-        "competition.*",
-        "",
-    ]
+    return {
+        "title": f"CloudSentinel Incident Report — action #{record.id}",
+        "subtitle": record.title,
+        "meta": _rows(
+            ("State", record.state),
+            ("Proposed", record.proposed_at),
+            (
+                "Decided",
+                f"{record.decided_at} by `{record.decided_by}`"
+                if record.decided_at
+                else "",
+            ),
+            (
+                "Executed",
+                f"{record.executed_at} (simulated)" if record.executed_at else "",
+            ),
+            (
+                "Repeats folded in",
+                record.suppressed_count if record.suppressed_count else "",
+            ),
+        ),
+        "sections": sections,
+        "footer": [
+            "CloudSentinel — the machine watches, the human decides.",
+            "Execution is simulated by design; data is synthetic for the "
+            "competition.",
+        ],
+    }
+
+
+# --- renderers ---------------------------------------------------------------
+
+
+def _markdown_section(section: dict, level: int) -> list[str]:
+    lines = [f"{'#' * level} {section['heading']}", ""]
+    if section.get("lead"):
+        lines += [f"**{section['lead']}**", ""]
+    for paragraph in section.get("paragraphs", []):
+        lines += [paragraph, ""]
+    for label, value in section.get("rows", []):
+        lines.append(f"- **{label}:** {value}")
+    if section.get("rows"):
+        lines.append("")
+    for bullet in section.get("bullets", []):
+        lines.append(f"- {bullet}")
+    if section.get("bullets"):
+        lines.append("")
+    if section.get("note"):
+        lines += [f"> {section['note']}", ""]
+    for subsection in section.get("subsections", []):
+        lines += _markdown_section(subsection, level + 1)
+    return lines
+
+
+def _render_markdown(document: dict) -> str:
+    lines = [f"# {document['title']}", "", f"**{document['subtitle']}**", ""]
+    for label, value in document["meta"]:
+        lines.append(f"- **{label}:** {value}")
+    lines.append("")
+    for section in document["sections"]:
+        lines += _markdown_section(section, 2)
+    lines += ["---", ""]
+    for line in document["footer"]:
+        lines += [f"*{line}*", ""]
     return "\n".join(lines)
 
 
-def _compose_report(conn: sqlite3.Connection, action_id: int) -> str | None:
+# Self-contained on purpose: the export must render from a mail client, a
+# ticket attachment or a file:// URL with no network and no stylesheet.
+_REPORT_CSS = """
+:root { color-scheme: light dark; }
+body { margin: 0 auto; padding: 2.5rem 1.5rem; max-width: 46rem;
+  font: 16px/1.6 ui-serif, Georgia, "Times New Roman", serif;
+  color: #14181f; background: #fbfaf7; }
+h1 { font-size: 1.6rem; margin: 0 0 .25rem; letter-spacing: -.01em; }
+h2 { font-size: 1.1rem; margin: 2rem 0 .5rem; padding-bottom: .3rem;
+  border-bottom: 1px solid #d8d3c8; text-transform: uppercase;
+  letter-spacing: .08em; font-family: ui-sans-serif, system-ui, sans-serif; }
+h3 { font-size: .95rem; margin: 1.2rem 0 .3rem;
+  font-family: ui-sans-serif, system-ui, sans-serif; }
+.subtitle { font-size: 1.15rem; margin: 0 0 1rem; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: .2rem .9rem;
+  margin: .4rem 0 .8rem; }
+dt { font-weight: 600; font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: .85rem; opacity: .75; }
+dd { margin: 0; overflow-wrap: anywhere; }
+ul { margin: .4rem 0 .8rem; padding-left: 1.1rem; }
+li { margin: .15rem 0; }
+blockquote { margin: .6rem 0; padding: .4rem .9rem; border-left: 3px solid #b9b2a4;
+  background: #f3f0e9; font-size: .92rem; }
+footer { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid #d8d3c8;
+  font-size: .85rem; font-style: italic; opacity: .75; }
+a { color: #1f5f8b; }
+@media (prefers-color-scheme: dark) {
+  body { color: #e7e3d9; background: #14181f; }
+  h2, footer { border-color: #2c333d; }
+  blockquote { background: #1b212a; border-color: #3a434f; }
+  a { color: #7ec8f6; }
+}
+@media print { body { background: #fff; color: #000; } }
+"""
+
+
+def _html_value(value: str) -> str:
+    """Escaped cell, with a bare URL turned into a link.
+
+    Everything here can carry operator or model text, so escaping is not
+    optional: the export is opened in a browser, and an unescaped rationale
+    would be markup rather than words.
+    """
+    escaped = html.escape(value)
+    if value.startswith(("https://", "http://")) and " " not in value:
+        return f'<a href="{escaped}" rel="noopener noreferrer">{escaped}</a>'
+    # the Markdown emphasis the shared document carries is decoration there
+    # and noise here; strip the delimiters rather than print them raw
+    return escaped.replace("**", "").replace("`", "")
+
+
+def _html_section(section: dict, level: int) -> list[str]:
+    tag = f"h{min(level, 6)}"
+    out = [f"<{tag}>{html.escape(section['heading'])}</{tag}>"]
+    if section.get("lead"):
+        out.append(f"<p class=\"subtitle\">{html.escape(section['lead'])}</p>")
+    for paragraph in section.get("paragraphs", []):
+        out.append(f"<p>{html.escape(paragraph)}</p>")
+    if section.get("rows"):
+        out.append("<dl>")
+        for label, value in section["rows"]:
+            out.append(f"<dt>{html.escape(label)}</dt><dd>{_html_value(value)}</dd>")
+        out.append("</dl>")
+    if section.get("bullets"):
+        out.append("<ul>")
+        out += [f"<li>{_html_value(bullet)}</li>" for bullet in section["bullets"]]
+        out.append("</ul>")
+    if section.get("note"):
+        out.append(f"<blockquote>{html.escape(section['note'])}</blockquote>")
+    for subsection in section.get("subsections", []):
+        out += _html_section(subsection, level + 1)
+    return out
+
+
+def _render_html(document: dict) -> str:
+    body = [
+        f"<h1>{html.escape(document['title'])}</h1>",
+        f"<p class=\"subtitle\">{html.escape(document['subtitle'])}</p>",
+        "<dl>",
+    ]
+    for label, value in document["meta"]:
+        body.append(f"<dt>{html.escape(label)}</dt><dd>{_html_value(value)}</dd>")
+    body.append("</dl>")
+    for section in document["sections"]:
+        body += _html_section(section, 2)
+    body.append("<footer>")
+    body += [f"<p>{html.escape(line)}</p>" for line in document["footer"]]
+    body.append("</footer>")
+    return (
+        "<!doctype html>\n"
+        '<html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        f"<title>{html.escape(document['title'])}</title>"
+        f"<style>{_REPORT_CSS}</style></head><body>\n"
+        + "\n".join(body)
+        + "\n</body></html>\n"
+    )
+
+
+def _compose_report(
+    conn: sqlite3.Connection, action_id: int, fmt: str = "md"
+) -> str | None:
     """Load one action and render its incident report; None when it is gone.
 
     The single report-building path: the download endpoint serves it and
@@ -837,31 +1131,50 @@ def _compose_report(conn: sqlite3.Connection, action_id: int) -> str | None:
             "SELECT kind FROM events WHERE id = ?", (row["event_id"],)
         ).fetchone()
         event_kind = event["kind"] if event else None
-    return _render_report(_to_record(row), decision, event_kind)
+    record = _to_record(row, history.for_actions(conn, [action_id]).get(action_id))
+    document = _build_report_document(record, decision, event_kind)
+    return _render_html(document) if fmt == "html" else _render_markdown(document)
 
 
 @router.get(
     "/{action_id}/report",
-    responses={404: {"description": "No action with this id exists."}},
+    responses={
+        200: {
+            "content": {"text/markdown": {}, "text/html": {}},
+            "description": "Downloadable incident report (Markdown or HTML).",
+        },
+        404: {"description": "No action with this id exists."},
+    },
 )
 def action_report(
     action_id: int = ACTION_ID_PATH,
+    format: Literal["md", "html"] = Query(
+        "md",
+        description=(
+            "Markdown for a repo, a ticket or the execute webhook; HTML for a "
+            "browser or a mail thread. Same content either way."
+        ),
+    ),
     conn: sqlite3.Connection = Depends(db.get_db),
 ) -> Response:
-    """Export a shareable Markdown incident report for one action.
+    """Export the whole incident as one shareable document.
 
-    Read-only: composes the signal, the recommended options with computed
-    savings, the human decision and rationale, and the (simulated) execution
-    marker into one downloadable document. No state is mutated.
+    Read-only: the signal and its triage, the recommended options with
+    computed savings, the review panel's transcript with every seat's
+    argument, the human verdict and rationale, the repeats suppression
+    folded in, the append-only lifecycle timeline and the (simulated)
+    execution marker — one request, nothing mutated.
     """
-    markdown = _compose_report(conn, action_id)
-    if markdown is None:
+    content = _compose_report(conn, action_id, format)
+    if content is None:
         raise HTTPException(
             status_code=404, detail=f"action {action_id} does not exist"
         )
-    filename = f"cloudsentinel-incident-{action_id}.md"
+    suffix = "html" if format == "html" else "md"
+    media = "text/html" if format == "html" else "text/markdown"
+    filename = f"cloudsentinel-incident-{action_id}.{suffix}"
     return Response(
-        content=markdown,
-        media_type="text/markdown; charset=utf-8",
+        content=content,
+        media_type=f"{media}; charset=utf-8",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
