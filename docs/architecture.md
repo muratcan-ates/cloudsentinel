@@ -113,7 +113,7 @@ Analyst's critical-severity second pass, not a separate roster entry.
 | `pulse_log` | every pulse report — `GET /pulse/last` replays the latest run |
 | `agent_feed` | every inter-agent hop, cursor-streamed by `GET /agents/feed` |
 
-## API Surface (implemented — 48 endpoints)
+## API Surface (implemented — 49 endpoints)
 
 | Area | Endpoints |
 |---|---|
@@ -127,6 +127,7 @@ Analyst's critical-severity second pass, not a separate roster entry.
 | Runbooks | `GET /runbooks` · `GET /runbooks/match` |
 | Lanes | `GET /security/signals` · `GET /fraud/signals` (band / min_score filters) |
 | Live data | `GET /telemetry/usage` (the app's own request history — the cost lane's dataset when `SENTINEL_COSTS_SOURCE=self`; `SENTINEL_COSTS_FILE` serves an imported billing export, `SENTINEL_*_FEED_URL` polls external JSON feeds) |
+| Market watch | `GET /market/opportunities` (standing moves costed against the estate's run rate; curated catalogue, `SENTINEL_MARKET_FEED_URL` for an external one) |
 | Missions | `GET /reflex/suggestions` |
 | Analytics | `GET /analytics/decisions` · `/costs/trend` · `/costs/forecast` · `/whatif` · `/roi` · `/ai` · `/calibration` · `/headline` · `/handover` · `GET /metrics/detection` · `GET /metrics/backtest` |
 | Ops | `GET /health` (liveness: version, provider, readonly, per-lane data sources) · `GET /ready` (readiness: database, mission config, dataset) · `POST /ops/demo-reset` (env-gated) |
@@ -152,7 +153,7 @@ schema-mandated but **inert** (only the published rule score runs); its
 - Demo operations, all env-gated and off by default: whole-week date rebase
   (`SENTINEL_REBASE_DATES`), demo reset with optional seeded verdict history
   (`SENTINEL_DEMO_RESET`), read-only showcase mode (`SENTINEL_READONLY`).
-- `make setup / run / test / demo`, `scripts/smoke.sh` (13-step live sweep)
+- `make setup / run / test / demo`, `scripts/smoke.sh` (14-step live sweep)
   and `scripts/failure_drill.sh` (zero-budget fallback + rate-limit proof).
 - Container: non-root user, stdlib `HEALTHCHECK`, `render.yaml` for the
   deploy target.

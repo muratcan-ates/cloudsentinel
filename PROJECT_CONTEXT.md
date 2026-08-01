@@ -44,7 +44,7 @@ dashboard under a strict CSP (`script-src 'self'`, Swagger self-hosted) ·
 pip + venv · Render (free tier) as the deploy target, Dockerfile as the
 fallback.
 
-Quality bar: **406 pytest cases** (fake provider, ~8 s), ruff clean, every
+Quality bar: **529 pytest cases** (fake provider, ~8 s), ruff clean, every
 commit suite-green, CI on every push and PR.
 
 ## How to run it
@@ -52,12 +52,20 @@ commit suite-green, CI on every push and PR.
 ```bash
 make setup && make demo     # fake provider, fresh dates, demo reset armed
 # then in another shell:
-make smoke                  # 13-step PASS/FAIL sweep over the live chain
+make smoke                  # 14-step PASS/FAIL sweep over the live chain
 ```
 
 ## Boundaries that are decisions, not gaps
 
-Mock data only, no real cloud adapters; no auth; sqlite3, not Postgres; no
-background scheduler (request-triggered timeouts instead); fraud scoring is
-published deterministic arithmetic, not ML. Each boundary keeps the
-build honest and demoable — see [docs/architecture.md](docs/architecture.md).
+Bundled datasets are the default and the demo runs on them — the live lanes
+(self-telemetry, imported billing export, external JSON feeds) are env-gated
+and off unless asked for, and no cloud-provider SDK or credential is involved
+anywhere. Identity is local (`/auth`, PBKDF2, four roles), not OIDC/SSO, and
+there is no tenant isolation. Storage is sqlite3 on an ephemeral disk, not
+Postgres, so a restart clears history. The standing watchdog is opt-in;
+otherwise scanning stays request-triggered. Execution is always simulated —
+no real infrastructure is ever touched — and fraud scoring is published
+deterministic arithmetic, not ML. Each boundary keeps the build honest and
+demoable; the road out of them is section B of
+[docs/sprint3_backlog.md](docs/sprint3_backlog.md), and the closeout plan is
+[docs/CLOSEOUT_48H.md](docs/CLOSEOUT_48H.md).
