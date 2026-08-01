@@ -10,7 +10,7 @@ RUFF := $(VENV)/bin/ruff
 BANDIT := $(VENV)/bin/bandit
 PIP_AUDIT := $(VENV)/bin/pip-audit
 
-.PHONY: setup run test coverage audit demo demo-live demo-sim smoke drill verify
+.PHONY: setup run test coverage audit demo demo-live demo-sim demo-proof smoke drill verify
 
 setup:
 	$(PYTHON) -m venv $(VENV)
@@ -57,6 +57,11 @@ demo-live:
 	SENTINEL_FAKE_LLM=1 SENTINEL_COSTS_SOURCE=self SENTINEL_DEMO_RESET=1 \
 		SENTINEL_SIM_STREAM=1 \
 		$(UVICORN) main:app --host 127.0.0.1 --port 8000
+
+# Closing beat of the demo: the suite regrouped into named guarantees, one
+# readable PASS/FAIL line each. Non-zero if any guarantee breaks.
+demo-proof:
+	bash scripts/demo_proof.sh
 
 smoke:
 	bash scripts/smoke.sh
