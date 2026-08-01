@@ -43,6 +43,46 @@ def record(
     ledger.stamp(conn)
 
 
+# Transitions that end an operator's deliberation. 'expired' is absent on
+# purpose: a proposal nobody answered measures absence, not thinking time.
+_VERDICT_TRANSITIONS = ("approved", "rejected")
+
+
+def deliberation_hours(
+    conn: sqlite3.Connection, action_ids: list[int]
+) -> dict[int, float]:
+    """Hours from an action being filed to its FIRST human verdict.
+
+    The trail is the only place this is recoverable per action: ``actions``
+    keeps one ``decided_at``, which a reopen overwrites. Reads the first
+    'filed' and the first verdict, so a card that was reopened and decided
+    again still reports the original deliberation. Actions still open, or
+    closed by the timeout, are simply absent from the result.
+    """
+    if not action_ids:
+        return {}
+    placeholders = ",".join("?" for _ in action_ids)
+    verdicts = ",".join("?" for _ in _VERDICT_TRANSITIONS)
+    rows = conn.execute(
+        "SELECT action_id, ("
+        f"julianday(min(CASE WHEN transition IN ({verdicts}) THEN created_at END)) "
+        "- julianday(min(CASE WHEN transition = 'filed' THEN created_at END))"
+        ") * 24.0 AS hours "
+        f"FROM action_events WHERE action_id IN ({placeholders}) "  # noqa: S608
+        "GROUP BY action_id",
+        (*_VERDICT_TRANSITIONS, *action_ids),
+    ).fetchall()
+    # NULL hours means one end of the interval is missing — still open, or
+    # closed by the timeout. Clamp at zero: same-second rows can land a
+    # hair negative through julianday, and a negative deliberation is not
+    # a measurement.
+    return {
+        row["action_id"]: max(0.0, round(row["hours"], 4))
+        for row in rows
+        if row["hours"] is not None
+    }
+
+
 def for_actions(
     conn: sqlite3.Connection, action_ids: list[int]
 ) -> dict[int, list[ActionHistoryEntry]]:
