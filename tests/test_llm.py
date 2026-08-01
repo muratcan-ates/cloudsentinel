@@ -241,7 +241,7 @@ def test_generate_forwards_schema_and_system_instruction():
         response_schema=Confidence,
     )
     config = client.kwargs["config"]
-    assert client.kwargs["model"] == "gemini-2.5-flash"
+    assert client.kwargs["model"] == "gemini-flash-latest"
     assert client.kwargs["contents"] == "prompt"
     assert config["system_instruction"] == "You are a cost analyst."
     assert config["response_schema"] is Confidence
