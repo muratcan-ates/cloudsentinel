@@ -11,7 +11,9 @@ the test suite (the mad-vs-zscore contamination claim is asserted, not
 just narrated).
 """
 
+import math
 import random
+import time
 from dataclasses import dataclass
 from datetime import date, timedelta
 
@@ -124,3 +126,119 @@ def standard_scenarios() -> list[Scenario]:
             spikes=((17, 3.0),),  # 2026-06-18, a Thursday
         ),
     ]
+
+
+# --- latency gates ----------------------------------------------------------
+#
+# The scoring above measures whether detection is CORRECT. Nothing measured
+# whether it is still FAST, and the reflex path is the one place in this
+# system where that is a product claim rather than a nicety: the dashboard
+# wears a "REFLEX X ms" badge, and the dual-loop design justifies itself by
+# the fast lane staying sub-millisecond on real estate sizes.
+#
+# A total-of-N-calls budget (what tests/test_performance.py used everywhere)
+# is a mean in disguise: one pathological call hides inside nineteen quick
+# ones. These gates assert a PERCENTILE, so a regression that only bites
+# sometimes still breaks the build.
+#
+# Budgets are deliberately generous — two orders of magnitude above the
+# figures this repo actually measures — because they exist to catch an
+# accidental quadratic or a per-call dataset reload, not to referee
+# micro-variance between a laptop and a CI runner.
+
+# Measured on the shipped 4-service, 14-day fixture: p95 ~0.4 ms.
+REFLEX_P95_BUDGET_MS = 25.0
+# Same path over a year of history for a larger estate (8 services x 365
+# days). Measured p95 ~3.4 ms; a quadratic loop is invisible on the shipped
+# fixture and would land near a full second here, which is the point.
+REFLEX_SCALE_P95_BUDGET_MS = 80.0
+SCALE_SERVICES = 8
+SCALE_DAYS = 365
+
+
+@dataclass
+class LatencyProfile:
+    label: str
+    samples: int
+    mean_ms: float
+    p50_ms: float
+    p95_ms: float
+    p99_ms: float
+    max_ms: float
+
+
+def percentile(values: list[float], fraction: float) -> float:
+    """Nearest-rank percentile over an unsorted sample.
+
+    Nearest-rank rather than interpolated: with the sample sizes here an
+    interpolated p95 would invent a value between two measurements, and a
+    budget gate should fail on a number that was actually observed.
+    """
+    if not values:
+        raise ValueError("percentile of an empty sample")
+    ordered = sorted(values)
+    rank = max(1, math.ceil(fraction * len(ordered)))
+    return ordered[min(rank, len(ordered)) - 1]
+
+
+def measure(label: str, call, *, samples: int = 200, warmup: int = 5) -> LatencyProfile:
+    """Time ``call`` repeatedly and report its latency distribution.
+
+    The warmup runs are discarded: the first call through any path pays for
+    lazy imports and a cold dataset cache, and charging that to the p95
+    would make the gate a measure of module loading.
+    """
+    for _ in range(warmup):
+        call()
+    timings = []
+    for _ in range(samples):
+        started = time.perf_counter()
+        call()
+        timings.append((time.perf_counter() - started) * 1000)
+    return LatencyProfile(
+        label=label,
+        samples=len(timings),
+        mean_ms=round(sum(timings) / len(timings), 4),
+        p50_ms=round(percentile(timings, 0.50), 4),
+        p95_ms=round(percentile(timings, 0.95), 4),
+        p99_ms=round(percentile(timings, 0.99), 4),
+        max_ms=round(max(timings), 4),
+    )
+
+
+def scale_records(
+    *, services: int = SCALE_SERVICES, days: int = SCALE_DAYS, seed: int = 11
+) -> list[dict]:
+    """A year of daily spend for a larger estate — deterministic by seed."""
+    records = []
+    for index in range(services):
+        scenario = build_scenario(
+            f"scale-{index}",
+            days=days,
+            base=100.0 + index * 25,
+            service=f"svc-{index:02d}",
+            seed=seed + index,
+            spikes=((days // 3, 4.0), (days - 7, 3.0)),
+        )
+        records.extend(scenario.records)
+    return records
+
+
+def reflex_latency_profile(
+    records: list[dict] | None = None,
+    *,
+    label: str = "reflex",
+    samples: int = 200,
+) -> LatencyProfile:
+    """Profile the reflex pass itself — the dual-loop design's fast lane.
+
+    Imported lazily so the benchmark harness stays usable (and importable)
+    without dragging the mission loader and the FastAPI layer behind it.
+    """
+    from app.detection import load_daily_costs
+    from app.missions import get_mission
+    from app.reflex import reflex_scan
+
+    sample = records if records is not None else load_daily_costs()
+    mission = get_mission()
+    return measure(label, lambda: reflex_scan(sample, mission), samples=samples)
