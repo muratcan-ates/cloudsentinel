@@ -54,6 +54,46 @@ DEFAULT_MODEL = "gemini-flash-latest"
 DEFAULT_PANEL_MODELS = ("gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3.5-flash")
 PANEL_MODELS_ENV = "SENTINEL_PANEL_MODELS"
 
+# --- model allowlist --------------------------------------------------------
+#
+# Model names arrive as free text from the environment, and the two ways
+# that goes wrong are both quiet. A typo ("gemini-flash-lastest") 404s on
+# every call, so the panel abstains all night and the dashboard shows a
+# review that never happened. A *plausible* name is worse: the free tier
+# grants pro models a quota of ZERO (measured live, not assumed), so
+# swapping one in under jury-day pressure buys a seat that can never
+# answer — while looking like an upgrade.
+#
+# So a model must be on this list before it may reach the live client.
+# Membership means one thing only: the free tier grants it non-zero quota.
+# Every entry has been exercised against a real key from this project; the
+# list is deliberately short, and extending it is a deliberate act, not a
+# side effect of setting an environment variable.
+ALLOWED_MODELS = (
+    "gemini-flash-latest",  # DEFAULT_MODEL and the panel's first seat
+    "gemini-flash-lite-latest",  # panel seat two
+    "gemini-3.5-flash",  # panel seat three — a different generation
+    # Free-tier flash of the previous generation. Retired for keys minted
+    # after the spike (404), but still valid on older ones, so it stays
+    # allowed and simply fails into the abstain path where it is gone.
+    "gemini-2.5-flash",
+)
+
+
+class ModelNotAllowedError(ValueError):
+    """A model outside the allowlist was asked to serve live traffic."""
+
+
+def assert_allowlisted(model: str) -> None:
+    """Gate one model name before it can reach the live client."""
+    if model not in ALLOWED_MODELS:
+        raise ModelNotAllowedError(
+            f"model {model!r} is not on the allowlist — the free tier grants "
+            f"quota only to {', '.join(ALLOWED_MODELS)}. A model outside the "
+            "list would either 404 or answer with a quota of zero, so it is "
+            "refused rather than run."
+        )
+
 MAX_ATTEMPTS = 4
 TRANSIENT_STATUS = {500, 502, 503, 504}
 TRANSIENT_BACKOFF_SECONDS = 2.0
@@ -282,12 +322,20 @@ class GeminiProvider(LLMProvider):
     def __init__(
         self,
         api_key: str | None = None,
-        model: str = DEFAULT_MODEL,
+        # Resolved at call time, not bound as a default: a default argument
+        # would freeze DEFAULT_MODEL at import and let a later change to it
+        # slip past the allowlist gate below.
+        model: str | None = None,
         *,
         max_attempts: int = MAX_ATTEMPTS,
         sleep: Callable[[float], None] = time.sleep,
         client: object | None = None,
     ):
+        model = model or DEFAULT_MODEL
+        # Gated before the client is built: an unvetted model must not get
+        # as far as holding a connection, and the check must fire on the
+        # shared-client path (panel seats) too.
+        assert_allowlisted(model)
         if client is None:
             if genai is None:
                 raise RuntimeError(
@@ -525,6 +573,9 @@ def provider_mode() -> str:
         return "fake"
     if not os.environ.get("GEMINI_API_KEY"):
         return "fake"
+    # /health must not advertise a live backend the allowlist will refuse.
+    if DEFAULT_MODEL not in ALLOWED_MODELS:
+        return "fake"
     return "gemini"
 
 
@@ -555,11 +606,22 @@ def get_provider() -> LLMProvider:
         "shared free-tier daily quota",
         DEFAULT_MODEL,
     )
-    return GeminiProvider()
+    try:
+        return GeminiProvider()
+    except ModelNotAllowedError as error:
+        # Loud, then deterministic: refusing the model must not take the
+        # product down, and it must not quietly become a different model.
+        logger.error("%s — serving the deterministic fake provider", error)
+        return FakeProvider()
 
 
 def panel_models() -> tuple[str, ...]:
-    """The review panel's model roster — env override with a safe default."""
+    """The review panel's model roster — env override with a safe default.
+
+    Returns the roster as CONFIGURED, allowlisted or not; the gate lives in
+    ``get_panel_providers`` so the rejected names can be named in the log
+    instead of vanishing here.
+    """
     raw = os.environ.get(PANEL_MODELS_ENV, "").strip()
     if not raw:
         return DEFAULT_PANEL_MODELS
@@ -578,6 +640,19 @@ def get_panel_providers(models: tuple[str, ...] | None = None) -> list[LLMProvid
     """
     models = models or panel_models()
     if provider_mode() == "fake":
+        return [FakeProvider() for _ in models]
+    # All seats or none. A panel with one refused seat quietly answering
+    # from the fake composer while two run live is not a heterogeneous
+    # panel — it is a rigged one, and the transcript would say otherwise.
+    rejected = [model for model in models if model not in ALLOWED_MODELS]
+    if rejected:
+        logger.error(
+            "review panel refused: %s not on the allowlist (%s) — the whole "
+            "panel falls back to the deterministic fake provider so no seat "
+            "silently answers for another",
+            ", ".join(rejected),
+            ", ".join(ALLOWED_MODELS),
+        )
         return [FakeProvider() for _ in models]
     logger.warning(
         "review panel convenes LIVE across %d Gemini models — requests "
