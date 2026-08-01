@@ -77,7 +77,7 @@ def demo_reset_enabled() -> bool:
 
 @router.get("/health/watch")
 def watch_health(conn: sqlite3.Connection = Depends(db.get_db)) -> WatchHealth:
-    """Is the sentinel still watching? (``/health`` only knows the process is up.)
+    """Is the sentinel still watching? ``/health`` only knows the process is up.
 
     On 1 August the deployed watch stopped beating at 20:40 and nothing
     said so for three hours — ``/health`` answered 200 the whole time,
