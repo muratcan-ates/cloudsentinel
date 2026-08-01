@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Response
 
 from app import bus, db, dispatch
-from app.auth import UserOut, optional_user
+from app.auth import UserOut, enforce_decision_auth, optional_user
 from app.enrichment import (
     blast_radius_tier,
     framework_reference,
@@ -278,8 +278,11 @@ def approve_action(
     """Approve a proposed action; safe to retry with an Idempotency-Key.
 
     A valid session token makes the operator identity server-derived
-    (authoritative) rather than trusting the request body.
+    (authoritative) rather than trusting the request body. In live-ops mode
+    (``SENTINEL_REQUIRE_APPROVER=1``) that session is mandatory and must
+    hold the approver or admin role.
     """
+    enforce_decision_auth(user)
     rationale = decision.rationale if decision is not None else None
     return _decide(
         conn, action_id, "approved", _actor(user, decision), idempotency_key, rationale
@@ -299,7 +302,10 @@ def reject_action(
     """Reject a proposed action; safe to retry with an Idempotency-Key.
 
     A valid session token makes the operator identity server-derived.
+    In live-ops mode (``SENTINEL_REQUIRE_APPROVER=1``) that session is
+    mandatory and must hold the approver or admin role.
     """
+    enforce_decision_auth(user)
     rationale = decision.rationale if decision is not None else None
     return _decide(
         conn, action_id, "rejected", _actor(user, decision), idempotency_key, rationale
@@ -312,14 +318,18 @@ def execute_action(
     idempotency_key: str | None = Header(
         None, alias="Idempotency-Key", min_length=1, max_length=200
     ),
+    user: UserOut | None = Depends(optional_user),
     conn: sqlite3.Connection = Depends(db.get_db),
 ) -> ActionRecord:
     """Simulated execution of an approved action.
 
     No real infrastructure is ever touched: the transition is recorded
     with a SIMULATION marker in the action detail, which the dashboard
-    surfaces as a badge. Safe to retry with an Idempotency-Key.
+    surfaces as a badge. Safe to retry with an Idempotency-Key. In
+    live-ops mode (``SENTINEL_REQUIRE_APPROVER=1``) an approver-or-admin
+    session is mandatory, like the other two decision verbs.
     """
+    enforce_decision_auth(user)
     scoped_key = (
         f"actions:{action_id}:execute:{idempotency_key}"
         if idempotency_key is not None

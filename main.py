@@ -32,7 +32,7 @@ from fastapi.staticfiles import StaticFiles
 
 import sqlite3
 
-from app import db, feeds, telemetry, watchdog
+from app import auth, db, feeds, telemetry, watchdog
 from app.actions import router as actions_router
 from app.analyst import router as analyst_router
 from app.auth import router as auth_router
@@ -117,6 +117,10 @@ SECURITY_HEADERS = {
 async def lifespan(application: FastAPI):
     """Build the schema on every boot: the deploy target's disk is ephemeral."""
     db.init_db()
+    # Live-ops bootstrap: the env-configured admin account is (re)created on
+    # the ephemeral disk so the team can decide on the live link. Idempotent;
+    # an existing username — and its password — is never touched.
+    auth.ensure_bootstrap_admin()
     _log_boot_manifest()
     # Opt-in standing watch: SENTINEL_WATCH_INTERVAL_SECONDS > 0 starts a
     # daemon thread that pulses the estate on a cadence — the sentinel

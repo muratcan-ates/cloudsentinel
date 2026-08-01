@@ -14,6 +14,8 @@ HITL flow is untouched until identity is deliberately wired in.
 """
 
 import hashlib
+import logging
+import os
 import secrets
 import sqlite3
 
@@ -22,9 +24,19 @@ from pydantic import BaseModel, Field
 
 from app import db
 
+logger = logging.getLogger("cloudsentinel.auth")
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 ROLES = ("viewer", "analyst", "approver", "admin")
+
+# Live-ops mode: the three decision verbs (approve / reject / execute) demand
+# an authenticated approver-or-admin session. Off by default, so the open
+# showcase behavior stays byte-identical. The bootstrap pair seeds one
+# deciding account on an ephemeral-disk deploy at lifespan startup.
+REQUIRE_APPROVER_ENV = "SENTINEL_REQUIRE_APPROVER"
+ADMIN_USER_ENV = "SENTINEL_ADMIN_USER"
+ADMIN_PASSWORD_ENV = "SENTINEL_ADMIN_PASSWORD"
 
 # Sessions expire so a captured token cannot grant access forever; the
 # operator can also end one early with POST /auth/logout.
@@ -187,6 +199,76 @@ def require_role(minimum: str):
         return user
 
     return _dependency
+
+
+def require_approver_enabled() -> bool:
+    return os.environ.get(REQUIRE_APPROVER_ENV, "").strip() == "1"
+
+
+def enforce_decision_auth(user: UserOut | None) -> None:
+    """Gate a decision verb behind an approver+ session in live-ops mode.
+
+    No-op when ``SENTINEL_REQUIRE_APPROVER`` is off — today's behavior stays
+    identical. When on: a missing or invalid token answers 401; an
+    authenticated session below 'approver' answers 403 naming the needed
+    role. Reads stay public, and registration stays open — self-registration
+    always creates a 'viewer', so strangers can look but never decide.
+    """
+    if not require_approver_enabled():
+        return
+    if user is None:
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "operator mode: deciding requires a signed-in approver or "
+                "admin session"
+            ),
+        )
+    order = {role: index for index, role in enumerate(ROLES)}
+    if order.get(user.role, -1) < order["approver"]:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"operator mode: the '{user.role}' role cannot decide — "
+                "the approver or admin role is required"
+            ),
+        )
+
+
+def ensure_bootstrap_admin() -> None:
+    """Lifespan hook: create the env-configured deciding account, once.
+
+    ``SENTINEL_ADMIN_USER`` + ``SENTINEL_ADMIN_PASSWORD`` seed one 'admin'
+    account on an ephemeral-disk deploy — the schema rebuilds from nothing
+    on every boot, so the team's operator identity must too. Idempotent and
+    non-destructive: an existing username is left exactly as it is (a boot
+    can never reset a password), and the password itself is never logged.
+    """
+    username = os.environ.get(ADMIN_USER_ENV, "").strip()
+    password = os.environ.get(ADMIN_PASSWORD_ENV, "")
+    if not username or not password:
+        return
+    conn = db.connect_ready()
+    try:
+        existing = conn.execute(
+            "SELECT 1 FROM users WHERE username = ?", (username,)
+        ).fetchone()
+        if existing is not None:
+            return
+        salt = secrets.token_hex(16)
+        password_hash = _hash_password(password, salt)
+        try:
+            with db.writing(conn):
+                conn.execute(
+                    "INSERT INTO users (username, password_hash, salt, role) "
+                    "VALUES (?, ?, ?, 'admin')",
+                    (username, password_hash, salt),
+                )
+        except sqlite3.IntegrityError:
+            return  # raced by a concurrent boot: the first writer wins
+        logger.info("bootstrap admin %r is ready to decide", username)
+    finally:
+        conn.close()
 
 
 @router.get("/me", responses={401: {"description": "not authenticated"}})

@@ -295,6 +295,25 @@ docker build -t cloudsentinel .
 docker run -p 8000:8000 cloudsentinel
 ```
 
+### Deployment modes
+
+One deploy target, two honest postures — pick one per link, don't mix:
+
+- **Showcase mode** — `SENTINEL_READONLY=1`: a public link that survives
+  strangers' clicks. Every write (login included) is blocked while the
+  panels keep reading, and the opt-in watchdog
+  (`SENTINEL_WATCH_INTERVAL_SECONDS`) keeps the estate refreshing itself.
+- **Live-ops mode** — `SENTINEL_REQUIRE_APPROVER=1` plus the bootstrap pair
+  `SENTINEL_ADMIN_USER` / `SENTINEL_ADMIN_PASSWORD`: the team decides on the
+  live link. The three decision verbs (approve / reject / execute) demand a
+  signed-in approver or admin; reads stay public and registration stays open
+  (self-registered accounts are viewers, so strangers can look but never
+  decide). The bootstrap admin is recreated on every ephemeral-disk boot,
+  never overwriting an existing user and never logging the password.
+- In either mode, `SENTINEL_EXECUTE_WEBHOOK_URL` optionally delivers each
+  executed incident report to your own webhook, with the delivery outcome
+  recorded in the audit detail.
+
 ## Built With
 
 | Technology | Purpose |

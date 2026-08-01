@@ -160,6 +160,12 @@ schema-mandated but **inert** (only the published rule score runs); its
 - Demo operations, all env-gated and off by default: whole-week date rebase
   (`SENTINEL_REBASE_DATES`), demo reset with optional seeded verdict history
   (`SENTINEL_DEMO_RESET`), read-only showcase mode (`SENTINEL_READONLY`).
+- Live-ops mode as the showcase's alternative: `SENTINEL_REQUIRE_APPROVER=1`
+  gates the three decision verbs behind an authenticated approver/admin
+  session (reads stay public, registration stays viewer-only), and the
+  `SENTINEL_ADMIN_USER` / `SENTINEL_ADMIN_PASSWORD` pair bootstraps one
+  deciding account at startup on the ephemeral disk — idempotent, never
+  overwriting an existing user or logging the password.
 - `make setup / run / test / demo`, `scripts/smoke.sh` (14-step live sweep)
   and `scripts/failure_drill.sh` (zero-budget fallback + rate-limit proof).
 - Container: non-root user, stdlib `HEALTHCHECK`, `render.yaml` for the
@@ -167,8 +173,9 @@ schema-mandated but **inert** (only the published rule score runs); its
 
 ## Deliberately Out of Scope
 
-Real cloud provider adapters, authentication / RBAC, PostgreSQL +
-migrations, background schedulers, Slack delivery and ML-based fraud
-models. Each is a deliberate boundary of this build, not an oversight —
+Real cloud provider adapters, PostgreSQL + migrations, background
+schedulers, bundled chat-platform integrations (the operator's own webhook
+receives decided incidents instead) and ML-based fraud models. Each is a
+deliberate boundary of this build, not an oversight —
 none is required to demonstrate the product thesis: **the machine
 watches, the human decides.**
