@@ -73,12 +73,32 @@ def test_sim_source_feeds_the_cost_lane(monkeypatch):
     monkeypatch.setenv("SENTINEL_COSTS_SOURCE", "sim")
     from app import detection
 
+    from datetime import date
+
     dataset = detection.load_dataset()
-    assert "synthetic" in dataset["description"]
+    assert "simulated" in dataset["description"]
+    assert "no real billing" in dataset["description"]
     assert dataset["currency"] == "USD"
-    days = {record["date"] for record in dataset["daily_costs"]}
-    assert len(days) == stream.HISTORY_DAYS + 1
+    days = sorted({record["date"] for record in dataset["daily_costs"]})
+    assert days[-1] == date.today().isoformat(), "the lane runs up to today"
+    assert len(days) > 7, "a baseline needs a real history behind it"
     assert client.get("/health").json()["data_sources"]["costs"] == "sim"
+
+
+def test_sim_keeps_the_curated_story_in_its_history(monkeypatch):
+    """The fixture's planted spike survives — inventing a synthetic history
+    threw away the very evidence the product narrates."""
+    from datetime import date
+
+    from app import detection
+
+    monkeypatch.setenv("SENTINEL_COSTS_SOURCE", "sim")
+    records = detection.load_dataset()["daily_costs"]
+    today = date.today().isoformat()
+    history = [r for r in records if r["date"] != today]
+    peak = max(history, key=lambda r: r["cost"])
+    assert peak["service"] == "compute"
+    assert peak["cost"] > 1000, "the 6x compute spike is still on the chart"
 
 
 def test_sim_history_is_stable_but_today_moves(monkeypatch):
@@ -101,15 +121,31 @@ def test_sim_history_is_stable_but_today_moves(monkeypatch):
     }
 
 
-def test_sim_spike_becomes_a_real_signal(monkeypatch):
-    """A stream spike projects into today's figure and the detector
-    genuinely flags it — the whole chain reacts to the simulation."""
+def test_sim_is_quiet_until_the_stream_spikes(monkeypatch):
+    """The two properties a demo lane must have: an ordinary day raises
+    nothing, and a real excursion is flagged at a believable z-score.
+
+    Measured against the product's own detector, not a proxy — a lane that
+    cries wolf teaches a juror to distrust every card on the screen.
+    """
     monkeypatch.setenv("SENTINEL_COSTS_SOURCE", "sim")
     from datetime import date
 
+    today = date.today().isoformat()
+    stream.reset()
     stream._seed()
-    lane = stream._lanes["compute"]
-    lane["rate"] = lane["base"] * 2.5
-    body = client.get("/anomalies").json()
-    flagged = {(a["service"], a["date"]) for a in body["anomalies"]}
-    assert ("compute", date.today().isoformat()) in flagged
+
+    calm = {
+        (a["service"], a["date"]) for a in client.get("/anomalies").json()["anomalies"]
+    }
+    assert not [s for s, d in calm if d == today], "a calm walk flags nothing today"
+
+    # storage's fixture history carries no planted spike, so it is the lane
+    # whose baseline a live excursion has to clear on its own merits
+    stream._lanes["storage"]["rate"] = stream._lanes["storage"]["base"] * 2.0
+    flagged = {
+        (a["service"], a["date"]): a["z_score"]
+        for a in client.get("/anomalies").json()["anomalies"]
+    }
+    assert ("storage", today) in flagged, "a real excursion must reach the desk"
+    assert 2.0 <= flagged[("storage", today)] <= 12.0, "and at a credible z-score"

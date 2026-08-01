@@ -1980,23 +1980,41 @@ footer {
 .row-action:hover { transform: translateY(-1px); }
 .row-action:active { transform: translateY(0) scale(0.96); }
 
-/* live tape — the simulated stream strip (borsa feel, honest label) */
-.tape { margin: 4px 0 12px; }
-.tape-label { color: var(--ink-faint); }
-.tape-rows { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 6px; }
+/* live tape — the simulated stream strip.
+   Lives in a narrow ledger column, so the heading stays one short line and
+   the honest-labelling sentence sits under the rows instead of wrapping
+   across three lines into the radar. */
+.tape { margin: 2px 0 14px; }
+.tape-label {
+  display: flex; align-items: center; gap: 6px;
+  color: var(--ink-dim); margin-bottom: 6px;
+}
+.tape-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--accent); flex: none;
+  animation: live-breathe 2.4s ease-in-out infinite;
+}
+.tape-tag {
+  font-size: 9px; letter-spacing: 0.12em; color: var(--ink-faint);
+  border: 1px solid var(--hair); border-radius: 3px; padding: 0 4px;
+}
+.tape-note { font-size: 10px; color: var(--ink-faint); margin-top: 6px; }
+.tape-rows { display: grid; gap: 3px 0; }
 .tape-row {
-  display: inline-flex; align-items: baseline; gap: 8px;
+  display: grid; grid-template-columns: 1fr 54px auto 54px;
+  align-items: center; gap: 8px;
   font-size: var(--fs-meta); color: var(--ink-dim);
 }
 .tape-service {
   text-transform: uppercase; letter-spacing: 0.08em;
   font-size: 10px; color: var(--ink-faint);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.tape-rate { font-variant-numeric: tabular-nums; color: var(--ink); }
-.tape-delta { font-size: 11px; font-variant-numeric: tabular-nums; }
+.tape-rate { font-variant-numeric: tabular-nums; color: var(--ink); text-align: right; }
+.tape-delta { font-size: 10px; font-variant-numeric: tabular-nums; text-align: right; }
 .tape-delta.up { color: var(--accent); }
 .tape-delta.down { color: var(--alert); }
-.tape-spark { width: 72px; height: 20px; align-self: center; }
+.tape-spark { width: 54px; height: 14px; }
 .tape-spark polyline { fill: none; stroke: var(--ink-faint); stroke-width: 1; }
 .tape-row.spiking .tape-spark polyline { stroke: var(--alert); }
 .tape-row.spiking .tape-rate,
@@ -2012,3 +2030,11 @@ footer {
 }
 .tape-chip.up { color: var(--accent); }
 .tape-chip.down { color: var(--alert); }
+
+/* the trend chart's live edge — today's point on the simulated lane */
+.live-point { fill: var(--accent); }
+.live-point { animation: live-breathe 2.4s ease-in-out infinite; }
+.live-point-label {
+  fill: var(--accent); font-size: 10px;
+  font-variant-numeric: tabular-nums; letter-spacing: 0.04em;
+}

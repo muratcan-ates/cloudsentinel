@@ -590,6 +590,29 @@ function renderTrend() {
 
   if (!points.length) return;
   const [, , viewWidth, viewHeight] = svg.getAttribute("viewBox").split(" ").map(Number);
+
+  // On the simulated lane the last point is TODAY and it keeps moving. Its
+  // drift is a few dollars against an axis that spans the estate's biggest
+  // spike, so it would be invisible without a mark: a breathing dot and the
+  // live figure at the right edge make the motion legible without inflating it.
+  if (String(state.dataSources?.costs || "").startsWith("sim")) {
+    const last = points[points.length - 1];
+    const label = `${fmtNumber(totals[totals.length - 1])} today`;
+    const anchor = last.x > viewWidth - 96 ? "end" : "start";
+    svg.append(
+      svgEl("circle", { class: "live-point", cx: last.x, cy: last.y, r: 3.5 }),
+      svgEl(
+        "text",
+        {
+          class: "live-point-label",
+          x: anchor === "end" ? last.x - 8 : last.x + 8,
+          y: Math.max(12, last.y - 8),
+          "text-anchor": anchor,
+        },
+        label
+      )
+    );
+  }
   const probe = svgEl("line", { class: "probe", x1: 0, x2: 0, y1: 10, y2: viewHeight - 18, visibility: "hidden" });
   const balloon = svgEl("g", { class: "balloon", visibility: "hidden" });
   const balloonRect = svgEl("rect", { width: 108, height: 34, x: 0, y: 0 });
@@ -2949,11 +2972,11 @@ function tapeSparkline(trend) {
   if (!Array.isArray(trend) || trend.length < 2) return "";
   const min = Math.min(...trend);
   const span = Math.max(...trend) - min || 1;
-  const step = 72 / (trend.length - 1);
+  const step = 54 / (trend.length - 1);
   const points = trend
-    .map((value, i) => `${(i * step).toFixed(1)},${(19 - ((value - min) / span) * 16).toFixed(1)}`)
+    .map((value, i) => `${(i * step).toFixed(1)},${(13 - ((value - min) / span) * 11).toFixed(1)}`)
     .join(" ");
-  return `<svg class="tape-spark" viewBox="0 0 72 20" aria-hidden="true"><polyline points="${points}"></polyline></svg>`;
+  return `<svg class="tape-spark" viewBox="0 0 54 14" aria-hidden="true"><polyline points="${points}"></polyline></svg>`;
 }
 
 /* The tape also feeds the cost ledger a LIVE layer: a run-rate line under
@@ -2991,7 +3014,7 @@ function renderTape(frame) {
         <span class="tape-service">${escapeHtml(lane.service)}</span>
         ${tapeSparkline(lane.trend)}
         <span class="tape-rate">${fmtNumber(lane.rate)}</span>
-        <span class="tape-delta ${up ? "up" : "down"}">${up ? "▲" : "▼"}${Math.abs(lane.delta_pct).toFixed(2)}%</span>
+        <span class="tape-delta ${up ? "up" : "down"}">${up ? "▲" : "▼"}${Math.abs(lane.delta_pct).toFixed(1)}%</span>
       </div>`;
     })
     .join("");
@@ -3025,8 +3048,10 @@ async function pollTape() {
     tapeState.failures = 0;
     tapeState.lastFrame = frame;
     tapeState.frames = (tapeState.frames || 0) + 1;
-    document.getElementById("tape-label").textContent =
-      `live tape — simulated stream · ${frame.unit} · synthetic figures, no real billing`;
+    // the honesty line lives under the rows, not in the heading — one short
+    // sentence instead of a three-line label crowding the radar
+    document.getElementById("tape-note").textContent =
+      `${frame.unit} — synthetic figures, no real billing`;
     renderTape(frame);
     feedCostLedgerFromTape(frame);
     if (

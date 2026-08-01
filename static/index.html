@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CloudSentinel — Anomaly Watch</title>
-  <link rel="stylesheet" href="/static/style.css?v=s7.6" />
+  <link rel="stylesheet" href="/static/style.css?v=s7.8" />
   <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
   <meta name="description" content="CloudSentinel — cloud cost and security anomaly watch: detection, evidence-cited AI triage and human-approved remediation, execution simulated by design." />
   <meta property="og:title" content="CloudSentinel — Anomaly Watch" />
@@ -115,8 +115,9 @@
           <h2 class="section-word">anomalies</h2>
         </header>
         <div class="tape" id="live-tape" hidden>
-          <p class="microcap tape-label" id="tape-label">live tape — simulated stream</p>
+          <p class="microcap tape-label"><span class="tape-dot" aria-hidden="true"></span>live tape <span class="tape-tag">simulated</span></p>
           <div class="tape-rows" id="tape-rows"></div>
+          <p class="meta tape-note" id="tape-note"></p>
         </div>
         <svg id="sentinel-radar" class="radar" viewBox="0 0 200 200" role="img" aria-label="Sentinel radar — the live signal field, sweeping"></svg>
         <p class="meta" id="anomaly-meta">scanning…</p>
@@ -342,6 +343,6 @@
     </div>
   </aside>
 
-  <script src="/static/app.js?v=s7.6"></script>
+  <script src="/static/app.js?v=s7.8"></script>
 </body>
 </html>
