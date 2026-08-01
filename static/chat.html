@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="vivid">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CloudSentinel — orchestration console</title>
+  <link rel="stylesheet" href="/static/style.css?v=s9.0" />
+  <link rel="stylesheet" href="/static/chat.css?v=1" />
+  <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
+  <meta name="description" content="CloudSentinel orchestration console — put one question to one agent about this estate and get an answer with its evidence, its table and an honest badge saying where it came from." />
+</head>
+<body>
+  <a class="skip-link" href="#ask-input">Skip to the question box</a>
+
+  <nav class="top-nav" aria-label="Site">
+    <a class="nav-brand pixel-black" href="/">cloudsentinel<span class="period">.</span></a>
+    <div class="nav-links">
+      <a class="view-tab" href="/watch">watch</a>
+      <a class="view-tab" href="/investigate">investigation</a>
+      <a class="view-tab" href="/decide">decision desk</a>
+      <a class="view-tab" href="/brain">brain</a>
+      <a class="view-tab" href="/static/chat.html" aria-current="page" aria-pressed="true">console</a>
+      <a class="view-tab" href="/static/docs.html">api</a>
+    </div>
+    <span class="nav-live microcap chat-nav-live">console</span>
+  </nav>
+
+  <div class="page chat-page">
+    <header class="chat-head">
+      <p class="microcap chat-kicker">AI orchestration console</p>
+      <h1 class="chat-title">Ask one agent about this estate<span class="period">.</span></h1>
+      <p class="chat-lede">
+        Four agents sit on this panel and each one may do exactly one job. Pick a seat, ask a
+        question, and read the answer next to the evidence it leaned on. Every reply carries a badge
+        naming where it came from — a demo model, a live model, or the deterministic fallback —
+        because a console that hides that is not worth trusting.
+      </p>
+    </header>
+
+    <div class="cs-desk chat-desk">
+
+      <!-- ================= left rail: the seat selector ================= -->
+      <div class="cs-desk-left">
+        <div class="cs-sticky">
+          <section class="cs-card picker-card" aria-labelledby="picker-head">
+            <div class="cs-card-head">
+              <h2 class="cs-card-title" id="picker-head">The seat</h2>
+              <span class="cs-badge" data-lane="proof">one at a time</span>
+            </div>
+            <p class="cs-card-sub picker-sub">Whoever you pick answers alone — no silent hand-off to another agent.</p>
+
+            <div class="agent-list" role="radiogroup" aria-labelledby="picker-head" id="agent-list">
+              <button type="button" class="agent-opt" role="radio" aria-checked="true" tabindex="0" data-agent="analyst" aria-label="analyst" aria-describedby="seat-analyst">
+                <span class="agent-tick" aria-hidden="true"></span>
+                <span class="agent-copy">
+                  <span class="agent-name">analyst</span>
+                  <span class="agent-desc" id="seat-analyst">May triage a signal against its own fourteen-day history — real, seasonal, data error or known change — and must cite the rows it used.</span>
+                </span>
+              </button>
+              <button type="button" class="agent-opt" role="radio" aria-checked="false" tabindex="-1" data-agent="recommender" aria-label="recommender" aria-describedby="seat-recommender">
+                <span class="agent-tick" aria-hidden="true"></span>
+                <span class="agent-copy">
+                  <span class="agent-name">recommender</span>
+                  <span class="agent-desc" id="seat-recommender">May propose one remediation with its trade-off and its cost. It never executes anything; the decision desk still decides.</span>
+                </span>
+              </button>
+              <button type="button" class="agent-opt" role="radio" aria-checked="false" tabindex="-1" data-agent="skeptic" aria-label="skeptic" aria-describedby="seat-skeptic">
+                <span class="agent-tick" aria-hidden="true"></span>
+                <span class="agent-copy">
+                  <span class="agent-name">skeptic</span>
+                  <span class="agent-desc" id="seat-skeptic">May argue against the draft — and is expected to say plainly when the cautious path should win instead.</span>
+                </span>
+              </button>
+              <button type="button" class="agent-opt" role="radio" aria-checked="false" tabindex="-1" data-agent="chronicler" aria-label="chronicler" aria-describedby="seat-chronicler">
+                <span class="agent-tick" aria-hidden="true"></span>
+                <span class="agent-copy">
+                  <span class="agent-name">chronicler</span>
+                  <span class="agent-desc" id="seat-chronicler">May write the briefing for a run — headline, two sentences, what to watch next — narrating the figures it is given and inventing none.</span>
+                </span>
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- ================= middle: transcript + composer ================= -->
+      <main class="chat-main" id="main-content">
+        <section class="cs-card transcript-card" aria-labelledby="transcript-head">
+          <div class="cs-card-head">
+            <h2 class="cs-card-title" id="transcript-head">Transcript</h2>
+            <button class="cs-chip transcript-clear" type="button" id="transcript-clear">clear</button>
+          </div>
+          <div class="transcript" id="transcript" role="log" aria-live="polite" aria-relevant="additions text" aria-label="Console transcript">
+            <p class="transcript-empty" id="transcript-empty">
+              Nothing asked yet. Pick a seat on the left, take one of the example questions below, and
+              the answer will appear here with its evidence.
+            </p>
+          </div>
+        </section>
+
+        <section class="cs-card composer" aria-labelledby="ask-head">
+          <div class="cs-card-head">
+            <h2 class="cs-card-title" id="ask-head">Ask</h2>
+            <span class="composer-seat microcap" id="composer-seat">asking the analyst</span>
+          </div>
+
+          <div class="cs-chips example-chips" role="group" aria-label="Example questions — a click fills the box">
+            <button class="cs-chip example-chip" type="button" data-question="Which services moved the most in the monitored period, and how confident are you in that reading?">which services moved the most?</button>
+            <button class="cs-chip example-chip" type="button" data-question="Is the newest cost anomaly real, seasonal, or a data error? Show the rows you used.">real, seasonal, or a data error?</button>
+            <button class="cs-chip example-chip" type="button" data-question="What would you do about the top open signal, what does it cost, and what could go wrong?">what should we do about the top signal?</button>
+          </div>
+
+          <form class="ask-form" id="ask-form" novalidate>
+            <label class="chat-sr-only" for="ask-input">Your question about this estate</label>
+            <textarea id="ask-input" name="question" rows="3" autocomplete="off"
+              placeholder="Ask about this estate — spend, signals, evidence, what to do next."></textarea>
+            <div class="ask-bar">
+              <p class="ask-hint" id="ask-hint">Enter sends · Shift+Enter starts a new line</p>
+              <button class="cs-btn ask-send" type="submit" id="ask-send">Ask<span class="ask-arrow" aria-hidden="true">→</span></button>
+            </div>
+          </form>
+        </section>
+      </main>
+
+      <!-- ================= right rail: how to read an answer ================= -->
+      <aside class="cs-desk-right" aria-label="How to read an answer">
+        <div class="cs-sticky">
+          <section class="cs-card" aria-labelledby="source-head">
+            <div class="cs-card-head">
+              <h2 class="cs-card-title" id="source-head">Where an answer came from</h2>
+            </div>
+            <p class="cs-card-sub">Every reply is stamped. The badge is the product's whole thesis: it never pretends.</p>
+            <ul class="cs-rows source-legend">
+              <li class="cs-row">
+                <span><span class="cs-row-name">live</span><span class="cs-row-note">A model was called and answered.</span></span>
+                <span class="cs-badge" data-lane="market">live</span>
+              </li>
+              <li class="cs-row">
+                <span><span class="cs-row-name">demo</span><span class="cs-row-note">The deterministic demo lane. No provider was called.</span></span>
+                <span class="cs-badge" data-lane="proof">demo</span>
+              </li>
+              <li class="cs-row">
+                <span><span class="cs-row-name">fallback</span><span class="cs-row-note">The model was unreachable; rules answered instead.</span></span>
+                <span class="cs-badge" data-lane="ops">fallback</span>
+              </li>
+            </ul>
+          </section>
+
+          <section class="cs-card" aria-labelledby="backend-head">
+            <div class="cs-card-head">
+              <h2 class="cs-card-title" id="backend-head">Backend</h2>
+            </div>
+            <ul class="cs-rows">
+              <li class="cs-row">
+                <span><span class="cs-row-name">POST /chat</span><span class="cs-row-note" id="backend-note">checking the published API surface…</span></span>
+                <span class="cs-row-value is-off" id="backend-state">…</span>
+              </li>
+            </ul>
+            <p class="cs-card-sub backend-foot">If the endpoint is not on this build, the console says so instead of writing an answer of its own.</p>
+          </section>
+
+          <section class="cs-card" aria-labelledby="elsewhere-head">
+            <div class="cs-card-head">
+              <h2 class="cs-card-title" id="elsewhere-head">Elsewhere</h2>
+            </div>
+            <ul class="cs-rows">
+              <li class="cs-row">
+                <span><span class="cs-row-name"><a class="chat-link" href="/">The dashboard</a></span><span class="cs-row-note">Signals, evidence, the decision desk.</span></span>
+              </li>
+              <li class="cs-row">
+                <span><span class="cs-row-name"><a class="chat-link" href="/static/docs.html">API documentation</a></span><span class="cs-row-note">Self-hosted Swagger, no CDN.</span></span>
+              </li>
+            </ul>
+          </section>
+        </div>
+      </aside>
+
+    </div>
+  </div>
+
+  <script src="/static/chat.js?v=1"></script>
+</body>
+</html>
