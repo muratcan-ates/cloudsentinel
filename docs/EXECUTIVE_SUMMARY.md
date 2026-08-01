@@ -55,7 +55,7 @@ Built on FastAPI + Python 3.12 with a Gemini provider abstraction that
 degrades honestly to a deterministic fake and a rule-based fallback, so the
 full demo runs offline with no quota gamble. Quality bar: **400+ automated
 tests** over 40+ endpoints, ruff-clean, CI on every push and PR, a
-14-step live smoke sweep, a detection benchmark and a 200-case agent-chain
+26-step live smoke sweep, a detection benchmark and a 200-case agent-chain
 eval ([scorecard](EVAL_SCORECARD.md)) that measure rather than assert.
 
 ## Boundaries we state, not hide

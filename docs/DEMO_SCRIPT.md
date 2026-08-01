@@ -123,7 +123,7 @@ path uses the real model; the demo does not depend on it.
 - **Swagger sweep:** open `/docs` (self-hosted Swagger) and show
   `GET /anomalies` raw scored output — the anomaly is statistics, not a
   hard-coded number.
-- **Smoke sweep:** `make smoke` in a second shell — 14-step PASS/FAIL
+- **Smoke sweep:** `make smoke` in a second shell — 26-step PASS/FAIL
   over the live server.
 - **Ledger export:** `GET /decisions/export` — the append-only decision
   ledger as CSV.

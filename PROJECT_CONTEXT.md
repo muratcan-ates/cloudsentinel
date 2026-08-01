@@ -52,7 +52,7 @@ commit suite-green, CI on every push and PR.
 ```bash
 make setup && make demo     # fake provider, fresh dates, demo reset armed
 # then in another shell:
-make smoke                  # 14-step PASS/FAIL sweep over the live chain
+make smoke                  # 26-step PASS/FAIL sweep over the live chain
 ```
 
 ## Boundaries that are decisions, not gaps

@@ -171,7 +171,7 @@ schema-mandated but **inert** (only the published rule score runs); its
   `SENTINEL_ADMIN_USER` / `SENTINEL_ADMIN_PASSWORD` pair bootstraps one
   deciding account at startup on the ephemeral disk — idempotent, never
   overwriting an existing user or logging the password.
-- `make setup / run / test / demo`, `scripts/smoke.sh` (14-step live sweep)
+- `make setup / run / test / demo`, `scripts/smoke.sh` (26-step live sweep), `scripts/verify_release.sh` (release gate)
   and `scripts/failure_drill.sh` (zero-budget fallback + rate-limit proof).
 - Container: non-root user, stdlib `HEALTHCHECK`, `render.yaml` for the
   deploy target.
