@@ -1,0 +1,105 @@
+{
+  "description": "Synthetic service inventory for CloudSentinel — ownership tags and a change log for the services that appear in mock_costs.json and mock_security_events.json. Same synthetic estate, same period, so the enrichment can answer 'who owns this' and 'did anything ship' next to a signal without inventing an answer at request time. The change log deliberately contains all four cases: a deployment on the compute spike (2026-06-29), a deployment the day before the borderline network blip (2026-06-30), nothing at all near the database spike (2026-07-02), and a storage deployment that coincides with no signal — so 'a deploy explains it' is a finding, not a foregone conclusion. Release refs are opaque on purpose: SENTINEL_REBASE_DATES shifts these dates along with the cost data, and a date-shaped ref would then contradict the day it shipped on.",
+  "period": {
+    "start": "2026-06-20",
+    "end": "2026-07-03"
+  },
+  "services": {
+    "compute": {
+      "owner": "platform-engineering",
+      "on_call": "platform-primary",
+      "environment": "production",
+      "tags": {
+        "tier": "critical",
+        "cost_center": "CC-1042",
+        "managed_by": "terraform"
+      }
+    },
+    "storage": {
+      "owner": "data-platform",
+      "on_call": "data-primary",
+      "environment": "production",
+      "tags": {
+        "tier": "standard",
+        "cost_center": "CC-2071",
+        "managed_by": "terraform"
+      }
+    },
+    "database": {
+      "owner": "core-services",
+      "on_call": "core-primary",
+      "environment": "production",
+      "tags": {
+        "tier": "critical",
+        "cost_center": "CC-1042",
+        "managed_by": "terraform"
+      }
+    },
+    "network": {
+      "owner": "platform-engineering",
+      "on_call": "platform-primary",
+      "environment": "production",
+      "tags": {
+        "tier": "standard",
+        "cost_center": "CC-3300",
+        "managed_by": "console"
+      }
+    },
+    "auth-gateway": {
+      "owner": "identity",
+      "on_call": "identity-primary",
+      "environment": "production",
+      "tags": {
+        "tier": "critical",
+        "cost_center": "CC-4100",
+        "managed_by": "terraform"
+      }
+    },
+    "api-edge": {
+      "owner": "platform-engineering",
+      "on_call": "platform-primary",
+      "environment": "production",
+      "tags": {
+        "tier": "critical",
+        "cost_center": "CC-3300",
+        "managed_by": "terraform"
+      }
+    },
+    "admin-portal": {
+      "owner": "identity",
+      "on_call": "identity-primary",
+      "environment": "production",
+      "tags": {
+        "tier": "internal",
+        "cost_center": "CC-4100",
+        "managed_by": "console"
+      }
+    }
+  },
+  "deployments": [
+    {
+      "service": "storage",
+      "date": "2026-06-24",
+      "ref": "rel-8792",
+      "note": "lifecycle rule rollout to the archive bucket"
+    },
+    {
+      "service": "compute",
+      "date": "2026-06-29",
+      "ref": "rel-8814",
+      "note": "autoscaling floor raised for the launch rehearsal"
+    },
+    {
+      "service": "network",
+      "date": "2026-06-30",
+      "ref": "rel-8826",
+      "note": "egress path moved off the CDN for a vendor test"
+    },
+    {
+      "service": "api-edge",
+      "date": "2026-07-01",
+      "ref": "rel-8833",
+      "note": "routine dependency bump"
+    }
+  ]
+}
