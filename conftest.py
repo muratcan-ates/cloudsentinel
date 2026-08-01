@@ -28,6 +28,7 @@ def _isolated_db(tmp_path, monkeypatch):
     # leak into tests that assert default behavior
     for env in (
         "SENTINEL_ACTION_TTL_HOURS",
+        "SENTINEL_SUPPRESSION_WINDOW_HOURS",
         "SENTINEL_DETECTOR",
         "SENTINEL_BASELINE_WINDOW_DAYS",
         "SENTINEL_SEASONAL",

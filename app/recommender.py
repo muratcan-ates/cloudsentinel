@@ -39,7 +39,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import BaseModel
 
-from app import bus, db, feeds, history
+from app import actions, bus, db, feeds, history
 from app.llm import (
     Confidence,
     generate_with_fallback,
@@ -704,6 +704,35 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
         detail = json.loads(existing["detail_json"])
         return _response_from_detail(event["id"], existing, detail, reused=True)
 
+    # Alert suppression: a DIFFERENT day's deviation on a service that
+    # already has an open card folds into that card as a counted repeat.
+    # Checked before the chain runs, so a suppressed repeat costs no LLM
+    # quota either — the operator's inbox and the budget are spared together.
+    suppressor = actions.find_suppressor(
+        conn,
+        kind=event["kind"],
+        service=event["service"],
+        exclude_event_id=event["id"],
+    )
+    if suppressor is not None:
+        with db.writing(conn):
+            actions.record_suppression(
+                conn,
+                suppressor,
+                occurred_on=event["occurred_on"],
+                z_score=anomaly.get("z_score"),
+            )
+            suppressor = conn.execute(
+                "SELECT * FROM actions WHERE id = ?", (suppressor["id"],)
+            ).fetchone()
+        return _response_from_detail(
+            event["id"],
+            suppressor,
+            json.loads(suppressor["detail_json"]),
+            reused=True,
+            suppressed=True,
+        )
+
     provider = get_provider()
     # Pre-call model id keys the cache; attribution uses the result's own
     # model so a fallback stays honestly labeled "rule-based".
@@ -891,6 +920,7 @@ def _response_from_detail(
     *,
     reused: bool,
     from_cache: bool = False,
+    suppressed: bool = False,
 ) -> RecommendationResponse:
     savings = detail["savings"]
     stance_saving = {
@@ -920,6 +950,8 @@ def _response_from_detail(
         model=detail["model"],
         reused=reused,
         from_cache=from_cache,
+        suppressed=suppressed,
+        suppressed_count=actions.suppressed_count(detail),
     )
 
 

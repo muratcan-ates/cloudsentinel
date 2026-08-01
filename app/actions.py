@@ -142,6 +142,149 @@ def expire_stale_proposals(conn: sqlite3.Connection) -> int:
         return len(ids)
 
 
+# --- alert suppression: one open card speaks for a service on a lane ------
+#
+# Per-event dedupe (every filing site already has it) stops the SAME signal
+# minting a second card. It does nothing about the operator's real burden:
+# a service that deviates again tomorrow, and again the day after, opens a
+# fresh card each time while the first one is still unanswered. Suppression
+# closes that gap — while an open card speaks for a service on a lane, later
+# signals on that lane fold INTO it as a counted repeat instead of becoming
+# inbox noise. Nothing is discarded: the count and the folded dates ride on
+# the card, so the operator sees "this is the third day" at a glance.
+SUPPRESSION_WINDOW_ENV = "SENTINEL_SUPPRESSION_WINDOW_HOURS"
+DEFAULT_SUPPRESSION_WINDOW_HOURS = 24.0
+SUPPRESSION_ACTOR = "system:suppression"
+
+# Only an UNDECIDED card suppresses. A repeat folds into a question the
+# human has not answered yet; the moment they approve, reject or execute,
+# that conversation is closed and the next signal has earned its own card.
+# Folding into a decided card would quietly apply an old verdict to a new
+# fact — the one thing a human-in-the-loop system must never do.
+OPEN_STATES = ("proposed",)
+
+# The folded repeats ride inside detail_json, so cap the sample list: a
+# long-running deployment must not grow one row without bound.
+SUPPRESSION_SAMPLE_CAP = 20
+
+
+def suppression_window_hours() -> float:
+    """How long an open card keeps speaking for its service; <= 0 disables.
+
+    Same defensive parse as the TTL knob: garbage and non-finite values
+    fall back to the default rather than silently disabling the feature.
+    """
+    raw = os.environ.get(SUPPRESSION_WINDOW_ENV, "").strip()
+    if not raw:
+        return DEFAULT_SUPPRESSION_WINDOW_HOURS
+    try:
+        value = float(raw)
+    except ValueError:
+        return DEFAULT_SUPPRESSION_WINDOW_HOURS
+    if not math.isfinite(value):
+        return DEFAULT_SUPPRESSION_WINDOW_HOURS
+    return value
+
+
+def find_suppressor(
+    conn: sqlite3.Connection,
+    *,
+    kind: str,
+    service: str,
+    exclude_event_id: int | None = None,
+) -> sqlite3.Row | None:
+    """The open card already speaking for this service on this lane, if any.
+
+    Scoped by event *kind* on purpose: a cost card must never silence a
+    fraud hold for the same service on the same day — those are different
+    conversations, and the cross-lane correlation is a finding of its own.
+    """
+    hours = suppression_window_hours()
+    if hours <= 0 or not kind or not service:
+        return None
+    placeholders = ",".join("?" for _ in OPEN_STATES)
+    sql = (
+        "SELECT a.* FROM actions a JOIN events e ON e.id = a.event_id "
+        "WHERE e.kind = ? AND e.service = ? COLLATE NOCASE "
+        f"AND a.state IN ({placeholders}) "
+        "AND a.proposed_at >= datetime('now', ?) "
+    )
+    params: list = [kind, service, *OPEN_STATES, f"-{hours} hours"]
+    if exclude_event_id is not None:
+        sql += "AND a.event_id != ? "
+        params.append(exclude_event_id)
+    sql += "ORDER BY a.id DESC LIMIT 1"
+    return conn.execute(sql, params).fetchone()
+
+
+def _suppression_block(detail: dict) -> dict:
+    block = detail.get("suppression")
+    return block if isinstance(block, dict) else {}
+
+
+def suppressed_count(detail: dict) -> int:
+    """How many repeats this card has absorbed; 0 for cards that predate it."""
+    try:
+        return int(_suppression_block(detail).get("suppressed_count") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def record_suppression(
+    conn: sqlite3.Connection,
+    action_row: sqlite3.Row,
+    *,
+    occurred_on: str | None = None,
+    z_score: float | None = None,
+) -> int:
+    """Fold a repeat signal into an open card; returns the new repeat count.
+
+    Joins the caller's open write transaction (``db.writing`` is not
+    reentrant, and the filing sites already hold one) — deciding not to
+    file and recording why belong to the same commit.
+    """
+    try:
+        detail = json.loads(action_row["detail_json"])
+    except (TypeError, ValueError):
+        detail = {}
+    if not isinstance(detail, dict):
+        detail = {}
+    block = _suppression_block(detail)
+    count = suppressed_count(detail) + 1
+    repeats = block.get("repeats")
+    repeats = list(repeats) if isinstance(repeats, list) else []
+    repeats.append({"date": occurred_on, "z_score": z_score})
+    detail["suppression"] = {
+        "suppressed_count": count,
+        "window_hours": suppression_window_hours(),
+        "repeats": repeats[-SUPPRESSION_SAMPLE_CAP:],
+    }
+    action_id = action_row["id"]
+    conn.execute(
+        "UPDATE actions SET detail_json = ? WHERE id = ?",
+        (json.dumps(detail), action_id),
+    )
+    note = f"repeat signal{f' on {occurred_on}' if occurred_on else ''} folded in"
+    if z_score is not None:
+        note += f" (z {z_score})"
+    history.record(conn, action_id, "suppressed", SUPPRESSION_ACTOR, note)
+    bus.emit(
+        conn,
+        "operator",
+        "suppressed",
+        f"repeat signal folded into action #{action_id} — "
+        f"{count} suppressed, the inbox stays one card",
+    )
+    log_tag(
+        logger,
+        "[SUPPRESSED]",
+        action_id=action_id,
+        suppressed_count=count,
+        occurred_on=occurred_on,
+    )
+    return count
+
+
 def _expires_in_hours(row: sqlite3.Row) -> float | None:
     """Hours until the request-triggered TTL expires this proposal.
 
@@ -167,17 +310,21 @@ def _expires_in_hours(row: sqlite3.Row) -> float | None:
 def _to_record(
     row: sqlite3.Row, trail: list[ActionHistoryEntry] | None = None
 ) -> ActionRecord:
+    detail = json.loads(row["detail_json"])
     return ActionRecord(
         id=row["id"],
         event_id=row["event_id"],
         title=row["title"],
-        detail=json.loads(row["detail_json"]),
+        detail=detail,
         state=row["state"],
         proposed_at=row["proposed_at"],
         decided_at=row["decided_at"],
         decided_by=row["decided_by"],
         executed_at=row["executed_at"],
         expires_in_hours=_expires_in_hours(row),
+        # Lifted out of detail so the inbox can badge "3 repeats folded in"
+        # without every reader having to know the detail schema.
+        suppressed_count=suppressed_count(detail if isinstance(detail, dict) else {}),
         history=trail or [],
     )
 

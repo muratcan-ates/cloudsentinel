@@ -48,6 +48,33 @@ BUSY_TIMEOUT_MS = 5000
 # unrepresentable at the storage layer.
 ACTION_STATES = ("proposed", "approved", "rejected", "executed")
 
+# Every transition the append-only trail accepts. 'suppressed' is not a
+# state change — it records that a repeat signal folded into this card
+# instead of opening its own (app/actions.py alert suppression).
+ACTION_TRANSITIONS = (
+    "filed",
+    "approved",
+    "rejected",
+    "executed",
+    "reopened",
+    "expired",
+    "suppressed",
+)
+
+# Named once: the rebuild path below re-issues this exact statement, so
+# the widened CHECK can never drift from the schema it is catching up to.
+ACTION_EVENTS_DDL = """
+    CREATE TABLE IF NOT EXISTS action_events (
+        id INTEGER PRIMARY KEY,
+        action_id INTEGER NOT NULL REFERENCES actions(id),
+        transition TEXT NOT NULL CHECK (transition IN
+            ({transitions})),
+        actor TEXT,
+        note TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """.format(transitions=", ".join(f"'{name}'" for name in ACTION_TRANSITIONS))
+
 _SCHEMA_STATEMENTS = (
     """
     CREATE TABLE IF NOT EXISTS events (
@@ -86,17 +113,7 @@ _SCHEMA_STATEMENTS = (
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
     """,
-    """
-    CREATE TABLE IF NOT EXISTS action_events (
-        id INTEGER PRIMARY KEY,
-        action_id INTEGER NOT NULL REFERENCES actions(id),
-        transition TEXT NOT NULL CHECK (transition IN
-            ('filed', 'approved', 'rejected', 'executed', 'reopened', 'expired')),
-        actor TEXT,
-        note TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
-    """,
+    ACTION_EVENTS_DDL,
     """
     CREATE TABLE IF NOT EXISTS ai_usage (
         id INTEGER PRIMARY KEY,
@@ -236,6 +253,35 @@ def writing(conn: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
         conn.commit()
 
 
+def _widen_transition_check(conn: sqlite3.Connection) -> None:
+    """Catch a pre-existing action_events up to the current CHECK list.
+
+    SQLite cannot ALTER a CHECK constraint, and CREATE TABLE IF NOT EXISTS
+    never touches a table that already exists — so a database that predates
+    a new transition would reject it forever. The deploy target's disk is
+    ephemeral and rebuilds from nothing, but a developer's local file is
+    not: without this, the first suppressed repeat on a long-lived dev DB
+    would 500. Rebuild only when the stored DDL is actually behind.
+    """
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'action_events'"
+    ).fetchone()
+    stored = (row["sql"] if row else "") or ""
+    if not stored or all(f"'{name}'" in stored for name in ACTION_TRANSITIONS):
+        return
+    # Copy through a rename: no other table references action_events, so
+    # the swap carries no foreign keys with it.
+    conn.execute("ALTER TABLE action_events RENAME TO action_events_stale")
+    conn.execute(ACTION_EVENTS_DDL)
+    conn.execute(
+        "INSERT INTO action_events "
+        "(id, action_id, transition, actor, note, created_at) "
+        "SELECT id, action_id, transition, actor, note, created_at "
+        "FROM action_events_stale"
+    )
+    conn.execute("DROP TABLE action_events_stale")
+
+
 def init_db(path: Path | str | None = None) -> None:
     """Create the schema if missing (idempotent, safe on every startup)."""
     conn = connect(path)
@@ -255,6 +301,7 @@ def init_db(path: Path | str | None = None) -> None:
                 conn.execute(
                     "ALTER TABLE events ADD COLUMN evidence_snapshot_json TEXT"
                 )
+            _widen_transition_check(conn)
     finally:
         conn.close()
 

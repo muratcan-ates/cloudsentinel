@@ -198,13 +198,26 @@ class RecommendationResponse(BaseModel):
     model: str
     reused: bool
     from_cache: bool
+    # True when this signal was folded into an existing open card for the
+    # same service instead of opening its own — action_id then points at
+    # the card that absorbed it.
+    suppressed: bool = False
+    # Repeats that card has absorbed in total (this one included).
+    suppressed_count: int = 0
 
 
 class ActionHistoryEntry(BaseModel):
     """One immutable step on an action's lifecycle trail."""
 
     transition: Literal[
-        "filed", "approved", "rejected", "executed", "reopened", "expired"
+        "filed",
+        "approved",
+        "rejected",
+        "executed",
+        "reopened",
+        "expired",
+        # A repeat signal folded into this card instead of opening its own.
+        "suppressed",
     ]
     actor: str | None
     note: str | None
@@ -224,6 +237,9 @@ class ActionRecord(BaseModel):
     # Hours left before the request-triggered TTL expires this proposal;
     # None for decided actions or a disabled TTL.
     expires_in_hours: float | None = None
+    # Repeat signals folded into this card by alert suppression instead of
+    # opening competing cards; 0 for a card that has absorbed none.
+    suppressed_count: int = 0
     # Append-only lifecycle trail; empty for cards filed before it shipped.
     history: list[ActionHistoryEntry] = []
 
