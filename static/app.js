@@ -593,25 +593,12 @@ function renderTrend() {
 
   // On the simulated lane the last point is TODAY and it keeps moving. Its
   // drift is a few dollars against an axis that spans the estate's biggest
-  // spike, so it would be invisible without a mark: a breathing dot and the
-  // live figure at the right edge make the motion legible without inflating it.
+  // spike, so it needs a mark to be legible — but only the mark. The figure
+  // itself lives on the run-rate line under the hero, where it cannot land
+  // on the series or on an anomaly dot.
   if (String(state.dataSources?.costs || "").startsWith("sim")) {
     const last = points[points.length - 1];
-    const label = `${fmtNumber(totals[totals.length - 1])} today`;
-    const anchor = last.x > viewWidth - 96 ? "end" : "start";
-    svg.append(
-      svgEl("circle", { class: "live-point", cx: last.x, cy: last.y, r: 3.5 }),
-      svgEl(
-        "text",
-        {
-          class: "live-point-label",
-          x: anchor === "end" ? last.x - 9 : last.x + 9,
-          y: Math.max(13, last.y - 11),
-          "text-anchor": anchor,
-        },
-        label
-      )
-    );
+    svg.append(svgEl("circle", { class: "live-point", cx: last.x, cy: last.y, r: 3.5 }));
   }
   const probe = svgEl("line", { class: "probe", x1: 0, x2: 0, y1: 10, y2: viewHeight - 18, visibility: "hidden" });
   const balloon = svgEl("g", { class: "balloon", visibility: "hidden" });
@@ -3021,8 +3008,15 @@ function feedCostLedgerFromTape(frame) {
   const line = document.getElementById("ledger-live-rate");
   if (line) {
     const total = frame.services.reduce((sum, lane) => sum + lane.rate, 0);
+    // on the sim lane the chart's last point is today's projection — name it
+    // here rather than printing it over the series
+    const daily = state.daily?.totals;
+    const today =
+      String(state.dataSources?.costs || "").startsWith("sim") && daily?.length
+        ? ` · today ${fmtNumber(daily[daily.length - 1])} USD so far`
+        : "";
     line.hidden = false;
-    line.textContent = `live run-rate ${fmtNumber(total)} USD/hour — simulated stream`;
+    line.textContent = `live run-rate ${fmtNumber(total)} USD/hour${today} — simulated stream`;
     line.classList.remove("tick");
     void line.offsetWidth; // restart the pulse so every frame visibly lands
     line.classList.add("tick");

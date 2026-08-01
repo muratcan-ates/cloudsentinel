@@ -1022,15 +1022,20 @@ main .ledger-wide {
 
 .cost-row { padding: 14px 0 var(--sp-1); }
 
+/* Grid, not flex: the service cell used to spill its phantom marker over
+   the amount whenever the row tightened (a live delta column, a zoomed
+   browser). minmax(0, 1fr) makes that structurally impossible — the cell
+   clips instead of overflowing. */
 .cost-line {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: baseline;
   gap: var(--sp-3);
   margin-bottom: 9px;
 }
 .idx { font-size: var(--fs-micro); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .cost-line .service {
-  flex: 1;
+  overflow: hidden;
   font-weight: 500;
   font-size: var(--fs-body);
   letter-spacing: 0.08em;
@@ -1050,6 +1055,8 @@ main .ledger-wide {
   text-decoration: none;
   text-align: left;
   cursor: pointer;
+  min-width: 0;
+  overflow: hidden;
 }
 .cost-line .service-btn:hover,
 .cost-line .service-btn[aria-pressed="true"] {
@@ -1057,6 +1064,9 @@ main .ledger-wide {
   text-underline-offset: 3px;
 }
 .phantom-sq { width: 4px; height: 4px; background: var(--info); flex: none; }
+/* the marker is a companion to its label — when the label is clipped away
+   the square goes with it rather than drifting onto the amount */
+.cost-line .service-btn > .phantom-sq { min-width: 0; }
 .phantom-note {
   font-size: 10px;
   font-weight: 400;
@@ -2041,7 +2051,3 @@ footer {
 /* the trend chart's live edge — today's point on the simulated lane */
 .live-point { fill: var(--accent); }
 .live-point { animation: live-breathe 2.4s ease-in-out infinite; }
-.live-point-label {
-  fill: var(--accent); font-size: 10px;
-  font-variant-numeric: tabular-nums; letter-spacing: 0.04em;
-}
