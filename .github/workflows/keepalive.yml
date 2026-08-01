@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  LIVE_URL: https://cloudsentinel.onrender.com
+  LIVE_URL: https://cloudsentinel-y5zh.onrender.com
 
 jobs:
   ping:

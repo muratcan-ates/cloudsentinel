@@ -8,7 +8,7 @@
 
 **YZTA Bootcamp 2026 · AI Track · Group 60**
 
-[Product](#information-about-the-product) · [Architecture](docs/architecture.md) · [How to Run](#how-to-run-local) · [Sprint 2](#sprint-2) · [Sprint 3 Backlog](docs/sprint3_backlog.md) · [Field Guide](#field-guide--sixty-seconds-to-a-decision) · [Türkçe Özet](docs/README.tr.md)
+**🟢 [Live demo](https://cloudsentinel-y5zh.onrender.com)** — read-only showcase, self-refreshing · [Product](#information-about-the-product) · [Architecture](docs/architecture.md) · [How to Run](#how-to-run-local) · [Sprint 2](#sprint-2) · [Sprint 3 Backlog](docs/sprint3_backlog.md) · [Field Guide](#field-guide--sixty-seconds-to-a-decision) · [Türkçe Özet](docs/README.tr.md)
 
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.139-009688?logo=fastapi&logoColor=white)

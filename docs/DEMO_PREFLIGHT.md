@@ -46,7 +46,7 @@ The free tier sleeps; the first request can take ~46 seconds and a short
 timeout reads as "HTTP 000 — the link is dead" when it is not.
 
 ```bash
-curl --max-time 90 https://<the-live-link>/health
+curl --max-time 90 https://cloudsentinel-y5zh.onrender.com/health
 ```
 
 - Warm it **10 minutes before** the jury clicks anything.

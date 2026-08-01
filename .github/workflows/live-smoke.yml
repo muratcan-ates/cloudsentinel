@@ -12,10 +12,10 @@ on:
       base_url:
         description: "Base URL to smoke (defaults to the Render deploy)"
         required: false
-        default: "https://cloudsentinel.onrender.com"
+        default: "https://cloudsentinel-y5zh.onrender.com"
 
 env:
-  LIVE_URL: ${{ inputs.base_url || 'https://cloudsentinel.onrender.com' }}
+  LIVE_URL: ${{ inputs.base_url || 'https://cloudsentinel-y5zh.onrender.com' }}
 
 jobs:
   smoke:
