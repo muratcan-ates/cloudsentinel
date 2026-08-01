@@ -184,6 +184,9 @@ def test_hitl_decision_joins_the_log_stream(client, caplog):
     assert len(hitl_lines) == 2
     decide_payload = json.loads(hitl_lines[0].split(" ", 1)[1])
     assert decide_payload["transition"] == "approved"
-    # ids/enums only — the operator identity must never ride the log stream
-    assert set(decide_payload) == {"action_id", "transition"}
+    # ids/enums only — the operator identity must never ride the log stream.
+    # request_id is a correlation handle minted by the HTTP layer, not a
+    # person: it says which click this line belongs to, never whose.
+    assert set(decide_payload) == {"action_id", "transition", "request_id"}
+    assert not {"actor", "decided_by", "operator", "user"} & set(decide_payload)
     assert json.loads(hitl_lines[1].split(" ", 1)[1])["mode"] == "SIMULATION"
