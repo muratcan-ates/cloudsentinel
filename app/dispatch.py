@@ -24,7 +24,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from app import bus, db
+from app import bus, db, netguard
 from app.logstream import log_tag
 from app.models import ActionRecord
 
@@ -99,7 +99,13 @@ def dispatch_execution(
     delivered, status = False, None
     try:
         payload = build_payload(record, compose_report())
-        response = httpx.post(url, json=payload, timeout=DELIVERY_TIMEOUT_SECONDS)
+        netguard.assert_safe_url(url)
+        response = httpx.post(
+            url,
+            json=payload,
+            timeout=DELIVERY_TIMEOUT_SECONDS,
+            follow_redirects=False,
+        )
         status = response.status_code
         delivered = 200 <= status < 300
         note = "delivered" if delivered else f"failed: endpoint answered {status}"

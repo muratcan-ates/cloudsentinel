@@ -125,7 +125,7 @@ def test_dispatch_success_lands_in_the_audit_detail(client, monkeypatch, caplog)
     monkeypatch.setenv("SENTINEL_EXECUTE_WEBHOOK_URL", WEBHOOK)
     sent = {}
 
-    def _fake_post(url, json=None, timeout=None):
+    def _fake_post(url, json=None, timeout=None, **kwargs):
         sent["url"], sent["payload"], sent["timeout"] = url, json, timeout
         return _Response(204)
 
@@ -211,7 +211,7 @@ def test_dispatch_payload_contract(client, monkeypatch):
     monkeypatch.setenv("SENTINEL_EXECUTE_WEBHOOK_URL", WEBHOOK)
     sent = {}
 
-    def _fake_post(url, json=None, timeout=None):
+    def _fake_post(url, json=None, timeout=None, **kwargs):
         sent["payload"] = json
         return _Response(200)
 

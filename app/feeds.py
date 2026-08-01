@@ -36,6 +36,8 @@ from pathlib import Path
 
 import httpx
 
+from app import netguard
+
 logger = logging.getLogger("cloudsentinel.feeds")
 
 COSTS_SOURCE_ENV = "SENTINEL_COSTS_SOURCE"  # self | mock (default)
@@ -141,8 +143,14 @@ def reset_cache() -> None:
 
 
 def _get_json(url: str) -> dict:
-    """One HTTP GET, strict timeout. Isolated for tests to monkeypatch."""
-    response = httpx.get(url, timeout=FETCH_TIMEOUT_SECONDS, follow_redirects=True)
+    """One guarded HTTP GET, strict timeout. Isolated for tests to monkeypatch.
+
+    The target is checked before the socket opens and redirects are not
+    followed: a feed may not be aimed at loopback or the link-local
+    metadata range, directly or via a 302 (see app/netguard.py).
+    """
+    netguard.assert_safe_url(url)
+    response = httpx.get(url, timeout=FETCH_TIMEOUT_SECONDS, follow_redirects=False)
     response.raise_for_status()
     return response.json()
 
