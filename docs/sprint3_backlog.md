@@ -4,7 +4,9 @@
 list for the final sprint, consolidated from the July 17 team meeting, the
 July 18 planning notes and the July 18 engineering review of the repository.
 Stories are cut onto the Miro board from here; owners are assigned at
-sprint planning.
+sprint planning. **For the final two days (Aug 1–2) the ordered closeout list
+with owners and the submission checklist lives in
+[CLOSEOUT_48H.md](CLOSEOUT_48H.md).**
 
 **How to read it:** section A is the committed competition scope — it ships
 this sprint. Section B is the hardening backlog surfaced by the engineering
@@ -23,7 +25,7 @@ is aimed at.
 | A2 | **Continuous integration** | `ci.yml` — ruff + full suite on every push and PR | ✅ landed July 18 |
 | A3 | **Deployment** | Render (`render.yaml`, non-root healthchecked image) + UptimeRobot on `/health`; **the public link ships with `SENTINEL_READONLY=1`** so strangers' clicks cannot mutate shared state | open |
 | A4 | **Live-data trial** | One provider, file-based and credential-free (bootcamp-safe): ingest a real cloud billing export (Azure Cost Management / AWS CUR CSV) through the existing source-agnostic loader behind a flag, and re-run the detection benchmark on it | 🟡 mechanism landed July 26 (`scripts/import_costs.py` + `SENTINEL_COSTS_FILE` lane, plus self-telemetry and feed-URL modes); remaining: run it on a real export from the team — **keep the real export out of git** (feed it from a path outside the repo via `SENTINEL_COSTS_FILE`, or gitignore it first) |
-| A5 | **Market watch — "possible suggestions" table** | Trend / news / Reddit / X market tracking distilled into a curated opportunities table (e.g. pricing changes, new instance families, commitment discounts) rendered as an operator-facing suggestions card; research spike first, curated static dataset if live fetching falls outside competition rules | open |
+| A5 | **Market watch — "possible suggestions" table** | Trend / news / Reddit / X market tracking distilled into a curated opportunities table (e.g. pricing changes, new instance families, commitment discounts) rendered as an operator-facing suggestions card; research spike first, curated static dataset if live fetching falls outside competition rules | ✅ landed August 1 — `GET /market/opportunities` + the intel room's *market watch* table. Nine curated moves matched to the estate's services and costed as `run rate × addressable share × published band`, each row carrying source, check date, assumption and watch-out; gross total labelled an upper bound (bands overlap). Live catalogue lane behind `SENTINEL_MARKET_FEED_URL` — the curated set is the default because live scraping of news/Reddit/X sits outside the competition's data rules |
 | A6 | **New-technology scouting** | Survey of current techniques and repositories (saved YT/IG sources, NotebookLM research pack) for pieces that can join the project **without leaving bootcamp rules**; each candidate written up with a go / no-go | open — owner: Murat |
 | A7 | **EN/TR language** | Turkish product overview (`docs/README.tr.md`) linked from the masthead; kept in sync with the English README at sprint close | ✅ first cut landed July 18 |
 | A8 | **UX pass & final palette** | Friction measured from the operator's seat; final palette decision at the design session (four-way switcher already shipped); redesign of the flagged panel section's colors; demo placeholders labeled *sample narrative* or removed so fixture text can never read as live output | open |

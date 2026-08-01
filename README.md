@@ -32,7 +32,7 @@
   - [Built With](#built-with) · [Sprint 1 Deliverables](#project-status--sprint-1-deliverables) · [Sprint 2 Progress](#project-status--sprint-2-progress) · [Roadmap](#roadmap-sprint-2-3)
   - [Requirements Compliance](#requirements-compliance) · [Scope & Limitations](#scope--limitations-by-design)
   - [Product Backlog URL](#product-backlog-url)
-- [Sprint 1](#sprint-1) · [Sprint 2](#sprint-2) · [Sprint 3](#sprint-3) · [Sprint 3 Backlog](docs/sprint3_backlog.md)
+- [Sprint 1](#sprint-1) · [Sprint 2](#sprint-2) · [Sprint 3](#sprint-3) · [Sprint 3 Backlog](docs/sprint3_backlog.md) · [48-Hour Closeout](docs/CLOSEOUT_48H.md)
 - [Field Guide](#field-guide--sixty-seconds-to-a-decision) · [In Short](#in-short) · [Acknowledgements](#acknowledgements) · [Türkçe Özet](docs/README.tr.md)
 
 # Team Name
@@ -104,10 +104,11 @@ CloudSentinel is an agentic decision-support system that monitors cloud cost and
 - Live dashboard: anomaly feed with a live sentinel radar, cost ledger, investigation evidence, decision inbox (with operator identity + rationale capture), audit ledger and operations intelligence — real page rooms (`/watch`, `/investigate`, `/decide`, `/intel`), four palettes, WCAG AA, strict CSP
 - **Shift-handover brief** (`GET /analytics/handover`) — the standing operator questions answered from persisted state, printable to one page; a **guided jury tour** (`?tour=1`) walks the rooms in reading order
 - **Fully self-contained** — every font is self-hosted (`static/fonts/`) and Swagger is vendored, so the CSP allows no remote host on any path; shareable deep links (`?threshold=&service=`) open on the exact scene, and a `[BOOT]` manifest names each instance on startup
-- REST API (FastAPI, 48 endpoints) with self-hosted Swagger documentation (no CDN); a `/health` liveness ping and a `/ready` readiness probe (database, mission config and dataset) for deploy/uptime gating
+- REST API (FastAPI, 49 endpoints) with self-hosted Swagger documentation (no CDN); a `/health` liveness ping and a `/ready` readiness probe (database, mission config and dataset) for deploy/uptime gating
 - **Live data modes, env-gated** — the bundled datasets are the default (hermetic tests, reproducible demo), and each lane can go live: `SENTINEL_COSTS_SOURCE=self` runs the cost lane over the app's **own request telemetry** (`GET /telemetry/usage` — real traffic, accumulating while the server runs, `make demo-live`); `SENTINEL_COSTS_FILE` serves a **real billing export** converted credential-free by `scripts/import_costs.py` (Azure Cost Management / AWS CUR CSV headers recognized); and `SENTINEL_COSTS_FEED_URL` / `SENTINEL_SECURITY_FEED_URL` / `SENTINEL_FRAUD_FEED_URL` poll external JSON feeds in the exact mock contract (TTL-cached, malformed records dropped, failures fall back feed → last good payload → fixture); `/health` names each lane's source **as served, not as configured** and the dashboard's data badge renders it honestly — the statistical organs still demand real accumulated history before they score a live lane (no fabricated days)
 - Demo operations, all env-gated: whole-week date rebase, demo reset with seeded verdict history, read-only public showcase mode; a borderline signal makes the sensitivity slider meaningful (lower it, a third warning surfaces)
 - **Decision brain** (`GET /insights`) — reflects on persisted history into observations, a run-rate cost projection and improvement recommendations, all computed not generated; a **self-review cycle** (`POST /insights/self-review`) proposes changes to the system itself (reflex candidates, threshold reviews, calibration, backlog) and applies nothing, publishing the cycle to the agent feed
+- **Market watch** (`GET /market/opportunities`) — the anomaly lanes answer *what changed*; this one answers *what is worth doing anyway*. A curated catalogue of published market moves (commitment discounts, ARM families, non-prod scheduling, storage tiering, spot capacity, idle sweeps, egress routing) is matched to the services the estate actually runs and costed against each service's own run rate: `run rate × addressable share × published band`. Every row ships its source, the date the team last checked it and the assumption it rests on; the gross total is labelled an upper bound because bands over one service overlap. Suggestions only — this lane never files an action. `SENTINEL_MARKET_FEED_URL` swaps the bundled catalogue for an external one on the same feed discipline (TTL cache, malformed rows dropped, fall back to curated)
 - **Routines** (`/routines`, `/routines/suggestions`) — saved, read-only analysis playbooks plus a routines agent that suggests them from the current state, runnable on demand
 - **Local identity** (`/auth`) — register/login with salted PBKDF2 and `viewer/analyst/approver/admin` roles; a signed-in operator's identity is **server-derived** onto every approval and rejection, so the audit trail is not free browser text
 - **Signal enrichment** — each incident report carries a blast-radius tier (L0–L3), an industry-framework reference (FinOps / MITRE ATT&CK), a post-action verification plan and a cited remediation runbook from a curated, keyword-matched library (`/runbooks`, RAG-lite, offline)
@@ -224,7 +225,7 @@ cloudsentinel/
 ├── configs/              mission YAMLs — finops, security, fraud
 ├── static/               dashboard — tokenized design system, 4 palettes, vendored Swagger UI
 ├── scripts/              smoke test, failure drill, detection benchmark, Gemini spike
-├── tests/                517 pytest cases incl. performance budgets
+├── tests/                529 pytest cases incl. performance budgets
 ├── docs/                 architecture & agent design
 ├── Makefile              setup / run / test / demo / smoke / drill
 └── ProjectManagement/    sprint evidence packs (boards, screenshots)
@@ -236,7 +237,7 @@ Two commands to a running product:
 
 ```bash
 make setup && make run        # or: make demo — fake provider, fresh dates, reset armed
-make smoke                    # (other shell) 13-step PASS/FAIL sweep of the live chain
+make smoke                    # (other shell) 14-step PASS/FAIL sweep of the live chain
 ```
 
 Or by hand:
@@ -301,7 +302,7 @@ docker run -p 8000:8000 cloudsentinel
 | **Python 3.12** | Core language (pinned in venv, CI and Docker) |
 | **FastAPI + Uvicorn** | REST API and ASGI server |
 | **Pydantic v2** | Typed request/response models and validation |
-| **pytest + httpx** | Automated test suite (517 tests, incl. performance budgets) |
+| **pytest + httpx** | Automated test suite (529 tests, incl. performance budgets) |
 | **SQLite** (stdlib `sqlite3`) | WAL-mode persistence core: action lifecycle, decision memory, LLM cache, idempotency |
 | **Docker** | Containerized, deployment-ready packaging |
 | **Gemini** (`google-genai`) | LLM provider layer with quota-aware retry and rule-based fallback |
@@ -562,11 +563,13 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Head start (all of this shipped inside Sprint 2)**: Sprint 2's second week pulled the Sprint 3 technical core forward — detection quality (rolling baseline / MAD / weekly seasonality), the mission DSL + reflex engine, the **security lane through the identical detection line**, the fraud rule-score lane with cross-lane HITL cards, the guardrail pack, operations-intelligence analytics, the chronicler agent, the agent bus with its live feed panel, self-hosted Swagger and the demo-operations knobs (date rebase, demo reset, read-only showcase) — and, on July 19, a decision-brain groundwork layer (local identity + roles via `/auth`, history-synthesis insights, a HITL-safe self-review loop, saved routines, runbook retrieval, a detector backtest and an in-dashboard **brain room**). All of it landed inside Sprint 2's dates and is counted in the Sprint 2 bonus above; **Sprint 3 has not started yet**, so nothing here is claimed as Sprint 3 delivery — the final sprint opens focused only on the items below.
 
+- **Closeout**: the last two days before the gate — the ordered task list with owners, the honest answer on live data, and the submission checklist — is **[docs/CLOSEOUT_48H.md](docs/CLOSEOUT_48H.md)**.
+
 - **Backlog**: the full prioritized working list — committed competition scope, the hardening backlog from the July 18 engineering review, the freeze list and the definition of done — lives in **[docs/sprint3_backlog.md](docs/sprint3_backlog.md)**; stories are cut onto the Miro board from there.
 
 - **Remaining scope** (headline items — the backlog holds the detail):
   - **Live Gemini spike** — provision the billing-disabled key and measure real RPM/RPD with `scripts/spike_gemini.py`; the whole chain already runs on the deterministic provider, so this lights up narratives, not correctness.
-  - **Continuous integration** — ✅ landed at Sprint 2 close: [`ci.yml`](.github/workflows/ci.yml) runs ruff + the full suite (517 tests) on every push and PR; Sprint 3 grows it with browser E2E and a post-deploy smoke.
+  - **Continuous integration** — ✅ landed at Sprint 2 close: [`ci.yml`](.github/workflows/ci.yml) runs ruff + the full suite (529 tests) on every push and PR; Sprint 3 grows it with browser E2E and a post-deploy smoke.
   - **Deployment** — Render (`render.yaml` ready, non-root healthchecked image) with UptimeRobot on `/health` and `SENTINEL_READONLY=1` on the public link; the dashboard's LIVE banner switches on via `SENTINEL_ENV=render`.
   - **Live-data trial & market watch** — a credential-free real billing export through the source-agnostic loader, and the trend/news-driven "possible suggestions" table.
   - **User's-eye UX pass** — friction measured from the operator's seat; the four-palette switcher shipped with horizon as the default; EN/TR overview kept in sync ([Türkçe özet](docs/README.tr.md)).
