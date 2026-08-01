@@ -8,7 +8,7 @@ statement of what we are not doing before the gate. The full sprint list
 lives in [sprint3_backlog.md](sprint3_backlog.md); this page is only the
 closeout.
 
-**State at the time of writing (Aug 1):** 529 tests green, ruff clean, CI on
+**State at the time of writing (Aug 1):** 530 tests green, ruff clean, CI on
 every push, 49 endpoints, six rooms, the agent chain and HITL loop working end
 to end on the deterministic provider. The gaps are not in the build — they are
 deployment, the live-key measurement, and the submission pack.
@@ -57,10 +57,14 @@ Three lanes are built and tested; each is one environment variable.
 | **Real billing export** — credential-free | `python scripts/import_costs.py export.csv -o /tmp/costs.json` then `SENTINEL_COSTS_FILE=/tmp/costs.json` | Azure Cost Management / AWS CUR CSV headers are recognized and converted to the dataset contract. **Keep the real export out of git** — point at a path outside the repo |
 | **External JSON feed** | `SENTINEL_COSTS_FEED_URL=…` (also `SENTINEL_SECURITY_FEED_URL`, `SENTINEL_FRAUD_FEED_URL`, `SENTINEL_MARKET_FEED_URL`) | Polling ingestion with a TTL cache, malformed rows dropped, and an ordered fallback: fresh fetch → last good payload → bundled fixture |
 
-Two guarantees hold in every mode: `/health` reports each lane's source **as
-served, not as configured** (a dead feed says `mock (feed unavailable)`, and
-the dashboard badge follows), and the detectors still refuse to score a lane
-without enough real accumulated history — no fabricated days.
+Two guarantees hold for the three data lanes (costs / security / fraud) in
+every mode: `/health` reports each data lane's source **as served, not as
+configured** (a dead feed says `mock (feed unavailable)`, and the dashboard
+badge follows), and the detectors still refuse to score a lane without
+enough real accumulated history — no fabricated days. The market catalogue
+reports its own served source (curated / feed / `mock (feed unavailable)`)
+on the `/market/opportunities` response and its panel badge; it is not part
+of the `/health` data-source manifest.
 
 **If someone on the team can export two weeks of real billing from any cloud
 account (a personal one is fine), the live-data story becomes a measured one

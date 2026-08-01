@@ -189,3 +189,21 @@ def test_market_lane_files_no_actions():
     before = client.get("/actions").json()["count"]
     client.get("/market/opportunities")
     assert client.get("/actions").json()["count"] == before
+
+
+def test_run_rate_is_pinned_to_the_estate_cost_data():
+    """The echoed run rate must be the estate's own mean daily cost × 30 —
+    the organ's headline claim ('costed against this estate') frozen against
+    the cost lane itself, not against the response's own echo."""
+    mean_by_service = {
+        row["service"].lower(): row["mean_daily_cost"]
+        for row in client.get("/costs/summary").json()["services"]
+    }
+    report = client.get("/market/opportunities").json()
+    assert report["opportunities"], "the mock estate must match opportunities"
+    for opportunity in report["opportunities"]:
+        service = opportunity["service"].lower()
+        assert service in mean_by_service
+        assert opportunity["service_monthly_run_rate"] == pytest.approx(
+            mean_by_service[service] * 30, abs=0.51
+        )
