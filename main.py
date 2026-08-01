@@ -32,7 +32,7 @@ from fastapi.staticfiles import StaticFiles
 
 import sqlite3
 
-from app import auth, db, feeds, telemetry, watchdog
+from app import auth, configcheck, db, feeds, telemetry, watchdog
 from app.actions import router as actions_router
 from app.analyst import router as analyst_router
 from app.auth import router as auth_router
@@ -117,6 +117,12 @@ SECURITY_HEADERS = {
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     """Build the schema on every boot: the deploy target's disk is ephemeral."""
+    # Configuration audit before anything else: under SENTINEL_ENV=production
+    # a demo posture (open writes, fake provider, the outbound escape hatch)
+    # refuses to boot instead of quietly serving real users. Every other
+    # profile — including today's read-only render showcase — only logs.
+    for gap in configcheck.enforce_boot():
+        log_tag(logging.getLogger("cloudsentinel"), "[CONFIG]", gap=gap)
     db.init_db()
     # Live-ops bootstrap: the env-configured admin account is (re)created on
     # the ephemeral disk so the team can decide on the live link. Idempotent;
@@ -199,11 +205,31 @@ app.include_router(telemetry.router)
 # Explicit origins and headers by locked decision: allow_credentials=True
 # together with a wildcard origin is rejected by browsers, and the HITL
 # POSTs need the Idempotency-Key header to survive preflight.
-ALLOWED_ORIGINS = [
-    "https://cloudsentinel.onrender.com",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-]
+#
+# The public origin is configuration, not a constant: this list used to
+# name `cloudsentinel.onrender.com`, which is NOT our deployment — that
+# hostname was taken by a stranger's app, and ours answers on
+# `cloudsentinel-y5zh.onrender.com`. Granting a credentialed CORS
+# allowance to a host we do not control is wrong even when the impact is
+# nil today (the dashboard is same-origin and the session token travels
+# in an Authorization header, never a cookie).
+PUBLIC_ORIGIN_ENV = "SENTINEL_PUBLIC_ORIGIN"
+DEFAULT_PUBLIC_ORIGIN = "https://cloudsentinel-y5zh.onrender.com"
+LOCAL_ORIGINS = ["http://localhost:8000", "http://127.0.0.1:8000"]
+
+
+def allowed_origins() -> list[str]:
+    """The public origin (env-configurable) plus the local dev pair."""
+    configured = os.environ.get(PUBLIC_ORIGIN_ENV, "").strip()
+    public = [
+        origin.strip()
+        for origin in (configured or DEFAULT_PUBLIC_ORIGIN).split(",")
+        if origin.strip()
+    ]
+    return public + LOCAL_ORIGINS
+
+
+ALLOWED_ORIGINS = allowed_origins()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,

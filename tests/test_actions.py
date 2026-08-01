@@ -369,7 +369,7 @@ def test_cors_preflight_allows_the_idempotency_key_header(client):
     response = client.options(
         "/actions/1/approve",
         headers={
-            "Origin": "https://cloudsentinel.onrender.com",
+            "Origin": "https://cloudsentinel-y5zh.onrender.com",
             "Access-Control-Request-Method": "POST",
             "Access-Control-Request-Headers": "idempotency-key",
         },
@@ -377,7 +377,7 @@ def test_cors_preflight_allows_the_idempotency_key_header(client):
     assert response.status_code == 200
     assert (
         response.headers["access-control-allow-origin"]
-        == "https://cloudsentinel.onrender.com"
+        == "https://cloudsentinel-y5zh.onrender.com"
     )
     assert "idempotency-key" in response.headers["access-control-allow-headers"].lower()
 
@@ -385,11 +385,11 @@ def test_cors_preflight_allows_the_idempotency_key_header(client):
 def test_cors_actual_responses_carry_the_allowed_origin(client):
     """Preflight is not enough: the real responses must also be readable
     cross-origin, and the CSV filename header must be exposed."""
-    origin = {"Origin": "https://cloudsentinel.onrender.com"}
+    origin = {"Origin": "https://cloudsentinel-y5zh.onrender.com"}
     response = client.get("/actions", headers=origin)
     assert (
         response.headers["access-control-allow-origin"]
-        == "https://cloudsentinel.onrender.com"
+        == "https://cloudsentinel-y5zh.onrender.com"
     )
     export = client.get("/costs/summary/export", headers=origin)
     exposed = export.headers.get("access-control-expose-headers", "").lower()
