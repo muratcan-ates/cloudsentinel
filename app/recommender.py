@@ -45,7 +45,9 @@ from app.llm import (
     generate_with_fallback,
     get_panel_providers,
     get_provider,
+    provider_uncertainty,
     register_fake_composer,
+    uncertainty,
     wrap_untrusted,
 )
 from app.debate import (  # noqa: F401 — re-exports keep app.recommender's public surface
@@ -66,6 +68,7 @@ from app.debate import (  # noqa: F401 — re-exports keep app.recommender's pub
     count_recent_signals,
     debate_threshold,
     escalation_trigger,
+    panel_uncertainty,
     run_panel,
 )
 from app.logstream import log_tag
@@ -364,6 +367,97 @@ def fetch_decision_memory(conn: sqlite3.Connection, service: str) -> str:
 
 
 
+def memory_verdict_mix(conn: sqlite3.Connection, service: str) -> dict[str, int]:
+    """Approvals and rejections behind the digest the prompt just read."""
+    if not service:
+        return {"approved": 0, "rejected": 0}
+    rows = conn.execute(
+        "SELECT verdict, count(*) AS n FROM ("
+        "SELECT verdict FROM decisions WHERE service = ? COLLATE NOCASE "
+        "ORDER BY id DESC LIMIT ?"
+        ") GROUP BY verdict",
+        (service, DECISION_MEMORY_LIMIT),
+    ).fetchall()
+    mix = {"approved": 0, "rejected": 0}
+    for row in rows:
+        if row["verdict"] in mix:
+            mix[row["verdict"]] = row["n"]
+    return mix
+
+
+def recommender_uncertainty(
+    anomaly: dict,
+    analyst_report: dict,
+    savings: dict,
+    numeric_check: dict,
+    memory_mix: dict[str, int],
+    source: str,
+    threshold: float,
+) -> list[dict]:
+    """What is shaky about THIS proposal, named — derived, never self-reported.
+
+    Same contract as the analyst's: every entry is a fact about the inputs
+    the recommender was given, so the list does not move between the fake,
+    live and fallback lanes.
+    """
+    sources = list(provider_uncertainty(source))
+    approved, rejected = memory_mix.get("approved", 0), memory_mix.get("rejected", 0)
+    if approved + rejected == 0:
+        sources.append(
+            uncertainty(
+                "no_decision_memory",
+                f"no operator has decided a proposal for "
+                f"{anomaly.get('service', 'this service')} before",
+            )
+        )
+    elif approved and rejected:
+        sources.append(
+            uncertainty(
+                "contested_memory",
+                f"the precedent is split — {approved} approved, {rejected} "
+                "rejected on this service",
+            )
+        )
+    try:
+        analyst_score = float(analyst_report["confidence"]["score"])
+    except (KeyError, TypeError, ValueError):
+        analyst_score = None
+    if analyst_score is not None and analyst_score < threshold:
+        sources.append(
+            uncertainty(
+                "low_upstream_confidence",
+                f"the analyst handed this over at {analyst_score:.2f}, under "
+                f"the {threshold:.2f} deliberation bar",
+            )
+        )
+    triage = analyst_report.get("triage")
+    if triage and triage != "REAL":
+        sources.append(
+            uncertainty(
+                "triage_disputes_premise",
+                f"the analyst called this {triage}; a remediation for a "
+                "non-real signal is speculative by construction",
+            )
+        )
+    if numeric_check.get("status") == "flagged":
+        sources.append(
+            uncertainty(
+                "unverified_figures",
+                f"{len(numeric_check.get('figures') or [])} money figure(s) in "
+                "the narrative do not match the computed arithmetic",
+            )
+        )
+    if float(savings.get("daily_excess") or 0.0) <= 0:
+        sources.append(
+            uncertainty(
+                "no_measurable_excess",
+                "spend is at or below the baseline, so the projection has "
+                "nothing to recover and the case is operational, not financial",
+            )
+        )
+    return sources
+
+
 def _existing_open_action(conn: sqlite3.Connection, event_id: int) -> sqlite3.Row | None:
     return conn.execute(
         "SELECT * FROM actions WHERE event_id = ? AND state != 'rejected' "
@@ -484,6 +578,11 @@ def _climb_debate_ladder(
                 "final_preferred": final,
                 "reviewers": panel_reviewers,
                 "votes": panel["votes"],
+                # About the deliberation, not the anomaly: who abstained,
+                # whether enough seats voted to overrule anything at all.
+                "uncertainty_sources": panel_uncertainty(
+                    panel_reviewers, panel["answered"]
+                ),
             }
             bus.emit(
                 conn,
@@ -535,6 +634,17 @@ def _climb_debate_ladder(
                 "agreed": verdict.agree,
                 "original_preferred": report.preferred,
                 "final_preferred": verdict.preferred if not verdict.agree else report.preferred,
+                "confidence": verdict.confidence.model_dump(),
+                # One voice is not a panel, and the debate-lite lane says so
+                # rather than letting a single reviewer read as consensus.
+                "uncertainty_sources": [
+                    uncertainty(
+                        "single_reviewer",
+                        "debate-lite convened one skeptic, not the panel — "
+                        "the review is a second opinion, not a majority",
+                    ),
+                    *provider_uncertainty(skeptic.source),
+                ],
             }
             bus.emit(
                 conn,
@@ -563,6 +673,14 @@ def _climb_debate_ladder(
     )
 
 
+def _confidence_of(envelope: dict) -> float | None:
+    """The score an agent's persisted envelope carries, if it carries one."""
+    try:
+        return float(envelope["report"]["confidence"]["score"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def _assemble_trace(
     analysis_envelope: dict, envelope: dict, from_cache: bool, memory_entry_count: int
 ) -> list[dict]:
@@ -575,6 +693,10 @@ def _assemble_trace(
     model_used = envelope["model"]
     transcript = envelope["transcript"]
     durations = envelope.get("durations") or {}
+    # Per-hop confidence and named uncertainty: the trace already says WHO
+    # ran and how long it took, so it is the natural place to say how sure
+    # each agent was and what it was unsure about. Envelopes persisted
+    # before this existed simply carry empty lists.
     trace = [
         {
             "step": "analyst",
@@ -582,6 +704,8 @@ def _assemble_trace(
             "model": analysis_envelope.get("model"),
             "reflected": analysis_envelope.get("reflected", False),
             "duration_ms": analysis_envelope.get("duration_ms"),
+            "confidence": _confidence_of(analysis_envelope),
+            "uncertainty_sources": analysis_envelope.get("uncertainty_sources") or [],
         },
         {"step": "memory", "entries": memory_entry_count},
         {
@@ -590,19 +714,34 @@ def _assemble_trace(
             "model": model_used,
             "from_cache": from_cache,
             "duration_ms": durations.get("recommender"),
+            "confidence": _confidence_of(envelope),
+            "uncertainty_sources": envelope.get("uncertainty_sources") or [],
         },
     ]
     if transcript is not None and transcript.get("reviewers"):
-        answered = sum(
-            1 for reviewer in transcript["reviewers"] if reviewer.get("stance")
-        )
+        reviewers = transcript["reviewers"]
+        answered = [r for r in reviewers if r.get("stance")]
+        seat_scores = [
+            r["confidence"]["score"]
+            for r in answered
+            if isinstance(r.get("confidence"), dict)
+            and isinstance(r["confidence"].get("score"), (int, float))
+        ]
         trace.append(
             {
                 "step": "panel",
-                "reviewers": len(transcript["reviewers"]),
-                "answered": answered,
+                "reviewers": len(reviewers),
+                "answered": len(answered),
                 "revised": not transcript.get("agreed", True),
                 "duration_ms": durations.get("panel"),
+                # The panel's confidence is the mean of the seats that
+                # actually voted; an abstention is not a quiet zero.
+                "confidence": (
+                    round(sum(seat_scores) / len(seat_scores), 4)
+                    if seat_scores
+                    else None
+                ),
+                "uncertainty_sources": transcript.get("uncertainty_sources") or [],
             }
         )
     elif transcript is not None:
@@ -613,6 +752,8 @@ def _assemble_trace(
                 "model": model_used,
                 "revised": not transcript.get("agreed", True),
                 "duration_ms": durations.get("skeptic"),
+                "confidence": (transcript.get("confidence") or {}).get("score"),
+                "uncertainty_sources": transcript.get("uncertainty_sources") or [],
             }
         )
     return trace
@@ -819,15 +960,27 @@ def recommend_for_event(conn: sqlite3.Connection, event: sqlite3.Row) -> Recomme
         elif escalation_reason is not None:
             escalation_reason += " (skeptic skipped on fallback)"
 
+        # Post-check runs on the FINAL narrative (after any skeptic
+        # revision) so what the operator reads is what was verified.
+        numeric_check = verify_narrative_figures(report, savings, anomaly)
         envelope = {
             "report": report.model_dump(),
             "source": source,
             "model": model_used,
             "escalation_reason": escalation_reason,
             "transcript": transcript,
-            # Post-check runs on the FINAL narrative (after any skeptic
-            # revision) so what the operator reads is what was verified.
-            "numeric_check": verify_narrative_figures(report, savings, anomaly),
+            "numeric_check": numeric_check,
+            # Derived from the inputs this proposal actually had — the
+            # numeric check included, which is why it is computed first.
+            "uncertainty_sources": recommender_uncertainty(
+                anomaly,
+                analyst_report,
+                savings,
+                numeric_check,
+                memory_verdict_mix(conn, anomaly.get("service", "")),
+                source,
+                escalation_threshold,
+            ),
             # Measured hop costs — replayed envelopes keep the figures the
             # original work actually took.
             "durations": {

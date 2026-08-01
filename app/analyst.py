@@ -41,7 +41,9 @@ from app.llm import (
     LLMProvider,
     generate_with_fallback,
     get_provider,
+    provider_uncertainty,
     register_fake_composer,
+    uncertainty,
     wrap_untrusted,
 )
 from app.detection import CRITICAL_Z_SCORE, load_daily_costs
@@ -205,6 +207,69 @@ def rule_based_report(anomaly: dict, evidence: list[dict]) -> AnalystReport:
     )
 
 
+def analyst_uncertainty(
+    anomaly: dict, evidence: list[dict], report: AnalystReport, source: str
+) -> list[dict]:
+    """What is shaky about THIS triage, named — derived, never self-reported.
+
+    Every source below is a fact about the evidence the analyst was handed
+    (or about the detector settings that produced the signal), so the list
+    is identical whether Gemini, the demo composer or the rule-based
+    fallback wrote the narrative. That is the point: the score can be
+    talked up, these cannot.
+    """
+    sources = list(provider_uncertainty(source))
+    if len(evidence) < EVIDENCE_WINDOW_DAYS:
+        sources.append(
+            uncertainty(
+                "short_baseline",
+                f"{len(evidence)} of the {EVIDENCE_WINDOW_DAYS}-day window exists "
+                f"for {anomaly.get('service', 'this service')}",
+            )
+        )
+    if len(evidence) <= 1:
+        sources.append(
+            uncertainty(
+                "single_day_evidence",
+                "the service has no history to compare the flagged day against",
+            )
+        )
+    if not report.evidence_ids:
+        sources.append(
+            uncertainty(
+                "no_evidence_cited",
+                "the narrative cites no row from the frozen evidence window",
+            )
+        )
+    params = anomaly.get("detector_params")
+    params = params if isinstance(params, dict) else {}
+    if not params.get("leave_one_out"):
+        sources.append(
+            uncertainty(
+                "contaminated_baseline",
+                "the flagged day is included in the baseline it is measured "
+                "against, which pulls the baseline toward the anomaly",
+            )
+        )
+    if params.get("seasonal") is False:
+        sources.append(
+            uncertainty(
+                "unseasoned_baseline",
+                "weekday seasonality is off for this mission, so a regular "
+                "weekly peak scores like a surprise",
+            )
+        )
+    if anomaly.get("severity") == "warning":
+        sources.append(
+            uncertainty(
+                "warning_grade_signal",
+                "the detector graded this a warning — it did not clear the "
+                "critical bar",
+            )
+        )
+    return sources
+
+
 def valid_evidence_ids(report_ids: list[str], evidence: list[dict]) -> list[str]:
     """Keep only citations that actually exist in the E1..En window.
 
@@ -324,6 +389,11 @@ def analyze_event(conn: sqlite3.Connection, event: sqlite3.Row) -> AnalysisRespo
             "model": model_used,
             "reflected": reflected,
             "duration_ms": duration_ms,
+            # Named beside the score, not instead of it: the operator reads
+            # "0.50" and then reads what is actually thin about the case.
+            "uncertainty_sources": analyst_uncertainty(
+                anomaly, evidence, report, source
+            ),
             "meta": {
                 "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
                 "evidence_fingerprint": hashlib.sha256(

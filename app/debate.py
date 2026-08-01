@@ -25,7 +25,13 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel
 
-from app.llm import register_fake_composer, wrap_untrusted
+from app.llm import (
+    Confidence,
+    provider_uncertainty,
+    register_fake_composer,
+    uncertainty,
+    wrap_untrusted,
+)
 from app.missions import MissionError, get_mission
 
 if TYPE_CHECKING:  # pragma: no cover — annotation-only, breaks the import cycle
@@ -121,6 +127,7 @@ class SkepticVerdict(BaseModel):
     agree: bool
     preferred: Literal["CAUTIOUS", "BOLD"]
     rationale: str
+    confidence: Confidence
 
 
 class PanelVerdict(BaseModel):
@@ -131,6 +138,54 @@ class PanelVerdict(BaseModel):
     agree: bool
     preferred: Literal["CAUTIOUS", "BOLD"]
     rationale: str
+    confidence: Confidence
+
+
+# The demo lane's deliberate 0.5: a reviewer with no live model behind it
+# states modest confidence and says why, exactly as the analyst does. The
+# variation the panel is worth watching for lives in the named uncertainty
+# sources, not in a fabricated spread of scores.
+FAKE_REVIEWER_CONFIDENCE = {
+    "score": 0.5,
+    "rationale": (
+        "Demo-mode charter heuristic over the draft it received — no live "
+        "model reviewed this, so confidence stays deliberately modest."
+    ),
+}
+
+
+def panel_uncertainty(reviewers: list[dict], answered: int) -> list[dict]:
+    """What is shaky about the DELIBERATION itself, named.
+
+    Not about the anomaly — the analyst and recommender already name that.
+    This is about whether the review that stamped the draft was actually a
+    review: who abstained, whether enough seats voted to overrule anything,
+    and whether a model was involved at all.
+    """
+    sources: list[dict] = []
+    abstained = [r["persona"] for r in reviewers if not r.get("stance")]
+    if abstained:
+        sources.append(
+            uncertainty(
+                "seat_abstained",
+                f"{len(abstained)} seat(s) did not answer ({', '.join(abstained)}); "
+                "the majority was taken over the rest",
+            )
+        )
+    if answered < PANEL_QUORUM:
+        sources.append(
+            uncertainty(
+                "no_quorum",
+                f"{answered} of {PANEL_QUORUM} seats needed to overrule a draft — "
+                "the draft stands by default, not by argument",
+            )
+        )
+    simulated = {
+        r.get("source") for r in reviewers if r.get("source") in ("fake", "fallback")
+    }
+    for source in sorted(s for s in simulated if s):
+        sources.extend(provider_uncertainty(source))
+    return sources
 def build_skeptic_prompt(draft: RecommenderReport, analyst_report: dict) -> str:
     payload = json.dumps(
         {"draft_recommendation": draft.model_dump(), "analysis": analyst_report},
@@ -179,13 +234,14 @@ def _fake_skeptic_payload(payload: dict) -> dict:
             "computed arithmetic, the rollback is stated, and nothing here "
             "justifies a higher blast radius."
         ),
+        "confidence": dict(FAKE_REVIEWER_CONFIDENCE),
     }
 
 
 # Deterministic dissent bar for the fake throughput persona: bold monthly
 # savings at or above this figure make a CAUTIOUS draft contestable.
 PANEL_THROUGHPUT_BAR = 1000.0
-def _fake_panel_payload(payload: dict) -> dict:
+def _fake_charter_verdict(payload: dict) -> dict:
     """Three deterministic personas so the demo panel has REAL dissent.
 
     Each verdict is a pure function of the draft the panel actually
@@ -242,6 +298,17 @@ def _fake_panel_payload(payload: dict) -> dict:
             "boundary is crossed."
         ),
     }
+
+
+def _fake_panel_payload(payload: dict) -> dict:
+    """The charter verdict, with the demo lane's stated confidence attached.
+
+    Wrapping instead of repeating the block at each charter's return: one
+    place decides what a reviewer with no live model behind it may claim.
+    """
+    return {**_fake_charter_verdict(payload), "confidence": dict(FAKE_REVIEWER_CONFIDENCE)}
+
+
 register_fake_composer(SkepticVerdict, _fake_skeptic_payload)
 register_fake_composer(PanelVerdict, _fake_panel_payload)
 def escalation_trigger(
@@ -330,6 +397,9 @@ def run_panel(
                     "agreed": None,
                     "argument": "unavailable — abstained",
                     "source": None,
+                    # An abstention has no confidence. Zero would be a
+                    # vote of no confidence, which is not what happened.
+                    "confidence": None,
                 }
             )
             continue
@@ -342,6 +412,7 @@ def run_panel(
                 "agreed": verdict.agree,
                 "argument": verdict.rationale,
                 "source": result.source,
+                "confidence": verdict.confidence.model_dump(),
             }
         )
     answered = [reviewer for reviewer in reviewers if reviewer["stance"] is not None]

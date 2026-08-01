@@ -89,6 +89,69 @@ class Confidence(BaseModel):
     rationale: str = Field(description="One-sentence justification for the score.")
 
 
+# --- named uncertainty ------------------------------------------------------
+#
+# A confidence score is a summary and summaries are hard to act on: 0.5
+# tells an operator that the agent is unsure, never WHY. These codes name
+# the reasons, and unlike the score they are DERIVED — computed in code
+# from the evidence the agent actually had, so they are identical in the
+# fake, live and fallback lanes and cannot be talked up by a model.
+#
+# The score stays exactly as it is (the fake lane's deliberate 0.5
+# included): the sources sit beside it, they do not replace it.
+
+UNCERTAINTY_LABELS = {
+    # analyst
+    "short_baseline": "short baseline",
+    "single_day_evidence": "single day of evidence",
+    "no_evidence_cited": "no evidence cited",
+    "contaminated_baseline": "flagged day inside its own baseline",
+    "unseasoned_baseline": "baseline ignores weekday seasonality",
+    "warning_grade_signal": "below the critical bar",
+    # recommender
+    "no_decision_memory": "no operator precedent",
+    "contested_memory": "operator precedent is split",
+    "low_upstream_confidence": "low upstream confidence",
+    "triage_disputes_premise": "triage disputes the premise",
+    "unverified_figures": "narrative figures unverified",
+    "no_measurable_excess": "no measurable excess to recover",
+    # debate
+    "seat_abstained": "reviewer seat abstained",
+    "single_reviewer": "one reviewer, not a panel",
+    "no_quorum": "panel below quorum",
+    # every lane
+    "simulated_provider": "no live model reviewed this",
+}
+
+
+def uncertainty(code: str, detail: str) -> dict:
+    """One named uncertainty source: its code, its label, and why it fired.
+
+    A KeyError here is the point — an unlabelled code is a typo, and a
+    typo that reached the dashboard would read as a real finding.
+    """
+    return {"code": code, "label": UNCERTAINTY_LABELS[code], "detail": detail}
+
+
+def provider_uncertainty(source: str | None) -> list[dict]:
+    """The one source every agent shares: was a live model involved at all."""
+    if source == "fake":
+        return [
+            uncertainty(
+                "simulated_provider",
+                "the deterministic demo provider produced this judgement",
+            )
+        ]
+    if source == "fallback":
+        return [
+            uncertainty(
+                "simulated_provider",
+                "no model was reachable; a rule-based answer stood in",
+            )
+        ]
+    return []
+
+
 class LLMUnavailableError(Exception):
     """No live completion could be obtained within the retry budget."""
 

@@ -40,10 +40,16 @@ HIGH_CONF_REPORT = {
     "confidence": {"score": 0.9, "rationale": "clear overshoot"},
 }
 
+# Every reviewer verdict states a confidence — the schema requires it, so
+# a stub that omitted one would be modelling a reply the provider cannot
+# actually return.
+STUB_REVIEWER_CONFIDENCE = {"score": 0.7, "rationale": "charter applied to the draft"}
+
 SKEPTIC_DISAGREES = {
     "agree": False,
     "preferred": "CAUTIOUS",
     "rationale": "the analysis does not justify the bold path",
+    "confidence": STUB_REVIEWER_CONFIDENCE,
 }
 
 
@@ -320,6 +326,7 @@ def test_skeptic_agreement_never_flips_the_stance(client, monkeypatch):
                 "agree": True,
                 "preferred": "CAUTIOUS",
                 "rationale": "either works; no objection",
+                "confidence": STUB_REVIEWER_CONFIDENCE,
             },
         }
     )
@@ -699,6 +706,7 @@ def test_third_anomaly_day_escalates_even_at_high_confidence(client, monkeypatch
                 "agree": True,
                 "preferred": "BOLD",
                 "rationale": "the history justifies sustained attention",
+                "confidence": STUB_REVIEWER_CONFIDENCE,
             },
         }
     )
