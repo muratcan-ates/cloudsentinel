@@ -23,6 +23,9 @@
    20 · motion off — the global reduced-motion switch
    21 · print — every print rule, consolidated, original order kept
    22 · sprint 3 — self-describing desk: flow map, lifecycle steps, touch
+   23 · vivid — the card system (the fifth, light palette)
+   24 · accessibility — preferences the visitor sets, not the designer
+   25 · vivid, second pass — from a palette to a design system
 
    Rules only moved between layers when the cascade could not change:
    same-specificity overrides (chips, bar-fill, input focus, .meta vs
@@ -2551,3 +2554,617 @@ a.cs-card:focus-visible, button.cs-card:focus-visible {
 }
 .a11y-switch b { text-transform: none; }
 .a11y-state { text-transform: uppercase; letter-spacing: var(--track-caps); }
+
+/* ======================================================================
+   25 · vivid, second pass — from a palette to a design system
+   ----------------------------------------------------------------------
+   Section 23 picked the right instrument and then played it badly. The
+   tokens were honest — a light ground, white cards, one saturated blue —
+   but the geometry underneath still belonged to the broadsheet: 200px
+   rails that broke every label into single words, 12px gutters between
+   objects that were supposed to breathe, prose set at 13px in 0.14em
+   small caps, and two fixed widgets fighting over the same 46px square
+   in the bottom-right corner.
+
+   This section is the correction, and it is deliberately last in the
+   file. Every rule below either shares specificity with the one it
+   replaces and wins on source order, or names [data-theme="vivid"] so
+   the four editorial palettes never see it. Nothing above is deleted:
+   horizon, mission, paper and dawn render exactly as they did. Where a
+   rule DOES apply to every palette it is because the thing it fixes was
+   broken in every palette — an overlap or a missing focus ring is a bug,
+   not a house style.
+
+   25.1  the corner dock — one column for the two fixed widgets
+   25.2  page rhythm — sections that breathe
+   25.3  type — 16/1.6, and no prose in small caps
+   25.4  links and focus — blue, quiet, and always visible to a keyboard
+   25.5  the desk grid and the capability row
+   25.6  cards
+   25.7  chips, badges, buttons
+   25.8  navigation and the mega menu
+   25.9  the summary strip and the colophon as objects
+   25.10 print — the dock is chrome, and chrome never prints
+   ====================================================================== */
+
+/* ---------- 25.1 · the corner dock ----------
+   WHY: the agent-feed toggle sat at right:0 / bottom:24px and the
+   accessibility launcher at right:16px / bottom:16px. Two fixed elements,
+   one corner, no arbitration — the launcher's disc landed on top of the
+   toggle's label at every viewport width, and opening the feed buried the
+   launcher entirely. A corner that holds more than one thing needs a
+   stacking rule, not luck.
+
+   So the corner becomes a single measured column: launcher on the floor,
+   feed above it, one gap between them, one gutter from both edges. The
+   tokens live in :root because both widgets and the page's own bottom
+   padding have to agree on the same arithmetic — a magic number repeated
+   in three places is how the two of them drifted apart in the first
+   place. This applies to every palette because the collision was in
+   every palette. */
+
+:root {
+  --dock-gutter: var(--sp-4);   /* inset from the right and bottom edges */
+  --dock-size: 46px;            /* the launcher's disc — the floor of the stack */
+  --dock-gap: var(--sp-3);      /* the air between two docked things */
+  /* the first free line above the launcher: everything else docks here */
+  --dock-lift: calc(var(--dock-gutter) + var(--dock-size) + var(--dock-gap));
+}
+
+.a11y-launch {
+  right: var(--dock-gutter);
+  bottom: var(--dock-gutter);
+  width: var(--dock-size);
+  height: var(--dock-size);
+}
+
+/* The feed rides the same gutter as the launcher instead of hugging the
+   viewport edge — a column is only a column if both things share an axis.
+   Now that it is inset, it gets its right-hand border back and becomes a
+   floating object rather than a torn-off tab. */
+.agent-feed {
+  right: var(--dock-gutter);
+  bottom: var(--dock-lift);
+  gap: var(--sp-2);
+  max-width: min(360px, calc(100vw - var(--dock-gutter) * 2));
+}
+#feed-toggle {
+  border-right: 1px solid var(--hair);
+  border-radius: 999px;
+  /* a control's label is not a caption: no small caps, no underline */
+  text-transform: none;
+  letter-spacing: normal;
+  text-decoration: none;
+  font-size: var(--fs-meta);
+  padding: 9px 16px;
+}
+.feed-body {
+  border-right: 1px solid var(--hair);
+  border-radius: var(--card-radius);
+  width: min(360px, calc(100vw - var(--dock-gutter) * 2));
+  max-height: min(46vh, calc(100vh - var(--dock-lift) - 120px));
+}
+
+/* The panel opens on the same line as the feed. It carries a higher
+   z-index already, so it covers the feed rather than colliding with it:
+   one thing at a time is the whole point of a dock. */
+.a11y-panel {
+  right: var(--dock-gutter);
+  bottom: var(--dock-lift);
+  width: min(380px, calc(100vw - var(--dock-gutter) * 2));
+  max-height: min(72vh, calc(100vh - var(--dock-lift) - var(--sp-6)));
+}
+
+/* WHY: a fixed corner that floats over the footer is a corner that eats
+   content. The page ends far enough above the floor that the tallest
+   docked thing has nothing to cover. */
+.page { padding-bottom: calc(var(--section-gap) + var(--dock-size) + var(--dock-gutter)); }
+
+/* The tour card is centred and 92vw wide, so on a phone it drives straight
+   through the dock. Below 700px it lifts above the whole stack. */
+@media (max-width: 700px) {
+  #tour-card { bottom: calc(var(--dock-lift) + 48px); }
+}
+
+/* ---------- 25.2 · page rhythm ----------
+   WHY: the brief's word for the old surface was "cramped". It was
+   measurable: sections were 12px apart, panels carried 26px of padding
+   and a shadow tuned for a dark ground (rgba(0,0,0,.16) reads as dirt on
+   #eef3f9). A card system earns its keep only if the cards are separated
+   by more than a hairline's worth of air. */
+
+/* A 960px broadsheet wants a 6vw gutter so the prose column stays a prose
+   column. A 1320px control surface does not: 64px of air either side is
+   64px stolen from the centre feed, which is the one column the brief
+   calls "wide". The gutter halves; the page keeps its margins. */
+:root[data-theme="vivid"] .page {
+  padding-left: clamp(20px, 3vw, 44px);
+  padding-right: clamp(20px, 3vw, 44px);
+}
+:root[data-theme="vivid"] main {
+  column-gap: var(--sp-6);
+  row-gap: var(--sp-7);
+  margin-top: var(--sp-7);
+}
+:root[data-theme="vivid"] .ledger-wide { margin-top: 0; }
+:root[data-theme="vivid"] main .ledger-col,
+:root[data-theme="vivid"] main .ledger-wide {
+  background: var(--card-bg);
+  border: 1px solid var(--hair);
+  border-radius: var(--card-radius);
+  padding: var(--sp-6) clamp(20px, 3vw, 32px) var(--sp-7);
+  box-shadow: var(--card-shadow);
+}
+:root[data-theme="vivid"] .section-head {
+  padding-bottom: var(--sp-4);
+  margin-bottom: var(--sp-2);
+}
+:root[data-theme="vivid"] .masthead { padding-top: var(--sp-8); }
+:root[data-theme="vivid"] .colophon { padding: var(--sp-5) 0; }
+
+/* ---------- 25.3 · type ----------
+   WHY: the scale was built for a poster — 13px prose, 11px meta, 12px
+   captions — and then half of it was tracked out into small caps. A
+   control surface is read, not admired: the brief asks for 15-16px body
+   at 1.6, 13px meta, and small caps reserved for the things that are
+   genuinely labels (a badge, a stat's caption, a switch's state). The
+   scale moves inside the vivid block only, so the broadsheet keeps its
+   own voice. */
+
+:root[data-theme="vivid"] {
+  --fs-micro: 12px;   /* the smallest label the palette will allow */
+  --fs-meta: 13px;
+  --fs-body: 15px;
+  --fs-base: 16px;
+}
+
+/* Prose that was shouting. Each of these is a sentence a human reads, not
+   a label they scan: the identity line, every .meta run, the anomaly's
+   service name, the operator field, the room select. */
+:root[data-theme="vivid"] .identity-line,
+:root[data-theme="vivid"] .meta,
+:root[data-theme="vivid"] .entry .service,
+:root[data-theme="vivid"] select,
+:root[data-theme="vivid"] #operator-name,
+:root[data-theme="vivid"] .rationale-input {
+  text-transform: none;
+  letter-spacing: normal;
+}
+:root[data-theme="vivid"] .identity-line { font-size: var(--fs-meta); }
+:root[data-theme="vivid"] .meta {
+  font-size: var(--fs-meta);
+  line-height: var(--lh-body);
+  margin: var(--sp-3) 0 var(--sp-4);
+}
+:root[data-theme="vivid"] .entry .service { font-weight: 600; font-size: var(--fs-body); }
+:root[data-theme="vivid"] select,
+:root[data-theme="vivid"] #operator-name,
+:root[data-theme="vivid"] .rationale-input { font-size: var(--fs-meta); }
+
+/* Every button in the sheet inherited 11px small caps and an underline
+   from the base `button` rule. On a light card that reads as a broken
+   link, which is precisely what "dandik" describes. */
+:root[data-theme="vivid"] button {
+  text-transform: none;
+  letter-spacing: normal;
+  text-decoration: none;
+  font-size: var(--fs-meta);
+}
+:root[data-theme="vivid"] .head-action,
+:root[data-theme="vivid"] .row-action {
+  text-transform: none;
+  letter-spacing: normal;
+  text-decoration: none;
+  font-size: var(--fs-meta);
+  font-weight: 500;
+  color: var(--accent);
+}
+:root[data-theme="vivid"] .head-action:hover,
+:root[data-theme="vivid"] .row-action:hover,
+:root[data-theme="vivid"] .row-action:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* Blue means "you can press this", so the one that IS pressed has to stop
+   being blue — otherwise the palette row is five identical links and the
+   current choice is invisible. */
+:root[data-theme="vivid"] .row-action[aria-pressed="true"] {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 2px;
+  text-decoration-color: var(--accent);
+}
+
+/* The tiny labels that keep their small caps — and get one more pixel so
+   they are legible rather than merely decorative. */
+:root[data-theme="vivid"] .microcap,
+:root[data-theme="vivid"] .cs-stat-label,
+:root[data-theme="vivid"] .cs-mega-col-head,
+:root[data-theme="vivid"] .a11y-state { letter-spacing: 0.1em; }
+
+/* ---------- 25.4 · links and focus ----------
+   WHY: the desk's rails were a column of default-underlined links, which
+   is the cheapest texture a page can have. Youthall's rule is simpler:
+   the blue IS the affordance, the underline is the confirmation you get
+   when you point at it. The exclusion list is explicit because a card, a
+   tab, a brand and a button are anchors too, and none of them should turn
+   blue or sprout an underline across their whole body. */
+
+:root[data-theme="vivid"] a:not(.nav-brand, .view-tab, .sum, .cs-card, .cs-mega-item, .flow-stop, .cs-btn, .skip-link) {
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: none;
+}
+:root[data-theme="vivid"] a:not(.nav-brand, .view-tab, .sum, .cs-card, .cs-mega-item, .flow-stop, .cs-btn, .skip-link):hover,
+:root[data-theme="vivid"] a:not(.nav-brand, .view-tab, .sum, .cs-card, .cs-mega-item, .flow-stop, .cs-btn, .skip-link):focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 2px;
+}
+
+/* The ring is the accent, not the purple --info: on a light ground the
+   accent is the only colour the visitor has learned to read as "this is
+   interactive". */
+:root[data-theme="vivid"] :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* WHY: two inputs explicitly threw their outline away (`outline: none` on
+   :focus). That is a keyboard trap with a nice haircut. :focus-visible
+   gives it back without putting a ring around a mouse click, and it is
+   restored in every palette because the loss was in every palette. */
+#operator-name:focus-visible,
+.rationale-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- 25.5 · the desk grid and the capability row ----------
+   WHY: the rail was 200px wide with 16px of card padding, leaving 168px
+   of measure for a two-column row whose right-hand figure was
+   `white-space: nowrap`. The figure took whatever it needed, the name got
+   the remainder, and "Runbook hit rate" came out as one word per line
+   with the value printed through it. Two fixes, both structural: a rail
+   wide enough to be a rail, and a row that lets a long value fall to its
+   own line instead of strangling the label beside it. */
+
+:root[data-theme="vivid"] .cs-desk {
+  grid-template-columns: minmax(280px, 300px) minmax(0, 1fr) minmax(272px, 300px);
+  column-gap: var(--sp-5);
+  row-gap: var(--sp-6);
+}
+:root[data-theme="vivid"] .cs-desk-left,
+:root[data-theme="vivid"] .cs-desk-main,
+:root[data-theme="vivid"] .cs-desk-right { grid-column: auto; min-width: 0; }
+:root[data-theme="vivid"] .cs-sticky { position: sticky; top: 76px; }
+
+/* Two columns: the right rail lies down under the feed as a pair of
+   cards rather than being squeezed into a third of nothing. */
+@media (max-width: 1240px) {
+  :root[data-theme="vivid"] .cs-desk { grid-template-columns: minmax(260px, 300px) minmax(0, 1fr); }
+  :root[data-theme="vivid"] .cs-desk-left { grid-column: auto; }
+  :root[data-theme="vivid"] .cs-desk-right { grid-column: 1 / -1; }
+  :root[data-theme="vivid"] .cs-sticky { position: static; }
+}
+
+/* One column. 900px rather than 820px: at 860 the rail is already too
+   narrow to hold a figure beside a label, and a column that has to be
+   apologised for should not exist. */
+@media (max-width: 900px) {
+  :root[data-theme="vivid"] .cs-desk { grid-template-columns: minmax(0, 1fr); }
+  :root[data-theme="vivid"] .cs-desk-left,
+  :root[data-theme="vivid"] .cs-desk-right { grid-column: auto; }
+  :root[data-theme="vivid"] .cs-desk-right .cs-sticky {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-5);
+    align-items: start;
+  }
+}
+@media (max-width: 700px) {
+  :root[data-theme="vivid"] .cs-desk-right .cs-sticky { grid-template-columns: 1fr; }
+}
+
+/* The row itself. `flex-wrap` plus a floor under the label is the whole
+   mechanism: a short value ("6 sealed") stays on the label's line, a
+   sentence ("0 decisions, none past the bar") drops to a line of its own
+   and right-aligns there. Nothing overlaps because nothing is forced to
+   shrink below a readable measure. */
+.cs-row {
+  flex-wrap: wrap;
+  row-gap: var(--sp-1);
+}
+.cs-row > :first-child { flex: 1 1 auto; min-width: 11ch; }
+.cs-row-value { flex: 0 0 auto; margin-left: auto; }
+
+/* WHY, and in every palette: .cs-row-name is an <a> that was never given a
+   colour, so it fell through to the browser's #0000EE — on horizon's navy
+   and dawn's umber that is a link you cannot read. It takes whatever the
+   palette calls "actionable"; vivid's own link rule above already agrees. */
+a.cs-row-name {
+  color: var(--accent);
+  text-decoration: none;
+}
+a.cs-row-name:hover,
+a.cs-row-name:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+:root[data-theme="vivid"] .cs-rows { display: block; }
+:root[data-theme="vivid"] .cs-row { padding: var(--sp-4) 0; }
+:root[data-theme="vivid"] .cs-row-name { font-weight: 500; line-height: 1.45; }
+:root[data-theme="vivid"] .cs-row-note {
+  margin-top: var(--sp-1);
+  line-height: var(--lh-body);
+  color: var(--ink-dim);
+}
+:root[data-theme="vivid"] .cs-row-value { font-weight: 600; }
+
+/* The three-figure block: borders need padding either side of them or
+   they are just a squeeze. */
+:root[data-theme="vivid"] .cs-stat3 {
+  margin-top: var(--sp-4);
+  gap: 0;
+}
+:root[data-theme="vivid"] .cs-stat3 > div { padding: 0 var(--sp-2); min-width: 0; }
+:root[data-theme="vivid"] .cs-stat-fig { font-size: 26px; font-weight: 600; }
+:root[data-theme="vivid"] .cs-stat-label { margin-top: var(--sp-1); }
+
+/* ---------- 25.6 · cards ----------
+   WHY: the brief's number is 20-24px of padding, and the desk's own
+   override had pushed it back down to 16. A card with 16px of padding and
+   16px between it and the next card reads as a table row with a border
+   radius; the radius is not what makes it an object, the air is. */
+
+:root[data-theme="vivid"] .cs-card { padding: var(--sp-5); }
+:root[data-theme="vivid"] .cs-desk .cs-card { padding: var(--sp-5); }
+:root[data-theme="vivid"] .cs-card + .cs-card { margin-top: var(--sp-5); }
+:root[data-theme="vivid"] .cs-desk-right .cs-sticky .cs-card + .cs-card { margin-top: var(--sp-5); }
+@media (max-width: 900px) {
+  :root[data-theme="vivid"] .cs-desk-right .cs-sticky .cs-card + .cs-card { margin-top: 0; }
+}
+:root[data-theme="vivid"] .cs-card-head { margin-bottom: var(--sp-4); gap: var(--sp-4); }
+:root[data-theme="vivid"] .cs-card-title { font-size: var(--fs-base); line-height: 1.4; }
+:root[data-theme="vivid"] .cs-card-sub { font-size: var(--fs-meta); }
+
+/* A card that is a <button> inherited the base button rule: 11px, small
+   caps, tracked out, underlined. Whatever that is, it is not a card. */
+a.cs-card,
+button.cs-card {
+  font: inherit;
+  text-transform: none;
+  letter-spacing: normal;
+  text-decoration: none;
+  color: inherit;
+}
+:root[data-theme="vivid"] a.cs-card:hover,
+:root[data-theme="vivid"] button.cs-card:hover,
+:root[data-theme="vivid"] a.cs-card:focus-visible,
+:root[data-theme="vivid"] button.cs-card:focus-visible { transform: translateY(-2px); }
+
+/* The hero card: a 3px accent edge and 40px mark against 16px of padding
+   looked like a bookmark on a receipt. */
+:root[data-theme="vivid"] .cs-hero {
+  gap: var(--sp-5);
+  border-left-width: 4px;
+  padding-left: calc(var(--sp-5) - 1px);
+}
+:root[data-theme="vivid"] .cs-hero-mark { width: 46px; height: 46px; border-radius: 14px; }
+:root[data-theme="vivid"] .cs-hero-actions { gap: var(--sp-3); margin-top: var(--sp-4); }
+
+/* The feed's own cards, and the strip of chips above them, need the same
+   air as everything else — they are the widest column, not the tightest. */
+:root[data-theme="vivid"] .cs-chips { gap: var(--sp-3); margin: var(--sp-5) 0; }
+:root[data-theme="vivid"] #desk-feed .cs-card + .cs-card { margin-top: var(--sp-4); }
+
+/* ---------- 25.7 · chips, badges, buttons ----------
+   WHY: all three are <button> or inline text that inherited the sheet's
+   caption voice. Youthall's grammar is unambiguous: a filter is a rounded
+   pill you can hit with a thumb, a category is a small tinted badge, a
+   primary verb is a solid blue pill and a secondary verb is the same pill
+   with the fill taken out. */
+
+.cs-chip,
+.cs-btn {
+  text-transform: none;
+  letter-spacing: normal;
+  text-decoration: none;
+}
+:root[data-theme="vivid"] .cs-chip {
+  padding: 9px 18px;
+  font-size: var(--fs-meta);
+  font-weight: 500;
+  background: var(--card-bg);
+  box-shadow: var(--card-shadow);
+}
+/* The white fill above outranks the pressed state declared in section 23,
+   which would leave the selected chip as white text on a white pill — an
+   invisible label is worse than the cramped one we started with. The
+   pressed chip restates its own fill, and drops the shadow because it is
+   pressed IN. */
+:root[data-theme="vivid"] .cs-chip[aria-pressed="true"] {
+  background: var(--chip-on);
+  border-color: var(--chip-on);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+:root[data-theme="vivid"] .cs-badge {
+  padding: 4px 10px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--badge-tint, var(--accent)) 12%, #fff);
+}
+
+:root[data-theme="vivid"] .cs-btn {
+  padding: 10px 20px;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+}
+:root[data-theme="vivid"] .cs-btn.ghost { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+:root[data-theme="vivid"] .cs-btn.ghost:hover,
+:root[data-theme="vivid"] .cs-btn.ghost:focus-visible {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+/* The colophon's two verbs are the same object as .cs-btn, drawn by an
+   older hand. In vivid they join the pill family. */
+:root[data-theme="vivid"] #rescan,
+:root[data-theme="vivid"] #pulse-run {
+  border-radius: 999px;
+  padding: 9px 18px;
+  font-weight: 600;
+}
+:root[data-theme="vivid"] #pulse-run { background: var(--accent); color: #fff; border-color: var(--accent); }
+:root[data-theme="vivid"] #pulse-run:hover,
+:root[data-theme="vivid"] #pulse-run:focus-visible { box-shadow: var(--card-shadow-lift); }
+:root[data-theme="vivid"] #pulse-run:disabled { background: none; color: var(--ink-faint); border-color: var(--hair); }
+
+/* The accessibility panel's switches are prose in a box; give them the
+   card's padding and radius so the panel stops looking like a form. */
+:root[data-theme="vivid"] .a11y-switch { padding: var(--sp-4); border-radius: 14px; }
+:root[data-theme="vivid"] .a11y-stepper button { border-radius: 50%; font-size: var(--fs-base); }
+
+/* ---------- 25.8 · navigation and the mega menu ----------
+   WHY: the rail was seven runs of tracked-out capitals and the mega menu
+   answered a bold blue title with a grey sentence — blue is the colour of
+   "you can click this", and in a panel where everything is clickable it
+   says nothing. Youthall's mega item is a black title and one grey line;
+   the blue arrives on hover, where it means something. */
+
+:root[data-theme="vivid"] .top-nav {
+  /* the same gutter the page uses, so the brand lines up with the content */
+  padding: 14px clamp(20px, 3vw, 44px);
+  box-shadow: 0 1px 3px rgba(14, 31, 56, 0.06);
+}
+:root[data-theme="vivid"] .view-tab {
+  text-transform: capitalize;
+  letter-spacing: normal;
+  text-decoration: none;
+  font-size: var(--fs-meta);
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: 999px;
+}
+:root[data-theme="vivid"] .view-tab:hover {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+:root[data-theme="vivid"] .view-tab[aria-pressed="true"],
+:root[data-theme="vivid"] .view-tab[aria-expanded="true"] {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+}
+:root[data-theme="vivid"] .nav-links { gap: var(--sp-1); }
+
+/* WHY, and in every palette: the panel was 680px anchored to the left edge
+   of the *word* "what it can prove". At 1440 that word starts at x=776, so
+   the last 40px of every right-hand sentence fell off the screen; at 820,
+   where the rail wraps, half the panel was gone. A bar menu belongs to the
+   bar, not to the word — dropping .cs-mega-wrap out of the positioning
+   chain hands the panel to .top-nav (already positioned, sticky), so
+   `top: 100%` means "under the whole bar, however many rows it wrapped to"
+   and `right` is the bar's own gutter. It cannot leave the viewport at any
+   width, and no JavaScript measures anything. */
+.cs-mega-wrap { position: static; }
+.cs-mega {
+  top: calc(100% + 10px);
+  left: auto;
+  right: clamp(20px, 3vw, 44px);
+  width: min(680px, calc(100vw - 40px));
+  min-width: 0;
+}
+
+/* The bar's own dropdown must not be painted over by the corner dock, and
+   a child cannot escape the stacking context its parent opened — so the
+   bar itself rises above the dock. Nothing else lives up there: the nav is
+   pinned to the top edge, the dock to the bottom one. */
+.top-nav { z-index: 62; }
+
+:root[data-theme="vivid"] .cs-mega { padding: var(--sp-6); gap: var(--sp-3) var(--sp-6); }
+:root[data-theme="vivid"] .cs-mega-item { padding: var(--sp-3); border-radius: 12px; }
+:root[data-theme="vivid"] .cs-mega-item b {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  margin-bottom: 2px;
+}
+:root[data-theme="vivid"] .cs-mega-item:hover b,
+:root[data-theme="vivid"] .cs-mega-item:focus-visible b { color: var(--accent); }
+:root[data-theme="vivid"] .cs-mega-col-head { margin-top: var(--sp-2); }
+
+/* ---------- 25.9 · the summary strip and the colophon as objects ----------
+   WHY: the strip is four numbers a visitor is meant to compare, drawn as
+   four regions of one flat surface divided by hairlines, under a 2px
+   black scotch rule borrowed from a press room. On a light ground that
+   rule is a bruise and the hairlines are noise. In vivid the four numbers
+   become four cards — the same object the rest of the room is made of. */
+
+:root[data-theme="vivid"] .summary-strip {
+  gap: var(--sp-4);
+  border-top: 0;
+  margin-top: var(--sp-7);
+}
+:root[data-theme="vivid"] .summary-strip::before { display: none; }
+:root[data-theme="vivid"] .sum {
+  background: var(--card-bg);
+  border: 1px solid var(--hair);
+  border-top: 1px solid var(--hair);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  padding: var(--sp-5);
+}
+:root[data-theme="vivid"] .sum + .sum { border-left: 1px solid var(--hair); padding-left: var(--sp-5); }
+:root[data-theme="vivid"] .sum:hover {
+  background: var(--card-bg);
+  border-top-color: var(--accent);
+  box-shadow: var(--card-shadow-lift);
+}
+:root[data-theme="vivid"] .sum-sub { font-size: var(--fs-meta); line-height: var(--lh-body); margin-top: var(--sp-2); }
+
+:root[data-theme="vivid"] .colophon {
+  background: var(--card-bg);
+  border: 1px solid var(--hair);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  padding: var(--sp-5);
+  margin-top: var(--sp-6);
+}
+:root[data-theme="vivid"] .colophon-row { gap: var(--sp-5); margin-top: var(--sp-4); }
+
+:root[data-theme="vivid"] footer { margin-top: var(--section-gap); }
+:root[data-theme="vivid"] .footer-links a { margin-top: var(--sp-2); }
+
+/* The docked feed reads on white too: a pill and a card, not a tab torn
+   off the edge of a dark page. */
+:root[data-theme="vivid"] #feed-toggle {
+  background: var(--card-bg);
+  box-shadow: var(--card-shadow);
+}
+:root[data-theme="vivid"] .feed-body {
+  background: var(--card-bg);
+  box-shadow: var(--card-shadow-lift);
+  padding: var(--sp-4);
+}
+:root[data-theme="vivid"] .feed-item {
+  grid-template-columns: 58px 104px minmax(0, 1fr);
+  padding: var(--sp-2) 0;
+}
+:root[data-theme="vivid"] .feed-msg { min-width: 0; overflow-wrap: anywhere; }
+
+/* ---------- 25.10 · print ----------
+   WHY: section 21 already refuses to print the agent feed. The launcher
+   and its panel are the same kind of thing — screen chrome — and they
+   were docked into the corner after that list was written. */
+
+@media print {
+  .a11y-launch,
+  .a11y-panel,
+  #a11y-mask { display: none !important; }
+  .page { padding-bottom: 0; }
+}
