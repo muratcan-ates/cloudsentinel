@@ -5,6 +5,24 @@ Companion to [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) (the 3-minute cut). The
 whole stage runs on the deterministic provider — no key, no quota, no
 network gamble.*
 
+## The one-call version
+
+Everything this page asks you to verify by eye also runs as code:
+
+```bash
+curl -s http://127.0.0.1:8000/ops/preflight | python3 -m json.tool
+```
+
+`GET /ops/preflight` checks the dataset, the mission, the provider mode,
+the write posture, the standing watch, how old the last scan is, whether
+the disk takes a write, what the lanes are really serving, the security
+headers and the between-takes reset lever — and answers with one `ok`.
+
+A `fail` would visibly break a take. A `warn` is a posture (live
+provider, open writes, a lane on the fixture) that may be exactly what
+this instance is for, so it never clears `ok` on its own. Run it before
+every take; the rest of this page is what to do about what it says.
+
 ## T-30 minutes — environment
 
 ```bash
@@ -62,6 +80,7 @@ curl --max-time 90 https://cloudsentinel-y5zh.onrender.com/health
 |---|---|
 | Masthead says **RECONNECTING** | Panels keep the last scan; restart `make demo`, reload once |
 | Panels look stale mid-take | `POST /ops/demo-reset?seed=1`, reload, re-enter the scene |
+| `/ready` says **degraded** | The standing watch stopped beating — `GET /ops/health/watch` names the gap and the last error. The link still serves; the scans behind it are old |
 | Database in a weird state | Stop the server, delete `cloudsentinel.db`, start again (schema + seed rebuild on boot) |
 | Rehearsing failure on purpose | `make drill` (`scripts/failure_drill.sh`) before the real day |
 

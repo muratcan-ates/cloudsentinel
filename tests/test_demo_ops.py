@@ -159,3 +159,124 @@ def test_failures_answer_with_a_json_envelope(monkeypatch):
         response = raw_client.get("/costs/summary")
         assert response.status_code == 500
         assert response.json() == {"detail": "internal server error"}
+
+
+# --- preflight: the runbook, executable ------------------------------------------
+#
+# docs/DEMO_PREFLIGHT.md is a human checklist, and a human checklist run at
+# midnight before a deadline is exactly where a stage goes on camera broken.
+# These cases pin that the executable version reports what is actually true.
+
+
+def _check(body, name):
+    return next(check for check in body["checks"] if check["name"] == name)
+
+
+def test_preflight_answers_the_whole_checklist_in_one_call(client):
+    response = client.get("/ops/preflight")
+    assert response.status_code == 200
+    body = response.json()
+    assert {check["name"] for check in body["checks"]} == {
+        "dataset",
+        "mission",
+        "provider",
+        "readonly",
+        "watchdog",
+        "last_pulse",
+        "disk",
+        "data_sources",
+        "security_headers",
+        "demo_reset",
+    }
+    # the default local stage is demoable: nothing that would break a take
+    assert body["ok"] is True
+    assert body["failures"] == 0
+
+
+def test_preflight_reports_the_stage_it_is_actually_standing_on(client):
+    body = client.get("/ops/preflight").json()
+    dataset = _check(body, "dataset")
+    assert dataset["status"] == "pass"
+    assert "cost rows" in dataset["detail"]
+    assert _check(body, "mission")["detail"] == "resolved to 'finops'"
+    # the fake provider is the pass condition, not a compromise
+    assert _check(body, "provider")["status"] == "pass"
+    assert _check(body, "data_sources")["detail"] == "costs=mock, fraud=mock, security=mock"
+    assert _check(body, "security_headers")["status"] == "pass"
+
+
+def test_preflight_warns_about_posture_without_failing_the_flag(client, monkeypatch):
+    """A live provider or open writes may be exactly what this box is for."""
+    body = client.get("/ops/preflight").json()
+    assert _check(body, "readonly")["status"] == "warn"  # local stage, writes open
+    assert body["ok"] is True
+    assert body["warnings"] >= 1
+
+    monkeypatch.setenv("SENTINEL_READONLY", "1")
+    body = client.get("/ops/preflight").json()
+    readonly = _check(body, "readonly")
+    assert readonly["status"] == "pass"
+    assert "403" in readonly["detail"]
+
+
+def test_preflight_notices_an_empty_decision_desk(client):
+    """The 'panels look stale' symptom, caught before the camera rolls."""
+    body = client.get("/ops/preflight").json()
+    assert _check(body, "last_pulse")["status"] == "warn"
+    assert "empty" in _check(body, "last_pulse")["detail"]
+
+    conn = db.connect_ready()
+    try:
+        with db.writing(conn):
+            conn.execute("INSERT INTO pulse_log (report_json) VALUES ('{}')")
+    finally:
+        conn.close()
+    body = client.get("/ops/preflight").json()
+    assert _check(body, "last_pulse")["status"] == "pass"
+    assert "0 min ago" in _check(body, "last_pulse")["detail"]
+
+
+def test_preflight_fails_the_flag_when_the_dataset_is_gone(client, monkeypatch):
+    """A fail is reserved for what would visibly break the demo."""
+
+    def _broken(*args, **kwargs):
+        raise RuntimeError("mock data missing")
+
+    monkeypatch.setattr("app.detection.load_dataset", _broken)
+    body = client.get("/ops/preflight").json()
+    assert body["ok"] is False
+    assert body["failures"] == 1
+    dataset = _check(body, "dataset")
+    assert dataset["status"] == "fail"
+    assert "mock data missing" in dataset["detail"]
+
+
+def test_preflight_fails_when_the_disk_will_not_take_a_write(client, monkeypatch):
+    """Nothing persists on a read-only disk — better to know before the take.
+
+    The refusal is injected at the write itself rather than by repointing
+    the database path, which would take the request's own connection down
+    with it and prove nothing about the check.
+    """
+
+    def _refuse(*args, **kwargs):
+        raise OSError(30, "Read-only file system")
+
+    monkeypatch.setattr("app.ops.tempfile.NamedTemporaryFile", _refuse)
+    body = client.get("/ops/preflight").json()
+    assert body["ok"] is False
+    disk = _check(body, "disk")
+    assert disk["status"] == "fail"
+    assert "not writable" in disk["detail"]
+    assert "Read-only file system" in disk["detail"]
+
+
+def test_preflight_fails_on_a_frozen_watch(client, monkeypatch):
+    """The stale watch is a demo-breaker, not a posture note."""
+    from tests.test_watchdog import _FrozenWatch
+
+    monkeypatch.setenv("SENTINEL_WATCH_INTERVAL_SECONDS", "300")
+    monkeypatch.setattr("app.watchdog._current", _FrozenWatch(age_seconds=3 * 3600))
+    body = client.get("/ops/preflight").json()
+    assert body["ok"] is False
+    assert _check(body, "watchdog")["status"] == "fail"

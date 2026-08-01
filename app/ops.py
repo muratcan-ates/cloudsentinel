@@ -16,15 +16,22 @@ indistinguishable from not existing.
 ``GET /ops/health/watch`` publishes the standing watch's own vitals — the
 question ``/health`` structurally cannot answer, because a sentinel that
 froze three hours ago still has a perfectly live process behind it.
+
+``GET /ops/preflight`` is ``docs/DEMO_PREFLIGHT.md`` as code: the checks a
+human currently runs by eye before a take, in one call that answers with a
+single ``ok``.
 """
 
 import logging
 import os
 import sqlite3
+import tempfile
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
-from app import db, ledger, watchdog
+from app import db, feeds, ledger, watchdog
 from app.models import DemoResetReport
 from app.watchdog import WatchHealth
 
@@ -33,6 +40,7 @@ logger = logging.getLogger("cloudsentinel.ops")
 router = APIRouter(prefix="/ops", tags=["ops"])
 
 DEMO_RESET_ENV = "SENTINEL_DEMO_RESET"
+READONLY_ENV = "SENTINEL_READONLY"
 
 # FK-safe wipe order: action_events and decisions reference actions,
 # actions reference events. The audit chain goes first and goes WITH them:
@@ -80,6 +88,286 @@ def watch_health(conn: sqlite3.Connection = Depends(db.get_db)) -> WatchHealth:
     monitor can watch the watchman.
     """
     return watchdog.health(conn)
+
+
+# --- preflight: the runbook, executable ---------------------------------------
+
+
+CheckStatus = Literal["pass", "warn", "fail"]
+
+
+class PreflightCheck(BaseModel):
+    """One thing a human would otherwise verify by eye before a take."""
+
+    name: str
+    status: CheckStatus
+    detail: str
+
+
+class PreflightReport(BaseModel):
+    """``docs/DEMO_PREFLIGHT.md`` with a verdict instead of a checklist.
+
+    ``ok`` is false only on a ``fail`` — something that would visibly break
+    a demo. A ``warn`` is a posture worth knowing about (live provider,
+    writes open, a lane quietly serving the fixture) that the operator may
+    have chosen on purpose, so it never fails the flag on its own.
+    """
+
+    ok: bool
+    failures: int
+    warnings: int
+    checks: list[PreflightCheck]
+    note: str
+
+
+def _readonly_enabled() -> bool:
+    # Read straight from the env rather than importing main: the entry point
+    # imports this router, so the arrow only points one way.
+    return os.environ.get(READONLY_ENV, "").strip() == "1"
+
+
+def _check_dataset() -> PreflightCheck:
+    from app.detection import load_dataset
+
+    try:
+        dataset = load_dataset()
+        rows = len(dataset["daily_costs"])
+        period = dataset["period"]
+        services = sorted({row["service"] for row in dataset["daily_costs"]})
+    except Exception as error:
+        return PreflightCheck(
+            name="dataset", status="fail", detail=f"dataset failed to load: {error}"
+        )
+    if not rows:
+        return PreflightCheck(
+            name="dataset", status="fail", detail="dataset loaded but holds no cost rows"
+        )
+    return PreflightCheck(
+        name="dataset",
+        status="pass",
+        detail=(
+            f"{rows} cost rows over {period['start']}→{period['end']}, "
+            f"{len(services)} services ({', '.join(services)})"
+        ),
+    )
+
+
+def _check_mission() -> PreflightCheck:
+    from app.missions import get_mission
+
+    try:
+        mission = get_mission()
+    except Exception as error:
+        return PreflightCheck(
+            name="mission", status="fail", detail=f"mission config unavailable: {error}"
+        )
+    return PreflightCheck(
+        name="mission", status="pass", detail=f"resolved to '{mission.mission}'"
+    )
+
+
+def _check_provider() -> PreflightCheck:
+    from app.llm import provider_mode
+
+    mode = provider_mode()
+    if mode == "fake":
+        return PreflightCheck(
+            name="provider",
+            status="pass",
+            detail="deterministic fake — no key, no quota, no network gamble",
+        )
+    return PreflightCheck(
+        name="provider",
+        status="warn",
+        detail=(
+            f"live provider '{mode}' — a take will spend real quota; the fake "
+            "path is the one the reliability story rests on"
+        ),
+    )
+
+
+def _check_readonly() -> PreflightCheck:
+    if _readonly_enabled():
+        return PreflightCheck(
+            name="readonly",
+            status="pass",
+            detail=(
+                "read-only showcase — writes answer 403; plan no approve/reject "
+                "beat against this instance"
+            ),
+        )
+    return PreflightCheck(
+        name="readonly",
+        status="warn",
+        detail=(
+            "writes are open — right for the local stage, wrong for a public link"
+        ),
+    )
+
+
+def _check_watch(conn: sqlite3.Connection) -> PreflightCheck:
+    watch = watchdog.health(conn)
+    if watch.degraded:
+        return PreflightCheck(name="watchdog", status="fail", detail=watch.detail)
+    return PreflightCheck(
+        name="watchdog",
+        status="pass" if watch.configured else "warn",
+        detail=watch.detail,
+    )
+
+
+def _check_pulse_age(conn: sqlite3.Connection) -> PreflightCheck:
+    """A stage whose last scan is hours old shows the jury stale panels."""
+    watch = watchdog.health(conn)
+    if watch.last_pulse_at is None:
+        return PreflightCheck(
+            name="last_pulse",
+            status="warn",
+            detail=(
+                "no pulse on record — the decision desk is empty; run POST /pulse "
+                "(or let the watch beat) before the camera rolls"
+            ),
+        )
+    age = watch.last_pulse_age_seconds or 0.0
+    detail = f"last scan {age / 60:.0f} min ago ({watch.last_pulse_at})"
+    # An hour is generous for a rehearsal and still catches the frozen stage.
+    return PreflightCheck(
+        name="last_pulse",
+        status="pass" if age <= 3600 else "warn",
+        detail=detail if age <= 3600 else detail + " — panels will look stale",
+    )
+
+
+def _check_disk() -> PreflightCheck:
+    """The database's directory has to accept a write, or nothing persists."""
+    directory = db.db_path().parent
+    try:
+        with tempfile.NamedTemporaryFile(dir=directory, prefix=".preflight-"):
+            pass
+    except OSError as error:
+        return PreflightCheck(
+            name="disk",
+            status="fail",
+            detail=f"{directory} is not writable: {error.strerror or error}",
+        )
+    return PreflightCheck(
+        name="disk", status="pass", detail=f"{directory} accepts writes"
+    )
+
+
+def _check_feeds() -> PreflightCheck:
+    """What the lanes actually serve, not what they were configured to."""
+    try:
+        sources = feeds.data_sources()
+    except Exception as error:
+        return PreflightCheck(
+            name="data_sources", status="fail", detail=f"unreadable: {error}"
+        )
+    rendered = ", ".join(f"{lane}={source}" for lane, source in sorted(sources.items()))
+    # A lane that fell back reports "mock (feed unavailable)" — the badge
+    # cannot claim live data over mock panels, and neither can we.
+    fell_back = [lane for lane, source in sources.items() if "unavailable" in source]
+    if fell_back:
+        return PreflightCheck(
+            name="data_sources",
+            status="warn",
+            detail=f"{rendered} — {', '.join(fell_back)} fell back to the fixture",
+        )
+    return PreflightCheck(name="data_sources", status="pass", detail=rendered)
+
+
+def _check_security_headers() -> PreflightCheck:
+    """The policy this instance will stamp on every response.
+
+    Read from the entry point's own constants (imported late — main imports
+    this module), so it reports what is configured. That it survives to the
+    wire is what ``scripts/smoke.sh`` and the header assertions check.
+    """
+    try:
+        from main import CONTENT_SECURITY_POLICY, SECURITY_HEADERS
+    except Exception as error:
+        return PreflightCheck(
+            name="security_headers", status="fail", detail=f"unreadable: {error}"
+        )
+    missing = [
+        header
+        for header in ("X-Content-Type-Options", "X-Frame-Options", "Referrer-Policy")
+        if header not in SECURITY_HEADERS
+    ]
+    if missing or "script-src 'self'" not in CONTENT_SECURITY_POLICY:
+        return PreflightCheck(
+            name="security_headers",
+            status="fail",
+            detail=(
+                f"missing {missing}" if missing else "CSP no longer locks script-src"
+            ),
+        )
+    return PreflightCheck(
+        name="security_headers",
+        status="pass",
+        detail=(
+            f"CSP script-src 'self' + {len(SECURITY_HEADERS)} headers on every response"
+        ),
+    )
+
+
+def _check_demo_reset() -> PreflightCheck:
+    """Between-takes recovery: is the reset lever actually there?"""
+    if demo_reset_enabled():
+        return PreflightCheck(
+            name="demo_reset",
+            status="pass",
+            detail="POST /ops/demo-reset?seed=1 is armed for between-take resets",
+        )
+    return PreflightCheck(
+        name="demo_reset",
+        status="warn",
+        detail=(
+            "demo reset is off (404) — correct for a public link, but there is "
+            "no way to re-stage between takes on this instance"
+        ),
+    )
+
+
+@router.get("/preflight")
+def preflight(conn: sqlite3.Connection = Depends(db.get_db)) -> PreflightReport:
+    """Run the whole demo checklist in one call and answer with one flag.
+
+    ``docs/DEMO_PREFLIGHT.md`` is a human checklist, which means it is only
+    as reliable as the human running it at midnight before a deadline. This
+    is the same list executed: dataset, mission, provider, write posture,
+    the standing watch, how old the last scan is, whether the disk takes a
+    write, what the lanes are really serving, the security headers, and
+    whether the between-takes reset lever exists.
+
+    One request before a take; one link the jury can click.
+    """
+    checks = [
+        _check_dataset(),
+        _check_mission(),
+        _check_provider(),
+        _check_readonly(),
+        _check_watch(conn),
+        _check_pulse_age(conn),
+        _check_disk(),
+        _check_feeds(),
+        _check_security_headers(),
+        _check_demo_reset(),
+    ]
+    failures = sum(1 for check in checks if check.status == "fail")
+    warnings = sum(1 for check in checks if check.status == "warn")
+    logger.info("[OPS] preflight — %d fail, %d warn", failures, warnings)
+    return PreflightReport(
+        ok=failures == 0,
+        failures=failures,
+        warnings=warnings,
+        checks=checks,
+        note=(
+            "A warn is a posture, not a defect — a live provider or open "
+            "writes may be exactly what this instance is for. Only a fail "
+            "clears ok."
+        ),
+    )
 
 
 def _seed_decisions(conn: sqlite3.Connection) -> int:
