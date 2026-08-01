@@ -75,6 +75,7 @@ def test_dashboard_hidden_from_openapi_schema():
         "/routines/{routine_id}",
         "/routines/{routine_id}/run",
         "/runbooks",
+        "/runbooks/effectiveness",
         "/runbooks/match",
         "/security/signals",
         "/stream/metrics",

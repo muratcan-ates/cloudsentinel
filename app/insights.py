@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from app import bus, db
 from app.detection import load_daily_costs
 from app.reflex import suggest_reflex_rules
+from app.runbooks import effectiveness as runbook_effectiveness
 
 router = APIRouter(prefix="/insights", tags=["insights"])
 
@@ -149,6 +150,22 @@ def compute_insights(conn: sqlite3.Connection) -> InsightsReport:
                 evidence=f"{reject_row['rejections']} operator rejections recorded.",
             )
         )
+
+    # The advice the system gives about its own advice: a playbook whose cards
+    # operators keep rejecting is a playbook worth rewriting, and the corpus
+    # now knows which one that is.
+    for record in runbook_effectiveness(conn).scores:
+        if record.adjustment < 0:
+            recommendations.append(
+                InsightRecommendation(
+                    focus=f"runbook:{record.runbook_id}",
+                    action=(
+                        f"Rewrite or retire the '{record.title}' runbook — the "
+                        "cards it matches are usually rejected."
+                    ),
+                    evidence=record.basis,
+                )
+            )
 
     return InsightsReport(
         decisions_considered=total,
