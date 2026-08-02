@@ -1,11 +1,13 @@
 /* ======================================================================
-   CloudSentinel — the two standalone pages (static/chat.html, static/guide.html)
+   CloudSentinel — pages.css: the two standalone pages
+   (static/chat.html, static/guide.html)
    ----------------------------------------------------------------------
    A layer on top of style.css, never a fork of it. The console and the
    handbook are the only two pages outside index.html, so they are the only
    two that cannot reach the dashboard's own room styles; this file gives
    them the small amount of the design language style.css does not already
-   express as a reusable class, and nothing else.
+   express as a reusable class, and nothing else. Both pages load it, which
+   is what the name says.
 
    It is in two parts.
 
@@ -467,11 +469,6 @@
    to keep the bubbles legible and the composer reachable once it does. */
 
 @media (max-width: 820px) {
-  /* The nav's right-hand marker is nowrap by design; on a phone the room
-     tabs already say where you are, so it steps out rather than spilling
-     past the bar. Scoped to this page's own class — the shared .nav-live
-     on every other room is untouched. */
-  .chat-nav-live { display: none; }
   .chat-desk .cs-sticky { position: static; }
   .transcript { max-height: none; }
   .msg-bubble { max-width: 100%; }
