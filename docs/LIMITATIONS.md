@@ -207,11 +207,11 @@ The honest end of the list:
   internal adversarial review and ships with a strict CSP, security
   headers, an SSRF guard on outbound calls, parameterized SQL and a
   read-only showcase mode — but no third party has attacked it;
-- **95% line coverage is not 95% of behaviour.** It means most lines
+- **96% line coverage is not 96% of behaviour.** It means most lines
   execute during the suite. Property-based tests (`tests/test_detection_properties.py`)
   cover the detector's invariants against generated hostile input, which is
   a stronger guarantee, and they exist for the detector only;
-- **the agent-chain evaluation is a 200-case golden set of our own making**
+- **the agent-chain evaluation is a 288-case golden set of our own making**
   (`docs/EVAL_SCORECARD.md`). It is honest about its false positives; it is
   not an independent benchmark;
 - **accessibility was assessed manually** against WCAG basics (landmarks,
