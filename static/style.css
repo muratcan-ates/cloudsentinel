@@ -2192,7 +2192,7 @@ a.cs-card:focus-visible, button.cs-card:focus-visible {
 .cs-badge[data-lane="market"] { --badge-tint: var(--tint-market); }
 .cs-badge[data-lane="proof"] { --badge-tint: var(--tint-proof); }
 .cs-badge[data-lane="ops"] { --badge-tint: var(--tint-ops); }
-:root[data-theme="vivid"] .cs-badge { background: color-mix(in srgb, var(--badge-tint, var(--accent)) 8%, #fff); border-color: transparent; }
+:root[data-theme="vivid"] .cs-badge { background: color-mix(in srgb, var(--badge-tint, var(--accent)) 8%, var(--card-bg)); border-color: transparent; }
 
 /* ---------- filter chips ---------- */
 .cs-chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
@@ -2996,7 +2996,7 @@ button.cs-card {
 :root[data-theme="vivid"] .cs-badge {
   padding: 4px 10px;
   font-weight: 600;
-  background: color-mix(in srgb, var(--badge-tint, var(--accent)) 12%, #fff);
+  background: color-mix(in srgb, var(--badge-tint, var(--accent)) 12%, var(--card-bg));
 }
 
 :root[data-theme="vivid"] .cs-btn {
@@ -3383,6 +3383,10 @@ button.cs-card {
 }
 
 /* ---------- 26.5 · hierarchy ----------
+   A note that cost us a real defect: these tints mix toward var(--card-bg),
+   never toward a literal #fff. Forced contrast (section 24) repaints
+   --card-bg black, and a surface that insists on white there puts white
+   ink on a white sheet — the exact failure the switch exists to prevent.
    WHY: the room was one weight. A section panel, the hero, a feed card
    and a rail card were all white, all shadowed, all 16px-rounded, so the
    eye had nothing to climb. A broadsheet solves this without colour: the
@@ -3399,14 +3403,14 @@ button.cs-card {
 /* the lead — the one card that starts something: a turquoise spine, a
    wash of the same colour, and the only lifted shadow on the page */
 :root[data-theme="vivid"] .cs-hero {
-  background: color-mix(in srgb, var(--accent) 5%, #fff);
+  background: color-mix(in srgb, var(--accent) 5%, var(--card-bg));
   border-color: color-mix(in srgb, var(--accent) 22%, transparent);
   border-left: 4px solid var(--accent);
   box-shadow: var(--card-shadow-lift);
 }
 :root[data-theme="vivid"] .cs-hero .cs-card-title { font-size: 28px; }
 :root[data-theme="vivid"] .cs-hero-mark {
-  background: color-mix(in srgb, var(--accent) 14%, #fff);
+  background: color-mix(in srgb, var(--accent) 14%, var(--card-bg));
   border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
   border-radius: 10px;
 }
@@ -3414,7 +3418,7 @@ button.cs-card {
 /* the standfirst — "how this page works" explains the room rather than
    reporting from it, so it is set INTO the sheet, not raised off it */
 :root[data-theme="vivid"] .cs-steps {
-  background: color-mix(in srgb, var(--ink) 3%, #fff);
+  background: color-mix(in srgb, var(--ink) 3%, var(--card-bg));
   box-shadow: none;
   border-color: var(--hair);
 }
@@ -3499,7 +3503,7 @@ button.cs-card {
 :root[data-theme="vivid"] .cs-badge {
   border-radius: 4px;
   border: 1px solid color-mix(in srgb, var(--badge-tint, var(--accent)) 28%, transparent);
-  background: color-mix(in srgb, var(--badge-tint, var(--accent)) 9%, #fff);
+  background: color-mix(in srgb, var(--badge-tint, var(--accent)) 9%, var(--card-bg));
   letter-spacing: 0.12em;
   font-size: 11px;
 }
