@@ -17,5 +17,7 @@ Full-page captures at 1440px, 2× device scale.*
 | `room_broadsheet.png` | The whole broadsheet — every section on one page |
 | `swagger_59_endpoints.png` | Self-hosted Swagger, the full 59-path API surface, now reachable from the shared top bar (it used to be a dead end) |
 
-Still to add by the team: Miro Sprint 3 board + burndown exports, and
-daily-scrum evidence as the sprint closes.
+Also here: the Miro Sprint 3 board (`miro_board_sprint3.png`, with two
+Done-column details), the burndown (`burndown_sprint3.png`, generated from
+the commit record by `scripts/make_burndown.py`), six WhatsApp/Slack
+daily-scrum captures, and the AI architecture card used in the demo.
