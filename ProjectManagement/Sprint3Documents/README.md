@@ -1,6 +1,6 @@
 # Sprint 3 Evidence Pack
 
-*Recaptured 2 August 2026, after the interface rebuild — the July 27 set
+*Recaptured late on 2 August 2026, after the evening's fixes landed — the earlier sets
 showed a design the product no longer has. Taken on a fresh demo stage
 (`make demo`: deterministic provider, dates rebased to the current week),
 `POST /ops/demo-reset?seed=1`, then one `POST /pulse` so the desk, the
