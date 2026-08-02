@@ -20,4 +20,5 @@ Full-page captures at 1440px, 2× device scale.*
 Also here: the Miro Sprint 3 board (`miro_board_sprint3.png`, with two
 Done-column details), the burndown (`burndown_sprint3.png`, generated from
 the commit record by `scripts/make_burndown.py`), six WhatsApp/Slack
-daily-scrum captures, and the AI architecture card used in the demo.
+daily-scrum captures, and the AI architecture card used in the demo
+(`architecture_card.png` — the blueprint plate, drawn by Tuana).

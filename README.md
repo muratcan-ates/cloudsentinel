@@ -51,7 +51,9 @@ explained, argued, approved by a named human, and provable afterwards.
 
 <div align="center">
 
-<img src="docs/img/architecture_card.png" alt="CloudSentinel agentic AI architecture: cloud signals → detection → analyst agent → recommender agent → skeptical review → human approval → simulated execution → audit and decision memory" width="100%" />
+<img src="docs/img/architecture_card.png" alt="CloudSentinel agentic AI architecture, drawn as an engineering blueprint: cloud signals feed detection; the Gemini-backed agent orchestration runs analyst, recommender and a skeptical review; a human approval gate precedes simulated execution; audit and decision memory close the loop back into detection. Inset details show the loop topology, the approval gate and a typical node in cross-section." width="100%" />
+
+<sub>The eight stages, and the one that is a gate rather than a step: **⑥ human approval**. Nothing downstream of it runs without a hand.</sub>
 
 </div>
 
