@@ -180,15 +180,21 @@ def _fetch(name: str, url: str, validate) -> dict:
         try:
             payload = validate(_get_json(url))
         except Exception as exc:
+            # The exception class, never its message. httpx stringifies a
+            # failed request as "... for url '<the whole url>'", and a feed
+            # URL is exactly the kind of configuration that carries a token
+            # in a query parameter. The lane name says which feed broke;
+            # the class says how. Neither needs the credential to say it.
+            reason = type(exc).__name__
             if cached:
                 logger.warning(
-                    "feed %s failed (%s) — serving last good payload", name, exc
+                    "feed %s failed (%s) — serving last good payload", name, reason
                 )
                 with _lock:
                     _cache[name] = (time.monotonic(), cached[1])
                     _served[name] = "feed"
                 return cached[1]
-            logger.warning("feed %s failed (%s) — no cached payload", name, exc)
+            logger.warning("feed %s failed (%s) — no cached payload", name, reason)
             raise FeedUnavailable(name) from exc
         with _lock:
             _cache[name] = (time.monotonic(), payload)

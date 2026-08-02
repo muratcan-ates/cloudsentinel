@@ -253,6 +253,9 @@ app.add_middleware(
 RATE_LIMIT_ENV = "SENTINEL_PULSE_RATE_LIMIT_PER_MINUTE"
 DEFAULT_PULSE_RATE_LIMIT = 60
 RATE_WINDOW_SECONDS = 60.0
+# Only sweep once a bucket dict is big enough to be worth walking; below
+# this the scan costs more than the memory it reclaims.
+RATE_BUCKET_SWEEP_THRESHOLD = 64
 _pulse_hits: defaultdict[str, deque] = defaultdict(deque)
 
 # Credential stuffing guard: /auth/login is cheap to script and expensive to
@@ -308,7 +311,13 @@ def chat_rate_limit() -> int:
 
 
 def _over_limit(bucket: defaultdict[str, deque], client: str, limit: int) -> bool:
-    """Sliding-window check; records the hit when it is allowed."""
+    """Sliding-window check; records the hit when it is allowed.
+
+    Buckets are evicted once their window empties. Without that the dict
+    keyed by client address only ever grew — every distinct caller left a
+    permanent entry, so an unauthenticated endpoint was also a slow memory
+    leak, which is a poor trade for a guard whose job is to bound abuse.
+    """
     if limit <= 0:
         return False
     now = time.monotonic()
@@ -318,7 +327,26 @@ def _over_limit(bucket: defaultdict[str, deque], client: str, limit: int) -> boo
     if len(hits) >= limit:
         return True
     hits.append(now)
+    _evict_cold_buckets(bucket, now)
     return False
+
+
+def _evict_cold_buckets(bucket: defaultdict[str, deque], now: float) -> None:
+    """Drop clients whose window has fully aged out.
+
+    Swept opportunistically rather than on a timer: there is no scheduler
+    here by design, and a sweep on write is enough to keep the dict the size
+    of the traffic actually inside the window.
+    """
+    if len(bucket) <= RATE_BUCKET_SWEEP_THRESHOLD:
+        return
+    cold = [
+        client
+        for client, hits in bucket.items()
+        if not hits or now - hits[-1] > RATE_WINDOW_SECONDS
+    ]
+    for client in cold:
+        del bucket[client]
 
 
 @app.middleware("http")

@@ -240,9 +240,19 @@ def detection_precision(
     Coarse by design — a rejection can also mean "real but not worth
     acting on" — hence the explicit proxy label in ``method``.
     """
+    # Scoped to the COST lane, the same way the funnel is. A rejected fraud
+    # hold or budget-guard card is a verdict about a different instrument —
+    # counting it here read as a cost-detector false positive and made the
+    # precision proxy worse than the detector actually is. Rows with no
+    # linked action predate the other lanes and are cost.
     rows = conn.execute(
-        "SELECT service, verdict, count(*) AS n FROM decisions "
-        "WHERE created_at >= datetime('now', ?) GROUP BY service, verdict",
+        "SELECT d.service AS service, d.verdict AS verdict, count(*) AS n "
+        "FROM decisions d "
+        "LEFT JOIN actions a ON a.id = d.action_id "
+        "LEFT JOIN events e ON e.id = a.event_id "
+        "WHERE d.created_at >= datetime('now', ?) "
+        "AND (e.kind = 'cost_anomaly' OR d.action_id IS NULL OR a.event_id IS NULL) "
+        "GROUP BY d.service, d.verdict",
         (f"-{window_days} days",),
     ).fetchall()
     per_service: dict[str, dict[str, int]] = {}

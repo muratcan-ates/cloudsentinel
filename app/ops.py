@@ -250,8 +250,12 @@ def _check_disk() -> PreflightCheck:
             status="fail",
             detail=f"{directory} is not writable: {error.strerror or error}",
         )
+    # The path is not named on the happy path: /ops/preflight is reachable
+    # without authentication so an uptime probe can read it, and the absolute
+    # location of the database directory is free reconnaissance. A failure
+    # still names it, because then the operator needs to know which path.
     return PreflightCheck(
-        name="disk", status="pass", detail=f"{directory} accepts writes"
+        name="disk", status="pass", detail="the database directory accepts writes"
     )
 
 
