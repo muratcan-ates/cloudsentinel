@@ -4,7 +4,7 @@
 
 # ☁️ CloudSentinel
 
-### AI-agent powered cloud cost & security anomaly detection — with a human in the loop
+### From alert to accountable decision — agentic cloud cost & security operations with a human hand on every action
 
 **YZTA Bootcamp 2026 · AI Track · Group 60**
 
@@ -22,19 +22,32 @@
 
 ## The thirty-second version
 
-Cloud teams do not lack alarms. AWS Cost Anomaly Detection, GCP budget
-alerts, Datadog Cloud Cost Management and every SIEM on the market are
-already very good at telling you *that* something moved. What none of them
-do is the part that actually costs a human their afternoon: work out **why**
-it moved, decide **what to do about it**, and leave a record that survives
-the question *"who approved this, and on what evidence?"* six weeks later.
+**Cloud teams do not have an alerting problem. They have a deciding
+problem.**
 
-CloudSentinel is that second half. A deterministic detector finds the
-anomaly; a chain of AI agents explains it while citing the exact rows it
-read; a skeptic — or, on a contested critical signal, a three-seat review
-panel — argues against the draft; and **nothing executes until a human says
-so, in writing.** Every verdict is sealed into a hash-chained ledger that
-`GET /audit/verify` recomputes from genesis rather than asserting intact.
+AWS Cost Anomaly Detection, GCP budget alerts, Datadog Cloud Cost
+Management and every SIEM on the market are already excellent at telling
+you *that* something moved. Then each of them does the same thing: it hands
+the problem back to a human with a number and a timestamp. What follows is
+the expensive part — reading the evidence, working out **why**, judging what
+it is worth doing, deciding, and being able to answer *"who approved this,
+and on what basis?"* six weeks later when someone asks. That interval is
+where the operator hours actually go, and no dashboard shortens it.
+
+**CloudSentinel is built for that interval, and only for it.** A
+deterministic detector finds the anomaly. A chain of AI agents explains it
+while citing the exact rows it read, and names what it is unsure about
+rather than only how sure it is. A skeptic — or, when a critical signal is
+contested, a three-seat review panel that votes, dissents and abstains on
+the record — argues against the draft before a human ever sees it. Two
+costed options arrive with a risk and a rollback plan each, and the money on
+them is computed in Python and re-checked against the model's own narrative.
+**Nothing executes until a human says so, in writing.** Every verdict is
+then sealed into a hash-chained ledger that `GET /audit/verify` recomputes
+from genesis rather than asserting intact.
+
+The result is not a faster alert. It is an **accountable decision** —
+explained, argued, approved by a named human, and provable afterwards.
 
 <div align="center">
 
@@ -242,6 +255,50 @@ including a forged closing delimiter, numeric contradiction in both
 directions, and explicit abstention. It measures the pipeline's containment
 contract on the deterministic provider — which is the honest scope, and the
 scorecard says so rather than implying live-model obedience.
+
+## Where this sits in the category
+
+Three tool families already touch this problem, and each stops at a
+different point. Naming where they stop is the clearest way to say what
+CloudSentinel is — and, just as importantly, what it is not.
+
+| | Detects | Explains | Proposes | Governs the decision | Proves it afterwards |
+|---|---|---|---|---|---|
+| **Cost tooling** — Cost Explorer, GCP budget alerts, Datadog CCM, Vantage, CloudZero | ✅ mature | partial | ✗ | ✗ | ✗ |
+| **Observability & SIEM** — Datadog, Grafana, Splunk | ✅ mature | partial | ✗ | ticketing hand-off | audit of the *alert*, not the decision |
+| **CSPM / posture** — Prowler, Wiz, Defender for Cloud | ✅ mature (misconfiguration) | rule text | remediation script | policy gate | scan history |
+| **CloudSentinel** | deterministic, three lanes, one detection line | evidence-cited agent triage with **named uncertainty** | two costed options with risk *and* rollback | human approval with server-derived identity and a mandatory rejection rationale | hash-chained ledger recomputed from genesis |
+
+The row that matters is the last two columns. Detection is a solved
+commodity — we did not try to beat anyone at it, and the detector here is
+deliberately plain statistics. **The unsolved part is the twenty minutes
+after the alert**: reading the evidence, judging the trade-off, deciding,
+and being able to answer *"who approved this, on what basis?"* six weeks
+later. That interval is where operator hours actually go, and it is the
+only interval this product builds for.
+
+Two consequences follow, and they are the reason the architecture looks the
+way it does rather than incidental to it.
+
+**Autonomy is bounded by accountability, not by capability.** It would be
+straightforward to let the chain execute what it proposes — the state
+machine, the webhook dispatch and the rollback plans are all already there.
+It does not, and the learning loop that mines settled decisions for reflex
+rules has **no adoption code path anywhere in the repository**: the machine
+drafts the rule, a human enacts it, and that asymmetry is enforced by
+absence rather than by a flag someone could flip. An organisation adopts
+agentic operations exactly as fast as it can answer for what the agents did,
+so the audit trail is not a compliance feature bolted on at the end. It is
+the thing that makes the autonomy adoptable at all.
+
+**Being model-agnostic is worth more than being model-optimal.** The
+provider sits behind an abstraction with a measured allowlist, a charged
+call budget and a deterministic lane that behaves identically to the live
+one. The immediate benefit is that a quota failure degrades the prose and
+nothing else — every figure, every guardrail and every escalation trigger is
+Python. The durable benefit is that the reasoning layer does not depend on
+which model is cheapest or best this quarter, which is the dependency that
+ages an agentic system fastest.
 
 ## Written by us — what that means precisely
 
@@ -989,7 +1046,7 @@ and held ever since, others taken as the Sprint 2 and Sprint 3 layers landed:
 
   ![Miro Scrum Board — Sprint 3](ProjectManagement/Sprint3Documents/miro_board_sprint3.png)
 
-  Detail — the Done column with per-member owners: [part 1](ProjectManagement/Sprint3Documents/miro_board_sprint3_done_1.png) · [part 2](ProjectManagement/Sprint3Documents/miro_board_sprint3_done_2.png). Every card names the member who owned it, and the distribution across the four of us is **Muratcan 21 · Mert 16 · Tuana 15 · Çağla 10**. Fifty-one cards closed against four rejected — and the rejections are on the board on purpose, because a decision not to build something (UptimeRobot, an agent framework, a paid service, a vector database) is work the same way building it is.
+  Detail — the Done column with per-member owners: [part 1](ProjectManagement/Sprint3Documents/miro_board_sprint3_done_1.png) · [part 2](ProjectManagement/Sprint3Documents/miro_board_sprint3_done_2.png). Every card names the member who owned it, and the distribution across the four of us is **Muratcan 19 · Tuana 18 · Mert 16 · Çağla 9**. Fifty-one cards closed against four rejected — and the rejections are on the board on purpose, because a decision not to build something (UptimeRobot, an agent framework, a paid service, a vector database) is work the same way building it is.
 
   The burndown is **generated from the record, not drawn by hand** — [`scripts/make_burndown.py`](scripts/make_burndown.py) dates every step by the commit that closed the story, so the shape cannot drift from what happened. The curve runs the opposite way to Sprint 2's, and that is the honest story of this sprint: Sprint 2 finished its committed scope a week early and spent its second week pulling work forward, so Sprint 3 opened with its technical core already paid for and carried **proving** work instead — deploy it, measure the model, capture the evidence — which cannot be front-loaded the way feature work can. The line therefore sits above the ideal for most of the sprint and closes hard over the final two days. **147 commits between July 20 and August 2** back it up. On the board blue cards are user stories and red/orange cards are tasks, with the legend on the board itself.
 
