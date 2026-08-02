@@ -477,6 +477,7 @@ EXPECTED_SURFACE = {
     "POST /auth/login 200,401,422,429",
     "POST /auth/logout 200,422",
     "POST /auth/register 201,409,422",
+    "POST /chat 200,422",
     "POST /insights/self-review 200",
     "POST /ops/demo-reset 200,404,422",
     "POST /pulse 200,422",

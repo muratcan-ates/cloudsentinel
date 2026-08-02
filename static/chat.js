@@ -5,7 +5,7 @@
  * render what comes back —
  *
  *   {agent, answer, evidence: [...], table?: {columns: [], rows: [[]]},
- *    model, source: "fake" | "live" | "fallback"}
+ *    model, source: "gemini" | "fake" | "fallback"}
  *
  * Two rules run through the whole file.
  *
@@ -35,6 +35,17 @@
    * quietly mapped onto one of these — mislabelling provenance is the one
    * mistake this product cannot afford. */
   var SOURCES = {
+    /* The backend's word for a real model call is "gemini", not "live":
+     * app/llm.py types it Literal["gemini", "fake", "fallback"] and every
+     * agent passes that straight through. "live" is kept as an alias so a
+     * future provider that says so is not badged as unrecognised — but
+     * without the real word, every genuinely live answer would have landed
+     * in the red alert lane, inches from a legend advertising "live". */
+    gemini: {
+      lane: "market",
+      label: "live",
+      note: "A model was called and answered."
+    },
     live: {
       lane: "market",
       label: "live",

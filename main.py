@@ -39,6 +39,7 @@ from app.auth import router as auth_router
 from app.analytics import metrics_router as metrics_router
 from app.analytics import router as analytics_router
 from app.bus import router as bus_router
+from app.chat import router as chat_router
 from app.decisions import router as decisions_router
 from app.insights import router as insights_router
 from app.ledger import router as ledger_router
@@ -190,6 +191,7 @@ app.include_router(actions_router)
 app.include_router(analyst_router)
 app.include_router(auth_router)
 app.include_router(bus_router)
+app.include_router(chat_router)
 app.include_router(analytics_router)
 app.include_router(decisions_router)
 app.include_router(fraud_router)

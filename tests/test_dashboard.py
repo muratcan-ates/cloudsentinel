@@ -50,6 +50,7 @@ def test_dashboard_hidden_from_openapi_schema():
         "/auth/logout",
         "/auth/me",
         "/auth/register",
+        "/chat",
         "/costs/daily",
         "/costs/summary",
         "/costs/summary/export",
