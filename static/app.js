@@ -1043,6 +1043,7 @@ const RADAR_INK = {
 
 const radarContacts = []; // {deg, cx, cy, ping, blip}
 let radarBeam = null;
+let radarSweeping = false; // is the beam actually turning right now?
 
 function radarAngleDeg(name) {
   // deterministic bearing per service/date so blips hold their post
@@ -1063,12 +1064,16 @@ function paintContact(contact, energy) {
 }
 
 function settleRadar() {
+  radarSweeping = false;
   if (radarBeam) radarBeam.setAttribute("transform", "rotate(0 100 100)");
   for (const contact of radarContacts) paintContact(contact, 0);
 }
 
 function radarTick(now) {
-  if (!radarBeam || !radarBeam.isConnected) return false;
+  if (!radarBeam || !radarBeam.isConnected) {
+    radarSweeping = false;
+    return false;
+  }
   const turn = ((now % RADAR_PERIOD_MS) / RADAR_PERIOD_MS) * 360;
   radarBeam.setAttribute("transform", `rotate(${turn.toFixed(2)} 100 100)`);
   // the wedge's bright edge starts at twelve o'clock, which is −90° in the
@@ -1087,8 +1092,14 @@ function startRadarSweep() {
   // a beam turning inside a room nobody is in is a leak, not a feature —
   // the ten-second scan re-renders the radar whichever room is open
   if (inClosedRoom(radarBeam)) return;
-  if (animators.has("radar")) return; // already turning — never restart mid-sweep
-  animate("radar", { tick: radarTick, settle: settleRadar });
+  // "already turning" was the wrong test. A registered animator can be
+  // holding a beam that was replaced by a later render, or can have been
+  // refused at boot (motion not yet allowed, tab not yet visible) and left
+  // the map empty with nothing scheduled to try again — either way the
+  // radar sat still while every other condition said it should turn. Ask
+  // the beam itself whether it is moving, and re-register when it is not.
+  if (animators.has("radar") && radarSweeping) return;
+  radarSweeping = animate("radar", { tick: radarTick, settle: settleRadar });
 }
 
 function renderRadar() {

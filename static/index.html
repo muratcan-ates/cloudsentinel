@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CloudSentinel — Anomaly Watch</title>
-  <link rel="stylesheet" href="/static/style.css?v=s9.0" />
+  <link rel="stylesheet" href="/static/style.css?v=s10.0" />
   <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
   <meta name="description" content="CloudSentinel — cloud cost and security anomaly watch: detection, evidence-cited AI triage and human-approved remediation, execution simulated by design." />
   <meta property="og:title" content="CloudSentinel — Anomaly Watch" />
@@ -23,6 +23,8 @@
       <a class="view-tab" href="/intel" data-view="intel" aria-pressed="false">intelligence</a>
       <a class="view-tab" href="/brain" data-view="brain" aria-pressed="false">brain</a>
       <a class="view-tab" href="/broadsheet" data-view="all" aria-pressed="false">broadsheet</a>
+      <a class="view-tab" href="/static/chat.html" title="Ask one of the four agents a question about this estate and read the answer beside the evidence it used.">console</a>
+      <a class="view-tab" href="/static/guide.html" title="The whole product in ten minutes: what it is, what each room shows, what is real and what is simulated.">handbook</a>
       <span class="cs-mega-wrap">
         <button class="view-tab" type="button" id="mega-toggle" aria-expanded="false" aria-controls="mega-panel">what it can prove ▾</button>
         <div class="cs-mega" id="mega-panel" hidden>
@@ -488,6 +490,8 @@
             <a class="row-action" href="/intel" data-room="intel">intelligence</a>
             <a class="row-action" href="/brain" data-room="brain">brain</a>
             <a class="row-action" href="/broadsheet" data-room="all">broadsheet</a>
+            <a class="row-action" href="/static/chat.html">orchestration console</a>
+            <a class="row-action" href="/static/guide.html">handbook</a>
             <a class="row-action" href="?tour=1" data-tour-launch>guided tour ▸</a>
           </p>
         </div>
@@ -586,6 +590,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=s9.0"></script>
+  <script src="/static/app.js?v=s10.0"></script>
 </body>
 </html>
