@@ -8,7 +8,7 @@
 
 **YZTA Bootcamp 2026 · AI Track · Group 60**
 
-**🟢 [Live demo](https://cloudsentinel-y5zh.onrender.com)** — read-only showcase, self-refreshing · [Product](#information-about-the-product) · [Architecture](docs/architecture.md) · [How to Run](#how-to-run-local) · [Sprint 2](#sprint-2) · [Sprint 3 Backlog](docs/sprint3_backlog.md) · [Field Guide](#field-guide--sixty-seconds-to-a-decision) · [Türkçe Özet](docs/README.tr.md)
+**🟢 [Live demo](https://cloudsentinel-y5zh.onrender.com)** — read-only showcase, self-refreshing · [Product](#information-about-the-product) · [Architecture](docs/architecture.md) · [How to Run](#how-to-run-local) · [Sprint 3](#sprint-3) · [Field Guide](#field-guide--sixty-seconds-to-a-decision) · [Türkçe Özet](docs/README.tr.md)
 
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.139-009688?logo=fastapi&logoColor=white)
@@ -19,6 +19,36 @@
 ![Last Commit](https://img.shields.io/github/last-commit/muratcan-ates/cloudsentinel?style=flat-square)
 
 </div>
+
+## The thirty-second version
+
+Cloud teams do not lack alarms. AWS Cost Anomaly Detection, GCP budget
+alerts, Datadog Cloud Cost Management and every SIEM on the market are
+already very good at telling you *that* something moved. What none of them
+do is the part that actually costs a human their afternoon: work out **why**
+it moved, decide **what to do about it**, and leave a record that survives
+the question *"who approved this, and on what evidence?"* six weeks later.
+
+CloudSentinel is that second half. A deterministic detector finds the
+anomaly; a chain of AI agents explains it while citing the exact rows it
+read; a skeptic — or, on a contested critical signal, a three-seat review
+panel — argues against the draft; and **nothing executes until a human says
+so, in writing.** Every verdict is sealed into a hash-chained ledger that
+`GET /audit/verify` recomputes from genesis rather than asserting intact.
+
+<div align="center">
+
+<img src="docs/img/architecture_card.png" alt="CloudSentinel agentic AI architecture: cloud signals → detection → analyst agent → recommender agent → skeptical review → human approval → simulated execution → audit and decision memory" width="100%" />
+
+</div>
+
+| | |
+|---|---|
+| **What it is** | An agentic decision-support MVP for cloud cost, security and fraud signals — one detection line, six agents, one human gate |
+| **Who it is for** | The FinOps analyst, the platform engineer and the SecOps operator — [three roles who meet after detection](#three-roles-one-control-room) |
+| **What makes it different** | The reasoning is *inspectable*: cited evidence, named uncertainty, a recorded adversarial review, and a tamper-evident decision trail. Money figures are computed in Python and re-checked against the model's own narrative at ±5% — [the model narrates, it never counts](#how-the-intelligence-is-actually-built) |
+| **What proves it** | 1321 tests · 96% line coverage over 6,329 statements · 61 API operations across 59 documented paths · a 288-case adversarial golden set · a live read-only deployment · `make verify` measuring every counter claim in these docs |
+| **What it deliberately is not** | A production system. Bundled fixtures are the default, the infrastructure mutation is simulated, storage is SQLite on an ephemeral disk — [all of it written down](docs/LIMITATIONS.md) |
 
 ## 📖 Table of Contents
 
@@ -107,7 +137,7 @@ CloudSentinel is an agentic decision-support system that monitors cloud cost and
 - **Operations intelligence** — HITL funnel, approved savings, window-over-window trend, month-end forecast with budget signal, what-if and before/after ROI, detection precision proxy, and a self-accounting ledger of the system's own AI usage — calls, cache hits, fallbacks and free-tier quota, zero-cost by design
 - **Decision quality** (`GET /analytics/quality`) — the measures that move when the product gets better at *deciding* rather than better at generating: acceptance rate, mean and median time-to-decision read off the append-only trail (so timeout expiries and reopened cards cannot flatter it), per-service acceptance and recurrence, what one human decision cost in model calls, the average agent confidence across every hop that spoke, which named uncertainty sources fire most often, and the confidence-calibration buckets. Plain SQL over persisted state — no model is called and no figure is estimated
 - **Run receipts** (`GET /analytics/receipts`) — the agentic equivalent of an itemised bill, one per watch cycle: signals, proposals filed and reused, agent turns, panel seats answered, turns that went unmeasured, the reflex and agent milliseconds actually measured, wall clock, the per-run LLM call budget against the calls used, and money once a price per call is configured. Assembled entirely on the read side from records the pulse already leaves behind, so asking for the receipt never changes what the run cost
-- Live dashboard: anomaly feed with a live sentinel radar, cost ledger, investigation evidence, decision inbox (with operator identity + rationale capture), audit ledger and operations intelligence — real page rooms (`/watch`, `/investigate`, `/decide`, `/intel`, `/brain`, `/broadsheet`), five palettes, WCAG AA, strict CSP
+- Live dashboard: anomaly feed with a live sentinel radar, cost ledger, investigation evidence, decision inbox (with operator identity + rationale capture), audit ledger and operations intelligence — real page rooms (`/watch`, `/investigate`, `/decide`, `/intel`, `/brain`, `/broadsheet`), five palettes, strict CSP, and contrast **measured rather than asserted**: [`tests/test_contrast.py`](tests/test_contrast.py) computes every foreground/background pair across five palettes at two widths and fails the build on a regression. Thirty-two pairs currently sit below WCAG AA and are pinned in the file **by name, with their measured ratio and the value they should reach** — dominated by one muted ink token that carries real content rather than decoration. We would rather ship the list than the claim
 - **The desk** — a card surface that reads the estate in three columns: what the system is holding (open signals, awaiting you, decided), what it can *prove* about itself, and what is waiting on a human. Every capability row is a live fetch of the endpoint it names, and a row that cannot answer says `unavailable` rather than showing a hopeful dash — a dash reads as zero, and zero is a claim. It exists because a broadsheet gives every row the same weight, which is exactly what makes it beautiful and exactly what hid the endpoints that landed last
 - **A fifth palette and an accessibility panel** — `vivid` joins the four editorial palettes (horizon · night · paper · dawn): light ground, white cards with a real shadow, one saturated blue for anything actionable, colour used as a lane signal rather than decoration, and a wider measure because a control surface is not prose. The four editorial palettes are untouched, so one click restores the newspaper mid-demo. The accessibility panel sets text scale, line height, letter spacing, a readable face, highlighted links and headings, a reading mask, a larger pointer and forced contrast — every toggle is a data attribute on `:root` and the three numeric settings are custom properties set on it, all persisted in this browser only — no third-party overlay and nothing loaded from another host, because the CSP allows no remote origin on any path
 - **Shift-handover brief** (`GET /analytics/handover`) — the standing operator questions answered from persisted state, printable to one page; a **guided jury tour** (`?tour=1`) walks the rooms in reading order
@@ -130,6 +160,118 @@ CloudSentinel is an agentic decision-support system that monitors cloud cost and
 - **Detection backtest** (`GET /metrics/backtest`) — precision/recall on planted synthetic ground truth across z-score, MAD and leave-one-out scoring, so contamination resistance is measured, not claimed. The day-of-week baseline now runs too: the bundled fourteen-day fixture can never satisfy the guard protecting the seasonal path (a weekday bucket needs enough samples to be a baseline of its own), so that code shipped real and permanently unexercised. `app/data/seasonal_costs.json` is ten weeks built for it — deterministically generated by `scripts/make_seasonal_fixture.py`, `--check`-able against the committed file so it cannot rot silently — and its point is a contrast rather than a number: a planted Saturday on `analytics-batch` that is an ordinary Tuesday's figure and an impossible Saturday's, invisible inside a pooled bimodal baseline and obvious the moment Saturdays are compared with Saturdays. **Incident reports** export as shareable Markdown (`GET /actions/{id}/report`)
 - **Orchestration console** (`POST /chat` · [`/static/chat.html`](static/chat.html)) — the operator picks one of four agents (analyst, recommender, skeptic, chronicler) and asks a question about *this* estate; the answer comes back beside the evidence rows it used, sometimes a table, and a badge naming whether it was written live, by the deterministic composer or by the rule-based fallback. Read-only **by enforcement rather than by promise**: a SQLite authorizer denies every write and DDL verb for the duration of the turn, so the console cannot approve, execute, suppress or schedule anything even if it were asked to. A question that matches none of its six grounded topics is refused deterministically without spending a provider call at all, and every figure it quotes comes from the same helpers `/analytics` uses, so chat can never cite a number the dashboard would dispute
 - **Brain room** in the dashboard (`/brain`) — insights, self-review, routines, runbook search, the backtest table and operator sign-in, wired live
+
+## How the intelligence is actually built
+
+Most of the work in an agentic system is not the prompt. It is deciding what
+the model is *allowed* to be wrong about. Here is the whole arrangement,
+and the file that holds each piece.
+
+**The model is a governed dependency, not a call.** A four-model allowlist
+([`app/llm.py`](app/llm.py), [ADR 0003](docs/adr/0003-model-allowlist.md))
+decides what may answer live, and membership was earned by measurement, not
+by preference — the August 1 spike against a real free-tier key found the
+pinned 2.5 family returns 404 to new keys and the pro tier carries zero free
+quota, so the defaults moved to `-latest` aliases immune to model
+retirement. A model outside the list never reaches a client: the error is
+caught, logged, and the deterministic provider serves instead, so a bad pin
+degrades the narrative rather than taking the product down.
+
+**Orchestration is a budget, not a hope.** One `POST /pulse` spends a
+hard-capped call budget (14 by default, settable per run) across
+reflex → analyst → *reflection on critical signals* → decision memory →
+recommender → the debate ladder → chronicler. The budget is a context
+variable charged inside *every* provider — including the fake one — so the
+accounting is identical offline and live, and an overrun raises the same
+error the fallback path already handles.
+
+**The debate ladder escalates on stakes, not on vibes.** A contested warning
+gets one skeptic. A contested **critical** convenes three seats with
+genuinely different charters (stability, throughput, evidence) — three
+different Gemini models when live, three deterministic personas offline.
+A majority of *answered* seats decides; a seat that fails abstains rather
+than casting a fabricated vote; below quorum the draft stands and the card
+says so. A bold stance on a critical signal has its confidence bar raised
+by 0.15, so self-reported confidence can never wave a high-stakes action
+past review.
+
+**Memory is retrieval the operator can see.** The newest verdicts for that
+service are read by plain SQL and injected into a frozen prompt slot
+([`app/decisions.py`](app/decisions.py),
+[`app/recommender.py`](app/recommender.py)); the card then shows how many
+were considered. No embeddings, no vector store — and that is a decision,
+not a gap: the retrieval key is `service · severity · direction · category`,
+which is exact, and a similarity score would only make an exact lookup
+fuzzy. We did not add a vector database to have one.
+
+**The guardrails are structural.** Typed schemas rather than parsed prose;
+an evidence-citation validator that drops any row id the model invented; a
+±5% numeric post-check of every money figure in the narrative against the
+Python arithmetic that produced it; spotlight delimiters around untrusted
+data, stripped to a fixed point so the payload cannot forge a closing tag;
+and — for the chat console — a SQLite authorizer that denies every write
+verb at statement-preparation time, so *read-only* is enforced by the
+database rather than promised by a docstring.
+
+**Uncertainty is derived, not self-reported.** Fifteen named codes from a
+closed vocabulary, computed in Python from the evidence each agent was
+handed: a baseline shorter than the evidence window, an operator precedent
+that is split, a triage disputing the premise, a panel seat that abstained,
+figures the post-check could not verify. A confidence score can be talked
+up; these cannot. The list is byte-identical whether Gemini, the demo
+composer or the rule-based fallback wrote the prose.
+
+**And it is measured.** A 288-case adversarial golden set across nine
+families sweeps the *real* analyze → recommend chain
+([`app/evalset.py`](app/evalset.py), [scorecard](docs/EVAL_SCORECARD.md)):
+grounding, unsafe actions, prompt injection carried on the service name
+including a forged closing delimiter, numeric contradiction in both
+directions, and explicit abstention. It measures the pipeline's containment
+contract on the deterministic provider — which is the honest scope, and the
+scorecard says so rather than implying live-model obedience.
+
+## Market, and who would pay
+
+The honest version, because an MVP that overstates its market is easier to
+disbelieve than one that scopes it:
+
+**The wedge.** Cloud cost management is a crowded market at the *reporting*
+end — the hyperscalers' native tools, Vantage, CloudZero, Finout, Datadog
+CCM — and an empty one at the *accountable decision* end. Those products
+answer "what changed"; the human still owns "what do we do, who approved it,
+and can we prove it later". That handoff is where the hours go, and it is
+the only thing CloudSentinel builds.
+
+**The beachhead.** Not "SMEs and startups" generally — the segment with the
+smallest bill has the least to gain. The wedge is the **50–500-engineer
+company that has just outgrown a spreadsheet**: large enough that cloud
+spend is a line item someone defends in a meeting, small enough to have no
+dedicated FinOps team, and already carrying an audit obligation from a
+SOC 2 or ISO 27001 programme. That buyer already owns detection. What they
+lack is the trail.
+
+**Why the trail is the product.** The hash-chained ledger, the server-derived
+operator identity, the mandatory rejection rationale and the append-only
+lifecycle trail are not compliance decoration — they are the reason a team
+would let agents near a spend decision at all. An organisation adopts
+agentic operations exactly as fast as it can answer *"who decided this?"*
+
+**Where the money would be.** Per-seat for the operators who decide, not
+per-monitored-dollar — the value accrues to the decision, and pricing on
+spend punishes the customer for the savings the product delivers.
+Deliberately untested: this is a hypothesis from the design, not a validated
+model, and no customer has paid for anything.
+
+**What we can honestly claim.** The market-watch lane
+([`GET /market/opportunities`](app/market.py)) shows the shape of the
+opportunity with real arithmetic: published reduction bands for commitment
+discounts, ARM families, non-production scheduling, spot capacity and idle
+sweeps, matched to the services this estate actually runs and costed as
+`run rate × addressable share × published band`. Every row ships its source,
+the date the team last checked it, its assumption and its watch-out, and the
+gross total is labelled an upper bound because the bands overlap. That is a
+demonstration of method on synthetic data — not a customer, not a pipeline,
+and not a number anyone should put in a business case.
 
 ## What It Does / What It Deliberately Does Not
 
