@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CloudSentinel — Handbook</title>
   <link rel="stylesheet" href="/static/style.css?v=s9.0" />
+  <!-- The handbook and the console are the two pages outside index.html, so
+       they share one small type layer on top of style.css: the serif figure,
+       the page kicker, and the numeral at the size a card head or a contents
+       chip can carry. The file is still named for the console it was written
+       for; the rules it now shares are marked "00 · the shared type layer". -->
+  <link rel="stylesheet" href="/static/chat.css?v=2" />
   <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
   <meta name="description" content="CloudSentinel handbook — what the product is, the five beats, the rooms, the agents, the detection maths, the mission DSL, the human-in-the-loop lifecycle, what is simulated, and how to run it." />
 </head>
@@ -31,22 +37,23 @@
       <p class="corner right">Group 60 — YZTA MMXXVI</p>
       <p class="kicker">the machine <span class="fraktur k-fr">watches</span> — the human <em class="k-em">decides</em></p>
       <h1 class="pixel-black">cloudsentinel<span class="period">.</span></h1>
-      <p class="masthead-tag"><span class="fraktur">the whole product, in ten minutes</span></p>
+      <p class="masthead-tag"><span class="fraktur">artificial vigilance</span></p>
+      <p class="microcap page-kicker">the handbook — the whole product, in <span class="fig">10</span> minutes</p>
       <p class="meta">every claim on this page is taken from the repository, not from the pitch</p>
     </header>
 
     <nav class="cs-chips" aria-label="Contents">
-      <a class="cs-chip" href="#thesis">the thesis</a>
-      <a class="cs-chip" href="#beats">the five beats</a>
-      <a class="cs-chip" href="#rooms">the rooms</a>
-      <a class="cs-chip" href="#agents">the agents</a>
-      <a class="cs-chip" href="#maths">the maths</a>
-      <a class="cs-chip" href="#missions">the missions</a>
-      <a class="cs-chip" href="#desk">the decision lifecycle</a>
-      <a class="cs-chip" href="#real">real vs simulated</a>
-      <a class="cs-chip" href="#safety">the safety boundaries</a>
-      <a class="cs-chip" href="#api">the API</a>
-      <a class="cs-chip" href="#run">run it</a>
+      <a class="cs-chip" href="#thesis"><span class="numeral" aria-hidden="true">0</span>the thesis</a>
+      <a class="cs-chip" href="#beats"><span class="numeral" aria-hidden="true">I</span>the five beats</a>
+      <a class="cs-chip" href="#rooms"><span class="numeral" aria-hidden="true">II</span>the rooms</a>
+      <a class="cs-chip" href="#agents"><span class="numeral" aria-hidden="true">III</span>the agents</a>
+      <a class="cs-chip" href="#maths"><span class="numeral" aria-hidden="true">IV</span>the maths</a>
+      <a class="cs-chip" href="#missions"><span class="numeral" aria-hidden="true">V</span>the missions</a>
+      <a class="cs-chip" href="#desk"><span class="numeral" aria-hidden="true">VI</span>the decision lifecycle</a>
+      <a class="cs-chip" href="#real"><span class="numeral" aria-hidden="true">VII</span>real vs simulated</a>
+      <a class="cs-chip" href="#safety"><span class="numeral" aria-hidden="true">VIII</span>the safety boundaries</a>
+      <a class="cs-chip" href="#api"><span class="numeral" aria-hidden="true">IX</span>the API</a>
+      <a class="cs-chip" href="#run"><span class="numeral" aria-hidden="true">X</span>run it</a>
     </nav>
 
     <main id="main-content" tabindex="-1">
@@ -86,23 +93,23 @@
           </div>
           <div class="cs-stat3">
             <div>
-              <p class="cs-stat-fig">3</p>
+              <p class="cs-stat-fig"><span class="fig">3</span></p>
               <p class="cs-stat-label">lanes watched</p>
             </div>
             <div>
-              <p class="cs-stat-fig">6</p>
+              <p class="cs-stat-fig"><span class="fig">6</span></p>
               <p class="cs-stat-label">agents in the loop</p>
             </div>
             <div>
-              <p class="cs-stat-fig">60</p>
+              <p class="cs-stat-fig"><span class="fig">61</span></p>
               <p class="cs-stat-label">documented endpoints</p>
             </div>
           </div>
           <p class="meta">
             FastAPI and Python 3.12, sqlite3 in WAL mode as the store, a vanilla-JS dashboard under a strict
             content-security policy, and a Gemini provider behind an abstraction with a deterministic fake
-            provider so the whole demo runs offline. 1190 pytest cases, ruff clean, no agent framework and no
-            runtime dependency the dashboard has to fetch from anyone else.
+            provider so the whole demo runs offline. <span class="fig">1270</span> pytest cases, ruff clean, no
+            agent framework and no runtime dependency the dashboard has to fetch from anyone else.
           </p>
         </div>
 
@@ -177,7 +184,7 @@
           <p class="cs-card-sub">
             The pulse resolves the active mission, runs the scan, triages every cost anomaly, escalates the
             contested ones to debate, files proposals into the inbox, and asks the Chronicler for a briefing —
-            under a per-run call budget of 14 model calls by default. Exhausting the budget degrades every
+            under a per-run call budget of <span class="fig">14</span> model calls by default. Exhausting the budget degrades every
             agent to its rule-based fallback, labelled as such on the card. The last run survives a reload at
             <strong>GET /pulse/last</strong>.
           </p>
@@ -262,7 +269,7 @@
               <span class="cs-row-value">model or fallback</span>
             </li>
             <li class="cs-row">
-              <span><span class="cs-row-name">Recommender</span> <span class="cs-row-note">Remediation. Drafts exactly one cautious and one bold option, each with risk and a rollback plan, and consumes decision memory while disclosing how much it considered. Savings are computed in Python and its narrative is post-checked to within ±5% of them. One open card per signal.</span></span>
+              <span><span class="cs-row-name">Recommender</span> <span class="cs-row-note">Remediation. Drafts exactly one cautious and one bold option, each with risk and a rollback plan, and consumes decision memory while disclosing how much it considered. Savings are computed in Python and its narrative is post-checked to within ±<span class="fig">5</span>% of them. One open card per signal.</span></span>
               <span class="cs-row-value">model or fallback</span>
             </li>
             <li class="cs-row">
@@ -301,7 +308,7 @@
             <p class="cs-card-title">What no agent is allowed to do</p>
           </div>
           <ul class="cs-rows">
-            <li class="cs-row"><span><span class="cs-row-name">Produce a number the operator acts on.</span> <span class="cs-row-note">Savings, costs, z-scores and fraud points are Python arithmetic. Money-looking figures in agent prose are post-checked ±5% against the computed value and flagged on the card when they cannot be verified.</span></span><span class="cs-row-value is-off">never</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Produce a number the operator acts on.</span> <span class="cs-row-note">Savings, costs, z-scores and fraud points are Python arithmetic. Money-looking figures in agent prose are post-checked ±<span class="fig">5</span>% against the computed value and flagged on the card when they cannot be verified.</span></span><span class="cs-row-value is-off">never</span></li>
             <li class="cs-row"><span><span class="cs-row-name">Touch a security or fraud signal.</span> <span class="cs-row-note">Those lanes are operator-facing facts. The agent endpoints answer 409 on a foreign event kind, and the HITL funnel counts cost anomalies only.</span></span><span class="cs-row-value is-off">never</span></li>
             <li class="cs-row"><span><span class="cs-row-name">Take instructions from the data.</span> <span class="cs-row-note">Every untrusted payload enters a prompt between delimiters, as data. Model-cited evidence ids are checked against the real evidence window before they are shown.</span></span><span class="cs-row-value is-off">never</span></li>
             <li class="cs-row"><span><span class="cs-row-name">Execute anything.</span> <span class="cs-row-note">Only the operator can move a card out of <strong>proposed</strong>, and the execute transition mutates no infrastructure.</span></span><span class="cs-row-value is-off">never</span></li>
@@ -321,10 +328,10 @@
         <div class="cs-card">
           <div class="cs-card-head"><p class="cs-card-title">The window</p></div>
           <p class="cs-card-sub">
-            Statistics come from a true calendar window: the last 28 days ending at the dataset's newest date,
+            Statistics come from a true calendar window: the last <span class="fig">28</span> days ending at the dataset's newest date,
             not from a service's whole history. A months-old regime cannot poison today's baseline, and a
             service whose data stopped before the window ages out instead of being scored against fossils.
-            A service needs at least <strong>7 records inside the window</strong> to be scored at all; below that
+            A service needs at least <strong><span class="fig">7</span> records inside the window</strong> to be scored at all; below that
             it is reported in <strong>insufficient_data_services</strong> rather than guessed at.
             A record whose cost is missing, non-numeric or non-finite is dropped before any statistic runs, and
             the drop is counted — never silently treated as zero.
@@ -336,8 +343,8 @@
           <p class="cs-card-sub">
             For each service the detector computes a <strong>centre</strong> and a <strong>spread</strong> over the
             window, then scores every record as <em>(cost − centre) ÷ spread</em>. A record is flagged when the
-            absolute value of that score meets the mission's threshold (2.0 by default), and it is
-            <strong>critical</strong> at 3.0 or above, a <strong>warning</strong> otherwise. A perfectly flat window
+            absolute value of that score meets the mission's threshold (<span class="fig">2.0</span> by default), and it is
+            <strong>critical</strong> at <span class="fig">3.0</span> or above, a <strong>warning</strong> otherwise. A perfectly flat window
             has zero spread and produces no score — there is nothing to be unusual against.
           </p>
         </div>
@@ -346,16 +353,16 @@
           <div class="cs-card-head"><p class="cs-card-title">Two ways to be "normal"</p></div>
           <ul class="cs-rows">
             <li class="cs-row"><span><span class="cs-row-name">zscore</span> <span class="cs-row-note">Mean and population standard deviation. The default. Simple and familiar — and one big spike inflates both, hiding the next one.</span></span><span class="cs-row-value">default</span></li>
-            <li class="cs-row"><span><span class="cs-row-name">mad</span> <span class="cs-row-note">Median plus median-absolute-deviation scaled by 1.4826, chosen with <strong>SENTINEL_DETECTOR=mad</strong>. A single extreme value cannot move it. If more than half the window is identical the MAD collapses to zero, so it falls back to the classic z-score rather than hiding every spike.</span></span><span class="cs-row-value">opt-in</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">mad</span> <span class="cs-row-note">Median plus median-absolute-deviation scaled by <span class="fig">1.4826</span>, chosen with <strong>SENTINEL_DETECTOR=mad</strong>. A single extreme value cannot move it. If more than half the window is identical the MAD collapses to zero, so it falls back to the classic z-score rather than hiding every spike.</span></span><span class="cs-row-value">opt-in</span></li>
           </ul>
         </div>
 
         <div class="cs-card">
           <div class="cs-card-head"><p class="cs-card-title">Three switches, all off by default</p><span class="cs-badge" data-lane="ops">env</span></div>
           <ul class="cs-rows">
-            <li class="cs-row"><span><span class="cs-row-name">Weekly seasonality</span> <span class="cs-row-note">Compares Mondays with Mondays. It engages only when every weekday bucket holds at least 3 records <em>and</em> is large enough for the requested threshold to be mathematically reachable — otherwise it keeps the flat baseline instead of silently muting the lane. Switch: <strong>SENTINEL_SEASONAL</strong>.</span></span><span class="cs-row-value">off</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Weekly seasonality</span> <span class="cs-row-note">Compares Mondays with Mondays. It engages only when every weekday bucket holds at least <span class="fig">3</span> records <em>and</em> is large enough for the requested threshold to be mathematically reachable — otherwise it keeps the flat baseline instead of silently muting the lane. Switch: <strong>SENTINEL_SEASONAL</strong>.</span></span><span class="cs-row-value">off</span></li>
             <li class="cs-row"><span><span class="cs-row-name">Leave-one-out</span> <span class="cs-row-note">Scores each record against a baseline that excludes that record, so an outlier cannot inflate the centre and spread it is then measured against. Switch: <strong>SENTINEL_LEAVE_ONE_OUT</strong>.</span></span><span class="cs-row-value">off</span></li>
-            <li class="cs-row"><span><span class="cs-row-name">Baseline window</span> <span class="cs-row-note">The 28-day default is tunable through <strong>SENTINEL_BASELINE_WINDOW_DAYS</strong>, with a floor at the 7-record minimum and a ceiling at a year — a "rolling" baseline longer than that is not rolling.</span></span><span class="cs-row-value">28 days</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Baseline window</span> <span class="cs-row-note">The <span class="fig">28</span>-day default is tunable through <strong>SENTINEL_BASELINE_WINDOW_DAYS</strong>, with a floor at the <span class="fig">7</span>-record minimum and a ceiling at a year — a "rolling" baseline longer than that is not rolling.</span></span><span class="cs-row-value"><span class="fig">28</span> days</span></li>
           </ul>
           <p class="meta">Every flagged anomaly records which detector and which parameters produced it, so "why was this flagged" has a durable answer in the event payload.</p>
         </div>
@@ -365,13 +372,13 @@
             <p class="cs-card-title">The fraud lane does none of that</p>
             <span class="cs-badge" data-lane="fraud">rule score</span>
           </div>
-          <p class="cs-card-sub">Four published rules, summed and clamped to 100, with every hit returned as rule / points / detail so any score can be recomputed by hand.</p>
+          <p class="cs-card-sub">Four published rules, summed and clamped to <span class="fig">100</span>, with every hit returned as rule / points / detail so any score can be recomputed by hand.</p>
           <ul class="cs-rows">
-            <li class="cs-row"><span><span class="cs-row-name">Amount vs the account's typical</span> <span class="cs-row-note">ratio ≥ 10, ≥ 3, ≥ 1.5</span></span><span class="cs-row-value">+40 / +25 / +10</span></li>
-            <li class="cs-row"><span><span class="cs-row-name">Velocity</span> <span class="cs-row-note">≥ 5 transactions in 10 minutes, ≥ 3</span></span><span class="cs-row-value">+25 / +15</span></li>
-            <li class="cs-row"><span><span class="cs-row-name">Geography</span> <span class="cs-row-note">transaction country differs from the home country</span></span><span class="cs-row-value">+20</span></li>
-            <li class="cs-row"><span><span class="cs-row-name">Account age</span> <span class="cs-row-note">younger than the configured cutoff (30 days)</span></span><span class="cs-row-value">+15</span></li>
-            <li class="cs-row"><span><span class="cs-row-name">Bands</span> <span class="cs-row-note">70 and above suggests a hold, 40 and above asks for review, below that is clear</span></span><span class="cs-row-value">mission config</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Amount vs the account's typical</span> <span class="cs-row-note">ratio ≥ <span class="fig">10</span>, ≥ <span class="fig">3</span>, ≥ <span class="fig">1.5</span></span></span><span class="cs-row-value"><span class="fig">+40</span> / <span class="fig">+25</span> / <span class="fig">+10</span></span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Velocity</span> <span class="cs-row-note">≥ <span class="fig">5</span> transactions in <span class="fig">10</span> minutes, ≥ <span class="fig">3</span></span></span><span class="cs-row-value"><span class="fig">+25</span> / <span class="fig">+15</span></span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Geography</span> <span class="cs-row-note">transaction country differs from the home country</span></span><span class="cs-row-value"><span class="fig">+20</span></span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Account age</span> <span class="cs-row-note">younger than the configured cutoff (<span class="fig">30</span> days)</span></span><span class="cs-row-value"><span class="fig">+15</span></span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Bands</span> <span class="cs-row-note"><span class="fig">70</span> and above suggests a hold, <span class="fig">40</span> and above asks for review, below that is clear</span></span><span class="cs-row-value">mission config</span></li>
           </ul>
           <p class="meta">It suggests a hold. It never blocks a payment, and no model is involved.</p>
         </div>
@@ -401,8 +408,8 @@
         <div class="cs-card">
           <div class="cs-card-head"><p class="cs-card-title">How the three differ</p></div>
           <p class="cs-card-sub">
-            The numbers are deliberately identical today — threshold 2.0, critical 3.0, z-score, 28-day window,
-            seasonality off, debate bar 0.6 in all three. What differs is the source, the intent the agents
+            The numbers are deliberately identical today — threshold <span class="fig">2.0</span>, critical <span class="fig">3.0</span>, z-score, <span class="fig">28</span>-day window,
+            seasonality off, debate bar <span class="fig">0.6</span> in all three. What differs is the source, the intent the agents
             inherit, and how much of the file is actually live.
           </p>
           <ul class="cs-rows">
@@ -470,15 +477,15 @@
             <li class="cs-row"><span><span class="cs-row-name">rejected</span> <span class="cs-row-note">A human said no — and had to say why. A rejection without a non-empty rationale is refused with 422, because a terminal "no" is the memory a future recommendation will read.</span></span><span class="cs-row-value">operator</span></li>
             <li class="cs-row"><span><span class="cs-row-name">reopened</span> <span class="cs-row-note">A rejected (or expired) card can return to <strong>proposed</strong> with a fresh TTL. The hand is allowed to reconsider; the trail keeps both moves.</span></span><span class="cs-row-value">operator</span></li>
             <li class="cs-row"><span><span class="cs-row-name">executed</span> <span class="cs-row-note">Only reachable from <strong>approved</strong>, enforced by a database constraint. Writes a SIMULATION marker; may really deliver the incident report to a configured webhook after the transaction commits.</span></span><span class="cs-row-value">operator</span></li>
-            <li class="cs-row"><span><span class="cs-row-name">expired</span> <span class="cs-row-note">A proposal older than 72 hours is rejected on the next read and attributed to <strong>system:timeout</strong>. Expiry happens on request, not on a clock — the deploy target sleeps between requests and no scheduler could run there.</span></span><span class="cs-row-value">system</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">expired</span> <span class="cs-row-note">A proposal older than <span class="fig">72</span> hours is rejected on the next read and attributed to <strong>system:timeout</strong>. Expiry happens on request, not on a clock — the deploy target sleeps between requests and no scheduler could run there.</span></span><span class="cs-row-value">system</span></li>
           </ul>
         </div>
 
         <div class="cs-card">
           <div class="cs-card-head"><p class="cs-card-title">The rules around the states</p></div>
           <ul class="cs-rows">
-            <li class="cs-row"><span><span class="cs-row-name">Idempotent decisions.</span> <span class="cs-row-note">An <strong>Idempotency-Key</strong> is claimed inside the same write transaction as the state change, so a double-clicked approve replays the first response instead of executing twice. Keys are scoped to action id plus verb, so one client key can never replay a foreign answer. Only successful decisions are stored for replay.</span></span><span class="cs-row-value">100%</span></li>
-            <li class="cs-row"><span><span class="cs-row-name">Alert suppression.</span> <span class="cs-row-note">While a card is still undecided, a later signal for the same service on the same lane folds into it as a counted repeat instead of opening a second card — 24 hours by default. The moment a human decides, the conversation is closed and the next signal earns its own card. Suppression never crosses lanes.</span></span><span class="cs-row-value">24 h</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Idempotent decisions.</span> <span class="cs-row-note">An <strong>Idempotency-Key</strong> is claimed inside the same write transaction as the state change, so a double-clicked approve replays the first response instead of executing twice. Keys are scoped to action id plus verb, so one client key can never replay a foreign answer. Only successful decisions are stored for replay.</span></span><span class="cs-row-value"><span class="fig">100</span>%</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Alert suppression.</span> <span class="cs-row-note">While a card is still undecided, a later signal for the same service on the same lane folds into it as a counted repeat instead of opening a second card — <span class="fig">24</span> hours by default. The moment a human decides, the conversation is closed and the next signal earns its own card. Suppression never crosses lanes.</span></span><span class="cs-row-value"><span class="fig">24</span> h</span></li>
             <li class="cs-row"><span><span class="cs-row-name">Server-derived identity.</span> <span class="cs-row-note">A signed-in operator's identity is taken from the session, not from the request body, so the audit trail is not free browser text. With the approver gate on, the three decision verbs demand an approver or admin session while reads stay public.</span></span><span class="cs-row-value">auth</span></li>
             <li class="cs-row"><span><span class="cs-row-name">A sealed trail.</span> <span class="cs-row-note">Every decision and lifecycle transition is sealed with the hash of the one before it. <strong>GET /audit/verify</strong> walks the chain and names the first broken link. It proves the history was not rewritten; it does not make the history survive a restart.</span></span><span class="cs-row-value">/audit/verify</span></li>
             <li class="cs-row"><span><span class="cs-row-name">Decision memory.</span> <span class="cs-row-note">Verdicts feed the Recommender's frozen memory prompt slot, and how many were considered is shown on the card. Nothing is learned silently.</span></span><span class="cs-row-value">/decisions</span></li>
@@ -499,12 +506,12 @@
             <li class="cs-row"><span><span class="cs-row-name">The cost, security and payment data</span> <span class="cs-row-note">Bundled fixtures by default. No real cloud bill has ever passed through this system.</span></span><span class="cs-row-value is-off">synthetic</span></li>
             <li class="cs-row"><span><span class="cs-row-name">The infrastructure change</span> <span class="cs-row-note">Executing an approved action writes a SIMULATION marker. Nothing in any cloud is touched, ever.</span></span><span class="cs-row-value is-off">simulated</span></li>
             <li class="cs-row"><span><span class="cs-row-name">The live tape</span> <span class="cs-row-note">A bounded random walk seeded from the fixture's real history. Labelled SIMULATED LIVE on the badge and pinned <strong>simulated: true</strong> in its payload — deliberately never the plain "live data" wording.</span></span><span class="cs-row-value is-off">simulated</span></li>
-            <li class="cs-row"><span><span class="cs-row-name">The model on the public demo</span> <span class="cs-row-note">The deterministic fake provider. Confidence reads a fixed 0.50 there — that is the fake speaking, not a measured belief, and because 0.50 sits under the debate bar the escalation ladder runs on essentially every card.</span></span><span class="cs-row-value is-off">fake provider</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">The model on the public demo</span> <span class="cs-row-note">The deterministic fake provider. Confidence reads a fixed <span class="fig">0.50</span> there — that is the fake speaking, not a measured belief, and because <span class="fig">0.50</span> sits under the debate bar the escalation ladder runs on essentially every card.</span></span><span class="cs-row-value is-off">fake provider</span></li>
             <li class="cs-row"><span><span class="cs-row-name">The detection arithmetic</span> <span class="cs-row-note">Real code over whatever data is served, with the detector and its parameters recorded on every flag.</span></span><span class="cs-row-value">real</span></li>
             <li class="cs-row"><span><span class="cs-row-name">The decision record</span> <span class="cs-row-note">Real: the verdict, the rationale, the operator identity behind it, and the append-only hash-sealed trail.</span></span><span class="cs-row-value">real</span></li>
             <li class="cs-row"><span><span class="cs-row-name">The outbound dispatch</span> <span class="cs-row-note">Real: with a webhook configured, the incident report genuinely leaves the building after the execute commits, and the delivery outcome lands in the audit detail. A failed delivery never fails the execute.</span></span><span class="cs-row-value">real</span></li>
             <li class="cs-row"><span><span class="cs-row-name">The live data paths</span> <span class="cs-row-note">Wired end to end and env-gated: external JSON feeds, an imported billing CSV, or the app's own request telemetry as the cost dataset. Real code — but never exercised against a production estate.</span></span><span class="cs-row-value">opt-in</span></li>
-            <li class="cs-row"><span><span class="cs-row-name">The savings figures</span> <span class="cs-row-note">Scenario estimates: the anomaly's daily excess projected over 30 days with a capture factor of 0.35 cautious, 0.70 bold. The assumption travels with the number on every surface that shows it. Computed, never generated — and not finance-grade.</span></span><span class="cs-row-value">estimate</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">The savings figures</span> <span class="cs-row-note">Scenario estimates: the anomaly's daily excess projected over <span class="fig">30</span> days with a capture factor of <span class="fig">0.35</span> cautious, <span class="fig">0.70</span> bold. The assumption travels with the number on every surface that shows it. Computed, never generated — and not finance-grade.</span></span><span class="cs-row-value">estimate</span></li>
           </ul>
           <p class="meta">If something in the demo looks like it does more than this admits, this is the one to believe. The long version is <strong>docs/LIMITATIONS.md</strong>.</p>
         </div>
@@ -520,9 +527,9 @@
         <div class="cs-card">
           <div class="cs-card-head"><p class="cs-card-title">Around the model</p></div>
           <ul class="cs-rows">
-            <li class="cs-row"><span><span class="cs-row-name">Call budget</span> <span class="cs-row-note">A per-pulse cap (14 by default, overridable per run). Exhaustion degrades every agent to a labelled fallback — never a failure.</span></span><span class="cs-row-value">14 / pulse</span></li>
-            <li class="cs-row"><span><span class="cs-row-name">Hard timeout</span> <span class="cs-row-note">Every transport call is bounded at 30 seconds, so a hung request fails into retry and fallback instead of wedging a worker.</span></span><span class="cs-row-value">30 s</span></li>
-            <li class="cs-row"><span><span class="cs-row-name">Model allowlist</span> <span class="cs-row-note">A model must be on a short allowlist before it may serve live traffic. Membership means one thing: the free tier grants it non-zero quota, measured against a real key. A typo 404s into a silent abstention; a plausible name buys a panel seat that can never answer.</span></span><span class="cs-row-value">4 models</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Call budget</span> <span class="cs-row-note">A per-pulse cap (<span class="fig">14</span> by default, overridable per run). Exhaustion degrades every agent to a labelled fallback — never a failure.</span></span><span class="cs-row-value"><span class="fig">14</span> / pulse</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Hard timeout</span> <span class="cs-row-note">Every transport call is bounded at <span class="fig">30</span> seconds, so a hung request fails into retry and fallback instead of wedging a worker.</span></span><span class="cs-row-value"><span class="fig">30</span> s</span></li>
+            <li class="cs-row"><span><span class="cs-row-name">Model allowlist</span> <span class="cs-row-note">A model must be on a short allowlist before it may serve live traffic. Membership means one thing: the free tier grants it non-zero quota, measured against a real key. A typo 404s into a silent abstention; a plausible name buys a panel seat that can never answer.</span></span><span class="cs-row-value"><span class="fig">4</span> models</span></li>
             <li class="cs-row"><span><span class="cs-row-name">Prompt spotlighting</span> <span class="cs-row-note">Untrusted payloads enter prompts between delimiters, as data and never as instructions.</span></span><span class="cs-row-value">always</span></li>
             <li class="cs-row"><span><span class="cs-row-name">Quota discipline</span> <span class="cs-row-note">Answers are cached by exact request; fallbacks are never cached; every call — live, fake, cached or fallback — lands in a usage ledger the analytics account for. The project runs zero-cost by construction.</span></span><span class="cs-row-value">/analytics/ai</span></li>
           </ul>
@@ -546,7 +553,7 @@
             Real cloud provider adapters, PostgreSQL and migrations, background schedulers, bundled chat-platform
             integrations, and ML-based fraud models. Each is a deliberate boundary of this build rather than an
             oversight; none is required to demonstrate the thesis. There has been no load test and no external
-            penetration test, and the agent-chain evaluation is a 200-case golden set of the team's own making —
+            penetration test, and the agent-chain evaluation is a <span class="fig">200</span>-case golden set of the team's own making —
             honest about its false positives, and not an independent benchmark.
           </p>
         </div>
@@ -558,53 +565,53 @@
           <span class="numeral">IX</span>
           <h2 class="section-word" id="api-heading">the api</h2>
         </header>
-        <p class="meta">sixty documented endpoints, grouped the way the OpenAPI schema groups them — the browsable version is at <a class="row-action" href="/docs">/docs</a></p>
+        <p class="meta"><span class="fig">61</span> documented endpoints, grouped the way the OpenAPI schema groups them — the browsable version is at <a class="row-action" href="/docs">/docs</a></p>
 
         <div class="cs-card">
           <ul class="cs-rows">
             <li class="cs-row">
               <span><span class="cs-row-name">Detection &amp; costs</span> <span class="cs-row-note">GET /anomalies · /costs/summary · /costs/summary/export (CSV, FOCUS 1.4 shape) · /costs/daily · /health · /ready · /metrics</span></span>
-              <span class="cs-row-value">7</span>
+              <span class="cs-row-value"><span class="fig">7</span></span>
             </li>
             <li class="cs-row">
-              <span><span class="cs-row-name">Agents</span> <span class="cs-row-note">POST /anomalies/{id}/analyze · /anomalies/{id}/recommend · /pulse — GET /pulse/last · /agents (the roster) · /agents/feed (the live cursor stream)</span></span>
-              <span class="cs-row-value">6</span>
+              <span><span class="cs-row-name">Agents</span> <span class="cs-row-note">POST /anomalies/{id}/analyze · /anomalies/{id}/recommend · /pulse — GET /pulse/last · /agents (the roster) · /agents/feed (the live cursor stream) — POST /chat (the orchestration console)</span></span>
+              <span class="cs-row-value"><span class="fig">7</span></span>
             </li>
             <li class="cs-row">
               <span><span class="cs-row-name">Actions (HITL)</span> <span class="cs-row-note">GET /actions · /actions/{id}/report — POST /actions/{id}/approve · reject · reopen · execute</span></span>
-              <span class="cs-row-value">6</span>
+              <span class="cs-row-value"><span class="fig">6</span></span>
             </li>
             <li class="cs-row">
               <span><span class="cs-row-name">Analytics</span> <span class="cs-row-note">GET /analytics/decisions · costs/trend · costs/forecast · whatif · roi · ai · calibration · headline · handover · quality · receipts — GET /metrics/detection · /metrics/backtest</span></span>
-              <span class="cs-row-value">13</span>
+              <span class="cs-row-value"><span class="fig">13</span></span>
             </li>
             <li class="cs-row">
               <span><span class="cs-row-name">Memory</span> <span class="cs-row-note">GET /decisions (search) · /decisions/similar · /decisions/export (CSV)</span></span>
-              <span class="cs-row-value">3</span>
+              <span class="cs-row-value"><span class="fig">3</span></span>
             </li>
             <li class="cs-row">
-              <span><span class="cs-row-name">Identity</span> <span class="cs-row-note">POST /auth/register · /auth/login · /auth/logout — GET /auth/me. Four roles: viewer, analyst, approver, admin. Salted PBKDF2, 12-hour sessions.</span></span>
-              <span class="cs-row-value">4</span>
+              <span><span class="cs-row-name">Identity</span> <span class="cs-row-note">POST /auth/register · /auth/login · /auth/logout — GET /auth/me. Four roles: viewer, analyst, approver, admin. Salted PBKDF2, <span class="fig">12</span>-hour sessions.</span></span>
+              <span class="cs-row-value"><span class="fig">4</span></span>
             </li>
             <li class="cs-row">
               <span><span class="cs-row-name">Routines</span> <span class="cs-row-note">GET /routines · /routines/suggestions · /routines/{id} — POST /routines · /routines/{id}/run — DELETE /routines/{id}. Saved, read-only analysis playbooks.</span></span>
-              <span class="cs-row-value">6</span>
+              <span class="cs-row-value"><span class="fig">6</span></span>
             </li>
             <li class="cs-row">
               <span><span class="cs-row-name">Runbooks</span> <span class="cs-row-note">GET /runbooks · /runbooks/match (keyword retrieval, RAG-lite, offline) · /runbooks/effectiveness</span></span>
-              <span class="cs-row-value">3</span>
+              <span class="cs-row-value"><span class="fig">3</span></span>
             </li>
             <li class="cs-row">
               <span><span class="cs-row-name">Brain</span> <span class="cs-row-note">GET /insights — POST /insights/self-review. The self-review proposes changes to the system itself and applies none of them.</span></span>
-              <span class="cs-row-value">2</span>
+              <span class="cs-row-value"><span class="fig">2</span></span>
             </li>
             <li class="cs-row">
               <span><span class="cs-row-name">Ops</span> <span class="cs-row-note">GET /ops/preflight (the demo runbook as code) · /ops/health/watch (is the sentinel still watching) — POST /ops/demo-reset (env-gated)</span></span>
-              <span class="cs-row-value">3</span>
+              <span class="cs-row-value"><span class="fig">3</span></span>
             </li>
             <li class="cs-row">
               <span><span class="cs-row-name">Single-endpoint lanes</span> <span class="cs-row-note">GET /security/signals · /fraud/signals (band and min-score filters) · /market/opportunities · /reflex/suggestions · /audit/verify · /telemetry/usage · /stream/metrics (env-gated simulated ticker)</span></span>
-              <span class="cs-row-value">7</span>
+              <span class="cs-row-value"><span class="fig">7</span></span>
             </li>
           </ul>
           <p class="meta">
@@ -628,7 +635,7 @@
             <li class="cs-row"><span><span class="cs-row-name"><code>make setup</code></span> <span class="cs-row-note">Creates the virtualenv and installs the runtime and dev requirements. Once per clone.</span></span><span class="cs-row-value">first</span></li>
             <li class="cs-row"><span><span class="cs-row-name"><code>make demo</code></span> <span class="cs-row-note">The demo stage: fake provider (no quota, no key), fixture dates rebased to this week, demo reset armed, simulated tape on. Serves on port 8000.</span></span><span class="cs-row-value">then</span></li>
             <li class="cs-row"><span><span class="cs-row-name"><code>make smoke</code></span> <span class="cs-row-note">From another shell: a PASS/FAIL sweep over the live chain, asserting on the answers and not just the status codes.</span></span><span class="cs-row-value">verify</span></li>
-            <li class="cs-row"><span><span class="cs-row-name"><code>make test</code></span> <span class="cs-row-note">ruff, then the full suite on the fake provider — 1190 cases, deterministic and quota-free.</span></span><span class="cs-row-value">gate</span></li>
+            <li class="cs-row"><span><span class="cs-row-name"><code>make test</code></span> <span class="cs-row-note">ruff, then the full suite on the fake provider — <span class="fig">1270</span> cases, deterministic and quota-free.</span></span><span class="cs-row-value">gate</span></li>
             <li class="cs-row"><span><span class="cs-row-name"><code>make run</code></span> <span class="cs-row-note">Plain local run without the demo staging. Or by hand: <code>.venv/bin/uvicorn main:app --reload</code>.</span></span><span class="cs-row-value">plain</span></li>
             <li class="cs-row"><span><span class="cs-row-name"><code>make drill</code></span> <span class="cs-row-note">The failure drill: proves the zero-budget fallback path and the rate limit.</span></span><span class="cs-row-value">optional</span></li>
           </ul>

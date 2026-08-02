@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CloudSentinel — orchestration console</title>
   <link rel="stylesheet" href="/static/style.css?v=s9.0" />
-  <link rel="stylesheet" href="/static/chat.css?v=1" />
+  <link rel="stylesheet" href="/static/chat.css?v=2" />
   <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
   <meta name="description" content="CloudSentinel orchestration console — put one question to one agent about this estate and get an answer with its evidence, its table and an honest badge saying where it came from." />
 </head>
@@ -26,10 +26,14 @@
   </nav>
 
   <div class="page chat-page">
-    <header class="chat-head">
-      <p class="microcap chat-kicker">AI orchestration console</p>
-      <h1 class="chat-title">Ask one agent about this estate<span class="period">.</span></h1>
-      <p class="chat-lede">
+    <header class="masthead chat-masthead">
+      <p class="corner left">the console</p>
+      <p class="corner right">Group 60 — YZTA MMXXVI</p>
+      <p class="kicker">the machine <span class="fraktur k-fr">watches</span> — the human <em class="k-em">decides</em></p>
+      <h1 class="pixel-black">cloudsentinel<span class="period">.</span></h1>
+      <p class="masthead-tag"><span class="fraktur">artificial vigilance</span></p>
+      <p class="microcap page-kicker">the orchestration console — <span class="fig">4</span> seats, <span class="fig">1</span> answer at a time</p>
+      <p class="standfirst">
         Four agents sit on this panel and each one may do exactly one job. Pick a seat, ask a
         question, and read the answer next to the evidence it leaned on. Every reply carries a badge
         naming where it came from — a demo model, a live model, or the deterministic fallback —
@@ -44,7 +48,7 @@
         <div class="cs-sticky">
           <section class="cs-card picker-card" aria-labelledby="picker-head">
             <div class="cs-card-head">
-              <h2 class="cs-card-title" id="picker-head">The seat</h2>
+              <h2 class="cs-card-title card-head-title" id="picker-head"><span class="numeral" aria-hidden="true">0</span><span class="section-word">the seat</span></h2>
               <span class="cs-badge" data-lane="proof">one at a time</span>
             </div>
             <p class="cs-card-sub picker-sub">Whoever you pick answers alone — no silent hand-off to another agent.</p>
@@ -87,7 +91,7 @@
       <main class="chat-main" id="main-content">
         <section class="cs-card transcript-card" aria-labelledby="transcript-head">
           <div class="cs-card-head">
-            <h2 class="cs-card-title" id="transcript-head">Transcript</h2>
+            <h2 class="cs-card-title card-head-title" id="transcript-head"><span class="numeral" aria-hidden="true">I</span><span class="section-word">the transcript</span></h2>
             <button class="cs-chip transcript-clear" type="button" id="transcript-clear">clear</button>
           </div>
           <div class="transcript" id="transcript" role="log" aria-live="polite" aria-relevant="additions text" aria-label="Console transcript">
@@ -100,7 +104,7 @@
 
         <section class="cs-card composer" aria-labelledby="ask-head">
           <div class="cs-card-head">
-            <h2 class="cs-card-title" id="ask-head">Ask</h2>
+            <h2 class="cs-card-title card-head-title" id="ask-head"><span class="numeral" aria-hidden="true">II</span><span class="section-word">the question</span></h2>
             <span class="composer-seat microcap" id="composer-seat">asking the analyst</span>
           </div>
 
@@ -127,9 +131,9 @@
         <div class="cs-sticky">
           <section class="cs-card" aria-labelledby="source-head">
             <div class="cs-card-head">
-              <h2 class="cs-card-title" id="source-head">Where an answer came from</h2>
+              <h2 class="cs-card-title card-head-title" id="source-head"><span class="numeral" aria-hidden="true">III</span><span class="section-word">provenance</span></h2>
             </div>
-            <p class="cs-card-sub">Every reply is stamped. The badge is the product's whole thesis: it never pretends.</p>
+            <p class="cs-card-sub">Where an answer came from. Every reply is stamped, and the badge is the product's whole thesis: it never pretends.</p>
             <ul class="cs-rows source-legend">
               <li class="cs-row">
                 <span><span class="cs-row-name">live</span><span class="cs-row-note">A model was called and answered.</span></span>
@@ -148,7 +152,7 @@
 
           <section class="cs-card" aria-labelledby="backend-head">
             <div class="cs-card-head">
-              <h2 class="cs-card-title" id="backend-head">Backend</h2>
+              <h2 class="cs-card-title card-head-title" id="backend-head"><span class="numeral" aria-hidden="true">IV</span><span class="section-word">the backend</span></h2>
             </div>
             <ul class="cs-rows">
               <li class="cs-row">
@@ -161,7 +165,7 @@
 
           <section class="cs-card" aria-labelledby="elsewhere-head">
             <div class="cs-card-head">
-              <h2 class="cs-card-title" id="elsewhere-head">Elsewhere</h2>
+              <h2 class="cs-card-title card-head-title" id="elsewhere-head"><span class="numeral" aria-hidden="true">V</span><span class="section-word">elsewhere</span></h2>
             </div>
             <ul class="cs-rows">
               <li class="cs-row">
