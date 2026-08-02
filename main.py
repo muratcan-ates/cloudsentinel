@@ -358,7 +358,26 @@ async def add_security_headers(request: Request, call_next):
     response.headers.setdefault("Content-Security-Policy", CONTENT_SECURITY_POLICY)
     for header, value in SECURITY_HEADERS.items():
         response.headers.setdefault(header, value)
+    _pin_html_freshness(response)
     return response
+
+
+def _pin_html_freshness(response: Response) -> None:
+    """Make a returning visitor see this build, not the one they saw last week.
+
+    The stylesheets and scripts carry a ``?v=`` stamp, so a new build gives
+    them new URLs and they can be cached hard. The pages that reference them
+    cannot: their URL never changes. Without a directive a browser is free to
+    invent its own freshness window from Last-Modified, and Safari does — a
+    visitor who opened the dashboard yesterday keeps yesterday's markup and
+    yesterday's asset stamps, so a deploy looks like it never happened.
+
+    ``no-cache`` does not forbid caching; it requires revalidation. The
+    ETag still turns the second visit into a 304, so this costs a round trip
+    and buys the guarantee that the page on screen is the page we shipped.
+    """
+    if response.headers.get("content-type", "").startswith("text/html"):
+        response.headers["Cache-Control"] = "no-cache"
 
 
 @app.middleware("http")

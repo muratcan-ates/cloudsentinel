@@ -310,6 +310,37 @@ def test_the_static_mount_answers_under_the_same_rules(client):
     _assert_house_headers(response)
 
 
+@pytest.mark.parametrize(
+    "path", ["/", "/watch", "/broadsheet", "/static/chat.html", "/static/guide.html"]
+)
+def test_every_page_asks_the_browser_to_revalidate(client, path):
+    """A deploy must be visible to someone who has been here before.
+
+    Every page URL is stable across builds, so a browser left to invent its
+    own freshness window will keep serving the markup it saw last time —
+    along with that build's ``?v=`` asset stamps, which makes a shipped
+    design change look like it never shipped. This was observed: a returning
+    Safari showed a nav and a palette list from an earlier build while the
+    server was serving the current one.
+    """
+    response = client.get(path)
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert response.headers.get("cache-control") == "no-cache"
+
+
+def test_the_asset_stamp_is_what_lets_assets_be_cached_hard(client):
+    """The other half of the bargain: pages revalidate so assets need not.
+
+    index.html references its stylesheet and script with a version stamp, so
+    a new build gives them new URLs. Drop the stamp and `no-cache` on the
+    page stops being enough — the page would be fresh and its assets stale.
+    """
+    body = client.get("/").text
+    for asset in ("/static/style.css", "/static/app.js"):
+        assert f"{asset}?v=" in body, f"{asset} is referenced without a version stamp"
+
+
 def test_an_unhandled_error_answers_the_flat_envelope(client, monkeypatch):
     """The last resort: the exception's own words never reach the caller.
 
