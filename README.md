@@ -51,9 +51,9 @@ explained, argued, approved by a named human, and provable afterwards.
 
 <div align="center">
 
-<img src="docs/img/architecture_card.png" alt="CloudSentinel agentic AI architecture, drawn as an engineering blueprint: cloud signals feed detection; the Gemini-backed agent orchestration runs analyst, recommender and a skeptical review; a human approval gate precedes simulated execution; audit and decision memory close the loop back into detection. Inset details show the loop topology, the approval gate and a typical node in cross-section." width="100%" />
+<img src="docs/img/architecture_card.png" alt="CloudSentinel accountable agentic operations, drawn as an engineering blueprint. Three source lanes — cost/billing, security events and fraud events — enter a deterministic core of detector registry (z-score, MAD, residual), mission DSL, reflex engine and rule score. The agent layer runs analyst, recommender, decision memory and a skeptic or three-seat review panel on contested critical signals, all publishing to an agent bus. A human approval gate governs the lifecycle from proposed through approved or rejected to executed, with execution simulated. The read side carries the unified watch, analytics, receipts and the operator desk, and every verdict is sealed into a hash-chained audit ledger verified by /audit/verify. Inset studies show the three-lane routing, the debate ladder and the ledger seal." width="100%" />
 
-<sub>The eight stages, and the one that is a gate rather than a step: **⑥ human approval**. Nothing downstream of it runs without a hand.</sub>
+<sub>Twenty numbered stages, and one of them is a gate rather than a step: **⑫ human approval**. Nothing to the right of it runs without a hand. The three studies along the bottom are the parts most often taken on trust — how three lanes share one detection line, when a single skeptic becomes a three-seat panel, and what the ledger actually seals.</sub>
 
 </div>
 
@@ -1123,6 +1123,6 @@ CloudSentinel closes the gap between *"your cloud bill spiked"* and *"someone ac
 
 ---
 
-<img src="docs/img/banner_hands.png" alt="every action awaits a human hand" width="100%" />
+<img src="docs/img/banner_hands.png" alt="Michelangelo's two hands reaching toward each other — the human hand engraved, the machine's hand dissolving into pixels — with a golden-ratio construction at the gap between the fingertips and a hash-chain of blocks running beneath them" width="100%" />
 
 <div align="center"><sub>Built by Team CloudSentinel — YZTA Bootcamp 2026 · AI Track · Group 60</sub></div>
