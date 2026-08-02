@@ -30,7 +30,7 @@ gets to join them.
 ## Before you start
 
 ```bash
-make test                       # ruff + 1190 tests green before anything else
+make test                       # ruff + 1317 tests green before anything else
 export DEMO=/tmp/cloudsentinel-demo
 export SENTINEL_FAKE_LLM=1 SENTINEL_DEMO_RESET=1
 export SENTINEL_COSTS_FILE=$DEMO/incident_costs.json

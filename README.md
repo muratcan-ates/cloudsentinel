@@ -257,7 +257,7 @@ cloudsentinel/
 ├── static/               dashboard — tokenized design system, 5 palettes, vendored Swagger UI
 ├── scripts/              smoke sweep, failure drill, benchmark, release verification,
 │                         billing import, seasonal fixture generator, Gemini spike
-├── tests/                1294 pytest cases incl. performance budgets and the
+├── tests/                1317 pytest cases incl. performance budgets and the
 │                         route-discovering contract suites
 ├── docs/                 architecture, ADRs, limitations, SLO, data dictionary
 ├── Makefile              setup / run / test / demo / smoke / drill
@@ -384,7 +384,7 @@ One deploy target, two honest postures — pick one per link, don't mix:
 | **Python 3.12** | Core language (pinned in venv, CI and Docker) |
 | **FastAPI + Uvicorn** | REST API and ASGI server |
 | **Pydantic v2** | Typed request/response models and validation |
-| **pytest + httpx** | Automated test suite (1294 tests, incl. performance budgets and the endpoint contract suites below) — **96% line coverage** over `app/` + `main.py` (`make coverage`) |
+| **pytest + httpx** | Automated test suite (1317 tests, incl. performance budgets and the endpoint contract suites below) — **96% line coverage** over `app/` + `main.py` (`make coverage`) |
 | **Hypothesis** | Property-based tests: generated NaN / duplicate / extreme / reversed-window inputs against the detector |
 | **bandit + pip-audit** | The security product scans its own source and its own dependencies (`make audit`); both gate CI |
 | **SQLite** (stdlib `sqlite3`) | WAL-mode persistence core: action lifecycle, decision memory, LLM cache, idempotency |
@@ -682,7 +682,21 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 *The final sprint runs July 20 – August 2 and closes with deployment, the live demo and the 3-minute product video.*
 
-- **Head start (all of this shipped inside Sprint 2)**: Sprint 2's second week pulled the Sprint 3 technical core forward — detection quality (rolling baseline / MAD / weekly seasonality), the mission DSL + reflex engine, the **security lane through the identical detection line**, the fraud rule-score lane with cross-lane HITL cards, the guardrail pack, operations-intelligence analytics, the chronicler agent, the agent bus with its live feed panel, self-hosted Swagger and the demo-operations knobs (date rebase, demo reset, read-only showcase) — and, on July 19, a decision-brain groundwork layer (local identity + roles via `/auth`, history-synthesis insights, a HITL-safe self-review loop, saved routines, runbook retrieval, a detector backtest and an in-dashboard **brain room**). All of it landed inside Sprint 2's dates and is counted in the Sprint 2 bonus above; **Sprint 3 has not started yet**, so nothing here is claimed as Sprint 3 delivery — the final sprint opens focused only on the items below.
+- **Sprint Notes**:
+  - Sprint 3 opened with its technical core already pulled forward into Sprint 2's second week (see the head start below), so the final sprint was deliberately planned around **proving the product rather than growing it**: get it deployed, get the model measured, get the evidence and the video made.
+  - **Deployment closed the sprint's biggest risk.** The public instance runs from `render.yaml` with `SENTINEL_READONLY=1`, so a stranger can read every room and change nothing; the approve/reject buttons answer 403 by design, and the dashboard says why rather than looking broken. The decision flow is shown signed-in and in the video.
+  - **The live Gemini spike paid for itself twice.** Running `scripts/spike_gemini.py` against a billing-disabled key surfaced two contract breaks that would have failed on stage: the pinned 2.5-family model is closed to new keys (404), and the pro models carry zero free-tier quota. The default moved to a `-latest` alias (immune to model retirement) and the review panel now seats three genuinely different free models. The demo still runs on the deterministic provider by choice: it must never block on a quota.
+  - **Live data is real but honestly labelled.** Three source lanes ship — the app's own telemetry, an imported billing export (`scripts/import_costs.py`, credential-free), and external JSON feeds — plus a simulated stream for the demo. `/health` reports what each lane is *actually serving*, not what it was configured with, and the dashboard badge says `SIMULATED LIVE` rather than `LIVE DATA` when that is the truth.
+  - **The site became one product, not four documents.** The console, handbook and API browser are separate HTML files; they had drifted onto their own palette, their own top bar and an older stylesheet stamp. A shared appearance module now applies the visitor's palette and accessibility settings before the first paint on every page, and one nav is pinned by test.
+  - Everything shipped this sprint went in suite-green with ruff clean, and CI ran ruff plus the full suite on every push and pull request.
+
+- **Expected point completion within the sprint**: 13 points
+
+- **Point Completion Logic**: Sprint 3 carries the last 13 of the 36 total backlog points: deployment and uptime (3), live Gemini measurement (2), live-data trial (3), market watch (2), UX pass and evidence (3). The technical core budgeted here was delivered early inside Sprint 2 and is counted there, not double-counted in this sprint.
+
+- **Daily Scrum**: daily communication over WhatsApp with team meetings and huddles on Slack, as in the previous sprints; the closing meeting on August 2 covered the README, the Miro board and the demo together. Sprint 3 evidence is collected in [`ProjectManagement/Sprint3Documents/`](ProjectManagement/Sprint3Documents/).
+
+- **Head start (all of this shipped inside Sprint 2)**: Sprint 2's second week pulled the Sprint 3 technical core forward — detection quality (rolling baseline / MAD / weekly seasonality), the mission DSL + reflex engine, the **security lane through the identical detection line**, the fraud rule-score lane with cross-lane HITL cards, the guardrail pack, operations-intelligence analytics, the chronicler agent, the agent bus with its live feed panel, self-hosted Swagger and the demo-operations knobs (date rebase, demo reset, read-only showcase) — and, on July 19, a decision-brain groundwork layer (local identity + roles via `/auth`, history-synthesis insights, a HITL-safe self-review loop, saved routines, runbook retrieval, a detector backtest and an in-dashboard **brain room**). All of it landed inside Sprint 2's dates and is counted in the Sprint 2 bonus above, so **none of it is claimed as Sprint 3 delivery** — the final sprint's own work is the list below.
 
 - **Closeout**: the last two days before the gate — the ordered task list with owners, the honest answer on live data, and the submission checklist — is **[docs/CLOSEOUT_48H.md](docs/CLOSEOUT_48H.md)**.
 
@@ -690,11 +704,20 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Remaining scope** (headline items — the backlog holds the detail):
   - **Live Gemini spike** — provision the billing-disabled key and measure real RPM/RPD with `scripts/spike_gemini.py`; the whole chain already runs on the deterministic provider, so this lights up narratives, not correctness.
-  - **Continuous integration** — ✅ landed at Sprint 2 close: [`ci.yml`](.github/workflows/ci.yml) runs ruff + the full suite on every push and PR (580 cases then, 1190 now), plus an `audit` job running bandit over our own source and pip-audit over the dependencies that ship; Sprint 3 grows it with browser E2E and a post-deploy smoke.
+  - **Continuous integration** — ✅ landed at Sprint 2 close: [`ci.yml`](.github/workflows/ci.yml) runs ruff + the full suite on every push and PR (580 cases then, 1317 now), plus an `audit` job running bandit over our own source and pip-audit over the dependencies that ship; Sprint 3 grows it with browser E2E and a post-deploy smoke.
   - **Deployment** — ✅ live on Render from `render.yaml` (non-root, healthchecked image) with `SENTINEL_READONLY=1` on the public link and the dashboard's LIVE banner on via `SENTINEL_ENV=render`; the deployed surface matches this checkout and the standing watch is beating. UptimeRobot on `/health` is still to be wired.
   - **Live-data trial & market watch** — a credential-free real billing export through the source-agnostic loader, and the trend/news-driven "possible suggestions" table.
   - **User's-eye UX pass** — friction measured from the operator's seat; the palette switcher shipped with horizon as the default and a fifth, `vivid`, for the control surface; EN/TR overview kept in sync ([Türkçe özet](docs/README.tr.md)).
   - **Evidence & submission** — sprint documents, the 3-minute product video, and the August 2 form.
+
+- **Sprint Review**: _written at the closing meeting on August 2 — the demo walked over the deployed link, and the outcome of the five committed stories is recorded here._
+
+- **Sprint Review Participants**: `Tuana Aydın, Muratcan Ateş, Çağla Yurtseven, Mert Kurt`
+
+- **Sprint Retrospective**: _written at the same meeting._
+  - **What went well**: _to be agreed at the meeting._
+  - **What to improve**: _to be agreed at the meeting._
+  - **Action items**: _to be agreed at the meeting._
 
 ---
 

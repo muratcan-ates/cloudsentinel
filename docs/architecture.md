@@ -647,7 +647,7 @@ a reviewer can curl.
   `SENTINEL_ADMIN_USER` / `SENTINEL_ADMIN_PASSWORD` pair bootstraps one
   deciding account at startup on the ephemeral disk — idempotent, never
   overwriting an existing user or logging the password.
-- `make setup / run / test / demo`, `scripts/smoke.sh` (26-step live sweep),
+- `make setup / run / test / demo`, `scripts/smoke.sh` (27-step live sweep),
   `scripts/verify_release.sh` (release gate) and `scripts/failure_drill.sh`
   (zero-budget fallback + rate-limit proof); `GET /ops/preflight` is the demo
   checklist as one call.

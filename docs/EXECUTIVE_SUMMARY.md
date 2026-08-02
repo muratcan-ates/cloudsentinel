@@ -26,8 +26,8 @@ without a human.** The machine watches; the human decides.
 
 ## What the code shows
 
-- **1294 tests pass**, 96% coverage over 5873 statements, ruff clean
-  (`SENTINEL_FAKE_LLM=1 pytest -q`). **69 endpoints** across 67 paths are
+- **1317 tests pass**, 96% coverage over 5654 statements, ruff clean
+  (`SENTINEL_FAKE_LLM=1 pytest -q`). **61 operations** across 59 paths are
   enrolled automatically by `tests/test_endpoint_matrix.py` — a route added
   tomorrow is tested the moment it is mounted.
 - A **288-case golden set** (`scripts/eval_harness.py --cases 288`) swept through

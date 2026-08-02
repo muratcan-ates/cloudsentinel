@@ -420,7 +420,7 @@ curl -X POST "http://127.0.0.1:8000/pulse"
 
 Docker ile: `docker build -t cloudsentinel . && docker run -p 8000:8000 cloudsentinel`
 
-**Ölçülen durum:** API yüzeyi 59 endpoint, test paketi 1294 test topluyor,
+**Ölçülen durum:** API yüzeyi 59 endpoint, test paketi 1317 test topluyor,
 ruff temiz. Bu iki sayı tahmin değil: `bash scripts/verify_release.sh` önce
 koddan ölçüyor (`pytest --collect-only` ve uygulamanın kendi OpenAPI
 çıktısı), sonra bu sayfa dâhil her dokümanda yazan iddiayla karşılaştırıp

@@ -44,7 +44,7 @@ dashboard under a strict CSP (`script-src 'self'`, Swagger self-hosted) ·
 pip + venv · Render (free tier) as the deploy target, Dockerfile as the
 fallback.
 
-Quality bar: **1294 pytest cases** (fake provider, ~35 s), ruff clean, every
+Quality bar: **1317 pytest cases** (fake provider, ~35 s), ruff clean, every
 commit suite-green, CI on every push and PR.
 
 ## How to run it
@@ -52,7 +52,7 @@ commit suite-green, CI on every push and PR.
 ```bash
 make setup && make demo     # fake provider, fresh dates, demo reset armed
 # then in another shell:
-make smoke                  # 26-step PASS/FAIL sweep over the live chain
+make smoke                  # 27-step PASS/FAIL sweep over the live chain
 ```
 
 ## Boundaries that are decisions, not gaps
