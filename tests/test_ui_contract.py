@@ -377,7 +377,10 @@ def obviousness_for(dom: Dom, node: Node) -> str:
 # ======================================================================
 
 GET_BY_ID = re.compile(r"""getElementById\(\s*['"`]([^'"`]+)['"`]""")
-HASH_SELECTOR = re.compile(r"""['"`]#([A-Za-z][\w-]*)['"`]""")
+# An attribute *prefix* selector — a[href^="#sec-"] — is not an id lookup:
+# the text after the hash is the start of many ids, not the name of one. The
+# lookbehind skips ^= *= $= ~= |= so those do not read as dead handlers.
+HASH_SELECTOR = re.compile(r"""(?<![\^*$~|]=)['"`]#([A-Za-z][\w-]*)['"`]""")
 # app.js writes markup of its own; those ids are created, not expected.
 JS_TEMPLATE_ID = re.compile(r"""\bid=["'`]?([A-Za-z][\w-]*)""")
 JS_ASSIGNED_ID = re.compile(r"""\.id\s*=\s*["'`]([A-Za-z][\w-]*)["'`]""")

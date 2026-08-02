@@ -110,6 +110,35 @@ def test_the_appearance_module_owns_the_palette_list():
     assert 'const THEMES = ["horizon"' not in app_js
 
 
+def test_jumps_into_another_room_go_through_the_reveal():
+    """A link to a section the current room hides must still work.
+
+    The rooms display:none what they do not own, so `scrollIntoView` on a
+    section in another room scrolled to nothing and the click looked dead —
+    "investigate →", "decide in the inbox ↓" and two of the four summary
+    tiles all failed this way, while the same clicks worked in the broadsheet
+    where every section is on screen.
+    """
+    app_js = client.get("/static/app.js").text
+    assert "function revealSection" in app_js
+    assert "ROOM_OF_SECTION" in app_js
+    # no jump may scroll straight at a section again
+    assert 'getElementById("sec-investigation").scrollIntoView()' not in app_js
+    assert re.search(r'closest\(\s*[\'"]a\[href\^=["\']#sec-', app_js), (
+        "in-page section links must be intercepted"
+    )
+
+
+def test_every_section_link_resolves_to_a_room():
+    """`revealSection` can only walk into a room a section actually belongs
+    to, so every `#sec-` target on the page must be one the room map knows."""
+    markup = page("/")
+    app_js = client.get("/static/app.js").text
+    mapped = set(re.findall(r'"(sec-[a-z]+)"', app_js))
+    for target in set(re.findall(r'href="#(sec-[a-z-]+)"', markup)):
+        assert target in mapped, f"{target} is linked but belongs to no room"
+
+
 def test_the_appearance_module_survives_blocked_storage():
     """Private windows throw on localStorage; the page must still paint."""
     module = client.get("/static/appearance.js").text

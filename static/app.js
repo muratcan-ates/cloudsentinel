@@ -3127,6 +3127,38 @@ function syncUrlParams() {
   history.replaceState({}, "", `${location.pathname}?${params}`);
 }
 
+/* Jumping to a section that belongs to another room.
+
+   The rooms hide what they do not own, so a link pointing at a section in a
+   different room was pointing at display:none: scrollIntoView had nothing to
+   scroll to and the click did nothing at all. "investigate →" in the watch
+   room, "decide in the inbox ↓" on a proposal card and two of the four
+   summary tiles all failed this way — the same click worked in the
+   broadsheet, where every section is on screen, which is what made it look
+   intermittent.
+
+   Sections already declare their room in VIEW_SECTIONS, so invert that and
+   walk into the room the way the navbar does; only scroll when the target is
+   genuinely on screen. */
+const ROOM_OF_SECTION = Object.fromEntries(
+  Object.entries(VIEW_SECTIONS).flatMap(([room, ids]) => ids.map((id) => [id, room]))
+);
+
+function revealSection(id) {
+  const section = document.getElementById(id);
+  if (!section) return;
+  if (!section.classList.contains("view-hidden")) {
+    section.scrollIntoView();
+    return;
+  }
+  const room = ROOM_OF_SECTION[id];
+  if (!room) return;
+  const target = `/${room}`;
+  if (location.pathname !== target) history.pushState({}, "", target);
+  applyView(room);
+  window.scrollTo({ top: 0 });
+}
+
 /* ======================================================================
    16 · EVENTS & BOOT
    Every top-level imperative statement, in its original relative
@@ -3232,11 +3264,21 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  /* Any in-page jump to a section: the summary tiles and the proposal
+     card's "decide in the inbox ↓" both point at sections another room
+     owns, so they go through the same reveal as the buttons above. */
+  const sectionJump = event.target.closest('a[href^="#sec-"]');
+  if (sectionJump) {
+    event.preventDefault();
+    revealSection(sectionJump.getAttribute("href").slice(1));
+    return;
+  }
+
   const investigate = event.target.closest("[data-investigate]");
   if (investigate) {
     state.selectedIndex = Number(investigate.dataset.investigate);
     renderInvestigation();
-    document.getElementById("sec-investigation").scrollIntoView();
+    revealSection("sec-investigation");
     return;
   }
 
@@ -3257,7 +3299,7 @@ document.addEventListener("click", (event) => {
       state.selectedIndex = index;
       renderInvestigation();
     }
-    document.getElementById("sec-investigation").scrollIntoView();
+    revealSection("sec-investigation");
     return;
   }
 
