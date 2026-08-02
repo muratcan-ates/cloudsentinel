@@ -17,8 +17,14 @@ setup:
 	$(PIP) install --upgrade pip
 	$(PIP) install -r requirements.txt -r requirements-dev.txt
 
+# The deployed showcase runs with the simulated stream on, so the plain
+# local run does too — otherwise the tape is dark here and alive there,
+# and every screenshot taken locally quietly disagrees with the product.
+# Nothing is hidden by this: the payload carries simulated: true and the
+# edition line reads SIMULATED LIVE.
 run:
-	$(UVICORN) main:app --host 127.0.0.1 --port 8000
+	SENTINEL_SIM_STREAM=1 SENTINEL_COSTS_SOURCE=sim \
+		$(UVICORN) main:app --host 127.0.0.1 --port 8000
 
 test:
 	$(RUFF) check .
