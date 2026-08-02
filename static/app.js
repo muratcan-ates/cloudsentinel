@@ -3776,7 +3776,9 @@ const DESK_PROOFS = [
     read: (d) =>
       d.ok
         ? `${d.entries ?? d.checked ?? 0} sealed · intact`
-        : `broken at #${d.first_break?.entry_id ?? "?"}`,
+        // LedgerBreak names the entry ledger_id, not entry_id — the row that
+        // exists to name a broken seal could not name one
+        : `broken at #${d.first_break?.ledger_id ?? "?"} (${d.first_break?.reason ?? "unknown"})`,
   },
   {
     key: "quality",
@@ -4005,31 +4007,46 @@ function renderDeskFeed() {
     );
   });
 
+  // SecuritySignal carries service / date / count / baseline / z_score /
+  // severity — there is no `metric`, `summary` or `detail`. Reading those
+  // printed the same lane label on every card and threw the numbers away.
   (state.security?.signals || []).slice(0, 3).forEach((signal) => {
+    const count = Number(signal.count ?? 0);
+    const baseline = Number(signal.baseline ?? 0);
     cards.push(
       deskCard({
         lane: "security",
-        badge: signal.severity || "watch",
-        title: `${signal.service || "estate"} — ${signal.metric || "security signal"}`,
-        body: signal.summary || signal.detail || "A security signal through the same detection line as cost.",
-        meta: signal.date || "",
+        badge: `z ${Number(signal.z_score ?? 0).toFixed(1)}`,
+        title: `${signal.service || "estate"} — ${signal.date || ""}`,
+        body: `${fmtNumber(count)} events against a baseline of ${fmtNumber(
+          baseline
+        )}. Same detection line as cost, scored without a model.`,
+        meta: daysAgo(signal.date),
       })
     );
   });
 
-  (state.fraud?.signals || []).slice(0, 3).forEach((signal) => {
-    cards.push(
-      deskCard({
-        lane: "fraud",
-        badge: signal.risk || "rule score",
-        title: signal.id ? `transaction ${signal.id}` : "fraud signal",
-        body:
-          signal.reason ||
-          "Scored by published deterministic rules — arithmetic, never a model, and never the final word.",
-        meta: signal.date || "",
-      })
-    );
-  });
+  // FraudSignal carries band / reasons[] / score / amount — not `risk` or a
+  // singular `reason`. The `clear` band is filtered out too: /fraud/signals
+  // returns every scored payment, and a desk that lists the ones nobody
+  // needs to look at is a desk nobody reads.
+  (state.fraud?.signals || [])
+    .filter((signal) => signal.band && signal.band !== "clear")
+    .slice(0, 3)
+    .forEach((signal) => {
+      const reasons = Array.isArray(signal.reasons) ? signal.reasons : [];
+      cards.push(
+        deskCard({
+          lane: "fraud",
+          badge: String(signal.band).replace(/_/g, " "),
+          title: `${signal.id || "payment"} — ${fmtNumber(Number(signal.amount ?? 0))}`,
+          body: reasons.length
+            ? `Rule score ${signal.score ?? 0}/100 — ${reasons.join(" · ")}.`
+            : `Rule score ${signal.score ?? 0}/100. Published deterministic rules — arithmetic, never a model, and never the final word.`,
+          meta: daysAgo(signal.date),
+        })
+      );
+    });
 
   state.actions
     .filter((action) => action.state === "proposed")
@@ -4102,7 +4119,9 @@ function renderDeskActionable() {
       href: "/brain",
     });
   }
-  const contested = state.reflexSuggestions?.contested_signatures?.length;
+  // /reflex/suggestions declares contested_signatures as an int, not a list —
+  // asking it for .length gave undefined and the row never rendered at all
+  const contested = state.reflexSuggestions?.contested_signatures;
   if (contested) {
     rows.push({
       name: "Contested signatures",

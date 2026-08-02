@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CloudSentinel — Handbook</title>
-  <script src="/static/appearance.js?v=s11.2"></script>
-  <link rel="stylesheet" href="/static/style.css?v=s11.2" />
+  <script src="/static/appearance.js?v=s11.3"></script>
+  <link rel="stylesheet" href="/static/style.css?v=s11.3" />
   <!-- The handbook and the console are the two pages outside index.html, so
        they share one small type layer on top of style.css: the serif figure,
        the page kicker, and the numeral at the size a card head or a contents
@@ -111,7 +111,7 @@
           <p class="meta">
             FastAPI and Python 3.12, sqlite3 in WAL mode as the store, a vanilla-JS dashboard under a strict
             content-security policy, and a Gemini provider behind an abstraction with a deterministic fake
-            provider so the whole demo runs offline. <span class="fig">1270</span> pytest cases, ruff clean, no
+            provider so the whole demo runs offline. <span class="fig">1321</span> pytest cases, ruff clean, no
             agent framework and no runtime dependency the dashboard has to fetch from anyone else.
           </p>
         </div>
@@ -638,7 +638,7 @@
             <li class="cs-row"><span><span class="cs-row-name"><code>make setup</code></span> <span class="cs-row-note">Creates the virtualenv and installs the runtime and dev requirements. Once per clone.</span></span><span class="cs-row-value">first</span></li>
             <li class="cs-row"><span><span class="cs-row-name"><code>make demo</code></span> <span class="cs-row-note">The demo stage: fake provider (no quota, no key), fixture dates rebased to this week, demo reset armed, simulated tape on. Serves on port 8000.</span></span><span class="cs-row-value">then</span></li>
             <li class="cs-row"><span><span class="cs-row-name"><code>make smoke</code></span> <span class="cs-row-note">From another shell: a PASS/FAIL sweep over the live chain, asserting on the answers and not just the status codes.</span></span><span class="cs-row-value">verify</span></li>
-            <li class="cs-row"><span><span class="cs-row-name"><code>make test</code></span> <span class="cs-row-note">ruff, then the full suite on the fake provider — <span class="fig">1270</span> cases, deterministic and quota-free.</span></span><span class="cs-row-value">gate</span></li>
+            <li class="cs-row"><span><span class="cs-row-name"><code>make test</code></span> <span class="cs-row-note">ruff, then the full suite on the fake provider — <span class="fig">1321</span> cases, deterministic and quota-free.</span></span><span class="cs-row-value">gate</span></li>
             <li class="cs-row"><span><span class="cs-row-name"><code>make run</code></span> <span class="cs-row-note">Plain local run without the demo staging. Or by hand: <code>.venv/bin/uvicorn main:app --reload</code>.</span></span><span class="cs-row-value">plain</span></li>
             <li class="cs-row"><span><span class="cs-row-name"><code>make drill</code></span> <span class="cs-row-note">The failure drill: proves the zero-budget fallback path and the rate limit.</span></span><span class="cs-row-value">optional</span></li>
           </ul>

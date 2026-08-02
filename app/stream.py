@@ -40,7 +40,27 @@ SPIKE_START_CHANCE = 0.0025  # per service per tick — rare enough that calm is
 # quiet lanes (whose fixture history is nearly flat) flagged ordinary days.
 FULL_BAND_Z = 6.0
 
-_rng = random.Random()
+# The tape is random-looking, not random. Seeding from OS entropy meant the
+# same code produced a different tape on every boot: the suite's "calm lane
+# stays quiet" case failed roughly one run in twenty, and — the reason that
+# actually matters — a spurious excursion landed on the demo dashboard at
+# about three boots in a hundred, which is a coin flip nobody wants to take
+# on camera. A fixed seed keeps the walk alive within a session and makes
+# the scene reproducible across them; SENTINEL_SIM_STREAM_SEED varies it for
+# anyone who wants a different tape.
+SIM_STREAM_SEED_ENV = "SENTINEL_SIM_STREAM_SEED"
+DEFAULT_SIM_STREAM_SEED = 20260802
+
+
+def _configured_seed() -> int:
+    raw = os.environ.get(SIM_STREAM_SEED_ENV, "").strip()
+    try:
+        return int(raw)
+    except ValueError:
+        return DEFAULT_SIM_STREAM_SEED
+
+
+_rng = random.Random(DEFAULT_SIM_STREAM_SEED)
 _lanes: dict[str, dict] = {}
 _last_tick: float | None = None
 
@@ -50,10 +70,17 @@ def sim_stream_enabled() -> bool:
 
 
 def reset() -> None:
-    """Drop all generator state — tests start each case on a fresh tape."""
+    """Drop all generator state — tests start each case on a fresh tape.
+
+    The generator is reseeded too, not just cleared: a tape that carried its
+    entropy across a reset made every case that follows depend on the ones
+    before it, which is exactly how the calm-lane test learned to fail once
+    in a while and pass on the retry.
+    """
     global _last_tick
     _lanes.clear()
     _last_tick = None
+    _rng.seed(_configured_seed())
 
 
 def _seed() -> None:

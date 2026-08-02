@@ -261,6 +261,22 @@ LOGIN_RATE_LIMIT_ENV = "SENTINEL_LOGIN_RATE_LIMIT_PER_MINUTE"
 DEFAULT_LOGIN_RATE_LIMIT = 10
 _login_hits: defaultdict[str, deque] = defaultdict(deque)
 
+# The orchestration console asks a question and reads an answer; it is a
+# POST only because a question does not belong in a URL. Blocking it as a
+# "write" made the console answer 403 on the very link the nav advertises
+# it from. It is safe to let through for reasons that do not depend on this
+# allowlist being right: `app.chat` installs a SQLite authorizer that denies
+# every INSERT/UPDATE/DELETE and DDL verb for the duration of the turn, so
+# the console cannot mutate a row even if it tried, and it reads nothing but
+# this estate's own synthetic figures. The one cost it *can* incur is a
+# provider call, so it carries its own rate limit below — tighter than the
+# pulse, because a console is cheap to script.
+READONLY_POST_ALLOWLIST = frozenset({"/chat"})
+
+CHAT_RATE_LIMIT_ENV = "SENTINEL_CHAT_RATE_LIMIT_PER_MINUTE"
+DEFAULT_CHAT_RATE_LIMIT = 12
+_chat_hits: defaultdict[str, deque] = defaultdict(deque)
+
 # Read-only showcase mode: a public demo link must survive strangers'
 # clicks. One env knob blocks every write while the panels keep reading.
 READONLY_ENV = "SENTINEL_READONLY"
@@ -285,6 +301,10 @@ def pulse_rate_limit() -> int:
 
 def login_rate_limit() -> int:
     return _env_limit(LOGIN_RATE_LIMIT_ENV, DEFAULT_LOGIN_RATE_LIMIT)
+
+
+def chat_rate_limit() -> int:
+    return _env_limit(CHAT_RATE_LIMIT_ENV, DEFAULT_CHAT_RATE_LIMIT)
 
 
 def _over_limit(bucket: defaultdict[str, deque], client: str, limit: int) -> bool:
@@ -320,7 +340,11 @@ async def guard_expensive_endpoints(request: Request, call_next):
 
 async def _serve(request: Request, call_next, request_id: str):
     """The guard itself, once the request id is bound to the context."""
-    if request.method in {"POST", "PUT", "PATCH", "DELETE"} and readonly_enabled():
+    if (
+        request.method in {"POST", "PUT", "PATCH", "DELETE"}
+        and readonly_enabled()
+        and request.url.path not in READONLY_POST_ALLOWLIST
+    ):
         return Response(
             content='{"detail": "read-only demo mode — write operations are disabled"}',
             status_code=403,
@@ -330,6 +354,13 @@ async def _serve(request: Request, call_next, request_id: str):
     if request.method == "POST":
         client = request.client.host if request.client else "unknown"
         path = request.url.path
+        if path == "/chat" and _over_limit(_chat_hits, client, chat_rate_limit()):
+            return Response(
+                content='{"detail": "chat rate limit exceeded — try again shortly"}',
+                status_code=429,
+                media_type="application/json",
+                headers={"Retry-After": "60", "X-Request-ID": request_id},
+            )
         if path == "/pulse" and _over_limit(_pulse_hits, client, pulse_rate_limit()):
             return Response(
                 content='{"detail": "pulse rate limit exceeded"}',
