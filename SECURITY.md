@@ -89,8 +89,13 @@ Stated here so they are decisions rather than discoveries:
   boot by design ([ADR 0001](docs/adr/0001-sqlite-as-the-system-of-record.md)).
 - **No multi-tenancy.** One estate, one trust boundary. There is no tenant
   isolation to bypass because there are no tenants.
-- **Role elevation is open at registration** so the demo can show all four
-  roles. A real deployment would gate elevation behind an admin.
+- **Roles cannot be reached through the API.** `POST /auth/register` always
+  creates a `viewer` regardless of the role in the body — the field is
+  accepted, validated and discarded. The only path to `approver` or `admin`
+  is the bootstrap pair `SENTINEL_ADMIN_USER` / `SENTINEL_ADMIN_PASSWORD`
+  applied at startup. That closes the elevation hole an earlier build had,
+  and it means a live-ops deployment currently has exactly one account that
+  can approve; a real deployment would add an admin-gated elevation endpoint.
 - **`POST /ops/demo-reset` wipes decision state**, including the audit
   chain. It is inert unless `SENTINEL_DEMO_RESET=1`, and answers 404
   otherwise — indistinguishable from not existing.

@@ -3127,6 +3127,17 @@ function syncUrlParams() {
   history.replaceState({}, "", `${location.pathname}?${params}`);
 }
 
+/* Walking into another room keeps the scene you set.
+
+   The sensitivity and service filters stay applied across a room change —
+   they always did, they live in state — but the URL used to drop them, so a
+   link copied after any navigation reopened on the defaults and a reload
+   quietly reset the scene. The deep link is advertised as reproducing the
+   exact view; it has to survive the navbar to mean that. */
+function roomUrl(path) {
+  return `${path}${location.search}`;
+}
+
 /* Jumping to a section that belongs to another room.
 
    The rooms hide what they do not own, so a link pointing at a section in a
@@ -3154,7 +3165,7 @@ function revealSection(id) {
   const room = ROOM_OF_SECTION[id];
   if (!room) return;
   const target = `/${room}`;
-  if (location.pathname !== target) history.pushState({}, "", target);
+  if (location.pathname !== target) history.pushState({}, "", roomUrl(target));
   applyView(room);
   window.scrollTo({ top: 0 });
 }
@@ -3320,7 +3331,7 @@ document.addEventListener("click", (event) => {
     // footer room links ride the same no-reload navigation as the navbar
     event.preventDefault();
     const target = roomLink.getAttribute("href") || "/";
-    if (location.pathname !== target) history.pushState({}, "", target);
+    if (location.pathname !== target) history.pushState({}, "", roomUrl(target));
     applyView(roomLink.dataset.room);
     window.scrollTo({ top: 0 });
     return;
@@ -3434,7 +3445,7 @@ document.getElementById("view-nav").addEventListener("click", (event) => {
   if (!tab) return;
   event.preventDefault();
   const target = tab.getAttribute("href") || "/";
-  if (location.pathname !== target) history.pushState({}, "", target);
+  if (location.pathname !== target) history.pushState({}, "", roomUrl(target));
   applyView(tab.dataset.view);
   window.scrollTo({ top: 0 });
 });
@@ -3444,7 +3455,7 @@ document.getElementById("flow-map")?.addEventListener("click", (event) => {
   if (!stop) return;
   event.preventDefault();
   const target = stop.getAttribute("href") || "/";
-  if (location.pathname !== target) history.pushState({}, "", target);
+  if (location.pathname !== target) history.pushState({}, "", roomUrl(target));
   applyView(stop.dataset.view);
   window.scrollTo({ top: 0 });
 });

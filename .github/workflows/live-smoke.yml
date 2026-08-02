@@ -1,4 +1,4 @@
-# The 14-step smoke sweep against the LIVE deploy — scheduled observability
+# The 27-step smoke sweep against the LIVE deploy — scheduled observability
 # with zero new services: the repo's own runner curls the public link and
 # fails loudly when the live product regresses. Also hand-triggerable for
 # post-deploy verification.
@@ -30,5 +30,5 @@ jobs:
           title=$(curl -s --max-time 90 "$LIVE_URL/openapi.json" | python3 -c "import json,sys; print(json.load(sys.stdin).get('info',{}).get('title',''))" || echo "")
           echo "openapi title: $title"
           test "$title" = "CloudSentinel API"
-      - name: 14-step smoke sweep
+      - name: 27-step smoke sweep
         run: bash scripts/smoke.sh "$LIVE_URL"

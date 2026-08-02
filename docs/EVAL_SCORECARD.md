@@ -82,7 +82,7 @@ both moves are measured rather than explained away:
 | Read-only demo blocks every write (403) | middleware, `main.py` | `tests/test_demo_ops.py`, `tests/test_llm_contracts.py` |
 | Per-pulse LLM call budget + hard per-call timeout | `app/llm.py` · budget observable on the fake lane too | `tests/test_guardrails.py`, `tests/test_llm_contracts.py` |
 | Budget exhaustion degrades to rule-based fallbacks, honestly labeled | `generate_with_fallback`, source=`fallback` | `tests/test_llm.py`, `tests/test_contracts.py` |
-| Learning loop proposes only — adoption is a human decision; no apply path exists, by design | `app/reflex.py`, `app/insights.py` | `tests/test_reflex.py`, `tests/test_insights.py` |
+| Learning loop proposes only — adoption is a human decision; no apply path exists, by design | `app/reflex.py`, `app/insights.py` | `tests/test_reflex_rules.py`, `tests/test_insights.py` |
 
 ## What we would measure in production
 
