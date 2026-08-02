@@ -257,7 +257,7 @@ cloudsentinel/
 ├── static/               dashboard — tokenized design system, 5 palettes, vendored Swagger UI
 ├── scripts/              smoke sweep, failure drill, benchmark, release verification,
 │                         billing import, seasonal fixture generator, Gemini spike
-├── tests/                1317 pytest cases incl. performance budgets and the
+├── tests/                1320 pytest cases incl. performance budgets and the
 │                         route-discovering contract suites
 ├── docs/                 architecture, ADRs, limitations, SLO, data dictionary
 ├── Makefile              setup / run / test / demo / smoke / drill
@@ -384,7 +384,7 @@ One deploy target, two honest postures — pick one per link, don't mix:
 | **Python 3.12** | Core language (pinned in venv, CI and Docker) |
 | **FastAPI + Uvicorn** | REST API and ASGI server |
 | **Pydantic v2** | Typed request/response models and validation |
-| **pytest + httpx** | Automated test suite (1317 tests, incl. performance budgets and the endpoint contract suites below) — **96% line coverage** over `app/` + `main.py` (`make coverage`) |
+| **pytest + httpx** | Automated test suite (1320 tests, incl. performance budgets and the endpoint contract suites below) — **96% line coverage** over `app/` + `main.py` (`make coverage`) |
 | **Hypothesis** | Property-based tests: generated NaN / duplicate / extreme / reversed-window inputs against the detector |
 | **bandit + pip-audit** | The security product scans its own source and its own dependencies (`make audit`); both gate CI |
 | **SQLite** (stdlib `sqlite3`) | WAL-mode persistence core: action lifecycle, decision memory, LLM cache, idempotency |
@@ -704,7 +704,7 @@ These constraints are intentional Sprint 1 decisions, not oversights:
 
 - **Remaining scope** (headline items — the backlog holds the detail):
   - **Live Gemini spike** — provision the billing-disabled key and measure real RPM/RPD with `scripts/spike_gemini.py`; the whole chain already runs on the deterministic provider, so this lights up narratives, not correctness.
-  - **Continuous integration** — ✅ landed at Sprint 2 close: [`ci.yml`](.github/workflows/ci.yml) runs ruff + the full suite on every push and PR (580 cases then, 1317 now), plus an `audit` job running bandit over our own source and pip-audit over the dependencies that ship; Sprint 3 grows it with browser E2E and a post-deploy smoke.
+  - **Continuous integration** — ✅ landed at Sprint 2 close: [`ci.yml`](.github/workflows/ci.yml) runs ruff + the full suite on every push and PR (580 cases then, 1320 now), plus an `audit` job running bandit over our own source and pip-audit over the dependencies that ship; Sprint 3 grows it with browser E2E and a post-deploy smoke.
   - **Deployment** — ✅ live on Render from `render.yaml` (non-root, healthchecked image) with `SENTINEL_READONLY=1` on the public link and the dashboard's LIVE banner on via `SENTINEL_ENV=render`; the deployed surface matches this checkout and the standing watch is beating. UptimeRobot on `/health` is still to be wired.
   - **Live-data trial & market watch** — a credential-free real billing export through the source-agnostic loader, and the trend/news-driven "possible suggestions" table.
   - **User's-eye UX pass** — friction measured from the operator's seat; the palette switcher shipped with horizon as the default and a fifth, `vivid`, for the control surface; EN/TR overview kept in sync ([Türkçe özet](docs/README.tr.md)).
