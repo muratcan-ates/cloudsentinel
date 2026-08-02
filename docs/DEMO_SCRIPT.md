@@ -122,8 +122,9 @@ already on the card, so open **agent chain — N hops, traced** and
 **decision memory — N prior verdicts shaped this proposal** instead. If
 there is no panel fold, that signal did not escalate — say "this one
 agreed, so no panel was needed" and pick the other signal in the rail.
-Do not click **investigate →** from the watch room: it selects the signal
-but does not open the room.
+From the watch room, click **investigate →** on the compute signal.
+The selected signal opens directly in the Investigation room with its
+fourteen-day evidence and agent analysis context.
 
 ---
 
