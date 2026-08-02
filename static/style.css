@@ -3168,3 +3168,440 @@ button.cs-card {
   #a11y-mask { display: none !important; }
   .page { padding-bottom: 0; }
 }
+
+/* ======================================================================
+   26 · vivid, third pass — the signature, carried into the light room
+   ----------------------------------------------------------------------
+   Section 25 fixed vivid's ergonomics and lost its face. Everything that
+   makes this page CloudSentinel — the scotch rule under a head, the roman
+   numeral beside the section word, the small-caps kicker, serif figures
+   for money, the dither, an ink that is night-blue rather than black —
+   survived only in the masthead. Below it the room was white cards, a
+   stock blue and a lot of pills: correct, clear, and indistinguishable
+   from any other dashboard.
+
+   This layer gives the furniture back without giving the clarity up. It
+   is scoped to [data-theme="vivid"] almost throughout, so horizon,
+   mission, paper and dawn are untouched; the one unscoped rule declares
+   two tokens nothing else reads.
+
+   26.1  the ink and the signal — a palette that belongs to the product
+   26.2  the ground — dither and wash, so the page is not a white void
+   26.3  section heads — a newspaper head in a light room
+   26.4  kickers — the small-caps label, with its accent tick back
+   26.5  hierarchy — the lead, the body and the margin read differently
+   26.6  rules and figures — hairlines that separate, serifs that count
+   26.7  controls — the colophon as a ruled strip, not a slab
+   26.8  the marks that were always ours — nameplate rule, radar, chrome
+   ====================================================================== */
+
+/* ---------- 26.1 · the ink and the signal ----------
+   WHY: `--accent: #1d5cff` is the blue every framework ships with. The
+   product already owns a pair — horizon's night-blue ground lit by a
+   turquoise signal — and a light palette does not need a different
+   identity, it needs the same one inverted. So the night blue stops
+   being the surface and becomes the INK, and the turquoise darkens
+   until it can carry text on white and becomes the accent. Same two
+   colours, same relationship, the lamp turned around.
+
+   Everything downstream flows through the tokens, so this block alone
+   re-tints links, focus rings, the slider thumb, the pulse button, the
+   radar sweep, the chart line, the chips and the nameplate's period. */
+
+:root {
+  /* Ink-derived rules, so a scotch rule is always the page's own ink and
+     never a hard-coded grey. Declared for every palette because they are
+     computed from --ink; only vivid reads them today. */
+  --rule-heavy: color-mix(in srgb, var(--ink) 88%, transparent);
+  --rule-thin: color-mix(in srgb, var(--ink) 22%, transparent);
+}
+
+/* WHY the :not(): section 24's forced-contrast block is a plain
+   `:root[data-a11y-contrast="high"]`, same specificity as a plain
+   `:root[data-theme="vivid"]`, and it sits ABOVE this one — so a bare
+   palette block down here would silently out-rank it on source order and
+   a visitor who asked for pure black and pure white would get turquoise
+   on daylight instead. Excluding the forced mode is the whole fix: with
+   contrast on, vivid falls back to section 23's tokens and section 24
+   overrides them exactly as it always did. A preference the visitor set
+   outranks a preference the designer set. */
+:root[data-theme="vivid"]:not([data-a11y-contrast="high"]) {
+  /* the ground: cool daylight with a whisper of the signal in it, so the
+     white sheets on top read as paper rather than as more interface */
+  --surface: #e9eeed;
+  --surface-raised: #ffffff;
+
+  /* horizon's night blue, promoted from surface to ink */
+  --ink: #0b1c36;
+  --ink-dim: rgba(11, 28, 54, 0.68);
+  --ink-faint: rgba(11, 28, 54, 0.46);
+  --hair: rgba(11, 28, 54, 0.13);
+
+  /* horizon's turquoise, darkened until it carries text: 6.1:1 on white,
+     5.4:1 on the ground. The whole signal budget still runs through it. */
+  --accent: #0a6f68;
+  --alert: #c22e22;   /* a press-room vermillion, not a soft coral */
+  --info: #1d6fa8;    /* horizon's sky-blue micro marks, at light weight */
+
+  --chart-line: #0a6f68;
+  --chart-area-hi: rgba(10, 111, 104, 0.16);
+  --chart-area-lo: rgba(10, 111, 104, 0.02);
+  --chart-band: rgba(11, 28, 54, 0.07);
+  --selection-bg: #0a6f68;
+  --selection-fg: #ffffff;
+
+  /* the grain, at last visible: two offset dot grids at a 3.5px pitch —
+     newsprint dither, not a screen door */
+  --dot-a: rgba(11, 28, 54, 0.055);
+  --dot-b: rgba(11, 28, 54, 0.04);
+  --glow-a: rgba(10, 111, 104, 0.1);
+  --glow-b: rgba(29, 111, 168, 0.08);
+
+  /* the card system, re-tuned to the new ink */
+  --card-bg: #ffffff;
+  --card-radius: 10px;   /* 16 was a product tile; 10 is a ruled box */
+  --card-shadow: 0 1px 1px rgba(11, 28, 54, 0.04), 0 10px 26px rgba(11, 28, 54, 0.07);
+  --card-shadow-lift: 0 2px 4px rgba(11, 28, 54, 0.07), 0 18px 44px rgba(11, 28, 54, 0.13);
+  --chip-bg: #ffffff;
+  --chip-on: var(--accent);
+
+  /* Lane tints for a light room. Cost is the majority lane and takes the
+     ink family, which keeps the turquoise budget for things that are
+     actionable; market moves off teal-green to a plain forest so it can
+     never be mistaken for the accent. */
+  --tint-cost: #1c3f6e;
+  --tint-security: #c22e22;
+  --tint-fraud: #a3187f;
+  --tint-market: #1d6b33;
+  --tint-proof: #4a3fb0;
+  --tint-ops: #8a5a00;
+
+  /* display sizes: a broadsheet head needs to be a head */
+  --fs-word: 40px;
+  --fs-numeral: 40px;
+}
+
+/* ---------- 26.2 · the ground ----------
+   WHY: `body::before` paints the page's single texture in every palette —
+   two atmospheric washes over a fine grain. In vivid the dither tokens
+   were set to 1.5-2% of a near-black, which on #eef3f9 is nothing at all,
+   so the one surface the product shares across five looks was missing
+   from the fifth. Restored here at light-ground strength, and doubled:
+   two dot grids offset by half a pitch make a dither rather than a dot
+   screen — the same trick a press uses to hold a grey. */
+
+:root[data-theme="vivid"] body::before {
+  background-image:
+    radial-gradient(1200px 680px at 8% -10%, var(--glow-a), transparent 60%),
+    radial-gradient(1000px 720px at 106% 12%, var(--glow-b), transparent 58%),
+    radial-gradient(760px 560px at 50% 116%, var(--glow-a), transparent 60%),
+    radial-gradient(var(--dot-a) 1px, transparent 1px),
+    radial-gradient(var(--dot-b) 1px, transparent 1px);
+  background-size: auto, auto, auto, 7px 7px, 7px 7px;
+  background-position: 0 0, 0 0, 0 0, 0 0, 3.5px 3.5px;
+}
+
+/* ---------- 26.3 · section heads ----------
+   WHY: the head was a numeral and a word over one hairline — a heading in
+   any dashboard. A newspaper head is a scotch rule: one heavy line riding
+   one thin one, the pair that tells a reader a new department has begun.
+   The numeral takes the accent for the same reason the nameplate's period
+   does — it is the mark, not the label. */
+
+:root[data-theme="vivid"] .section-head {
+  position: relative;
+  gap: var(--sp-4);
+  padding-bottom: var(--sp-3);
+  margin-bottom: var(--sp-5);
+  border-bottom: 2px solid var(--rule-heavy);
+}
+:root[data-theme="vivid"] .section-head::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -5px;
+  height: 1px;
+  background: var(--rule-thin);
+}
+:root[data-theme="vivid"] .numeral {
+  color: var(--accent);
+  line-height: 0.92;
+}
+:root[data-theme="vivid"] .section-word { color: var(--ink); }
+
+/* The investigation room's own head is the same object one size down. */
+:root[data-theme="vivid"] .inv-head { border-bottom-color: var(--rule-thin); }
+
+/* ---------- 26.4 · kickers ----------
+   WHY: `.microcap` is this product's kicker — the tracked-out label over
+   a block. Section 25 kept the small caps and left the colour at
+   --ink-dim, which on white is a grey line of nothing. A kicker is set
+   in ink, and the accent tick beside it is the same mark that leads the
+   edition line: one signal, used consistently. */
+
+:root[data-theme="vivid"] .microcap {
+  color: color-mix(in srgb, var(--ink) 74%, transparent);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+:root[data-theme="vivid"] .microcap .hint {
+  color: var(--ink-faint);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+:root[data-theme="vivid"] .hero > .microcap,
+:root[data-theme="vivid"] .trend-block > .microcap,
+:root[data-theme="vivid"] .watch-block > .microcap,
+:root[data-theme="vivid"] .colophon > .microcap,
+:root[data-theme="vivid"] .ctl > .microcap {
+  position: relative;
+  padding-left: 15px;
+}
+:root[data-theme="vivid"] .hero > .microcap::before,
+:root[data-theme="vivid"] .trend-block > .microcap::before,
+:root[data-theme="vivid"] .watch-block > .microcap::before,
+:root[data-theme="vivid"] .colophon > .microcap::before,
+:root[data-theme="vivid"] .ctl > .microcap::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 8px;
+  height: 2px;
+  background: var(--accent);
+}
+
+/* A service name is a label, not prose: it goes back into the ledger's
+   small caps, which is where every other service name on the page —
+   the cost line, the watch row, the market row — already lives. */
+:root[data-theme="vivid"] .entry .service {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+}
+
+/* ---------- 26.5 · hierarchy ----------
+   WHY: the room was one weight. A section panel, the hero, a feed card
+   and a rail card were all white, all shadowed, all 16px-rounded, so the
+   eye had nothing to climb. A broadsheet solves this without colour: the
+   lead is boxed, the body is set on the sheet, and the margin is a ruled
+   column with no box at all. Four levels, top to bottom. */
+
+/* the sheet — every room is a page, and pages do not stack shadows */
+:root[data-theme="vivid"] main .ledger-col,
+:root[data-theme="vivid"] main .ledger-wide {
+  border-radius: 12px;
+  padding: var(--sp-6) clamp(20px, 3vw, 34px) var(--sp-7);
+}
+
+/* the lead — the one card that starts something: a turquoise spine, a
+   wash of the same colour, and the only lifted shadow on the page */
+:root[data-theme="vivid"] .cs-hero {
+  background: color-mix(in srgb, var(--accent) 5%, #fff);
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-left: 4px solid var(--accent);
+  box-shadow: var(--card-shadow-lift);
+}
+:root[data-theme="vivid"] .cs-hero .cs-card-title { font-size: 28px; }
+:root[data-theme="vivid"] .cs-hero-mark {
+  background: color-mix(in srgb, var(--accent) 14%, #fff);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  border-radius: 10px;
+}
+
+/* the standfirst — "how this page works" explains the room rather than
+   reporting from it, so it is set INTO the sheet, not raised off it */
+:root[data-theme="vivid"] .cs-steps {
+  background: color-mix(in srgb, var(--ink) 3%, #fff);
+  box-shadow: none;
+  border-color: var(--hair);
+}
+
+/* the body — feed cards are raised, and each one wears its lane on the
+   spine, so a column of ten cards is readable as five lanes at a glance */
+:root[data-theme="vivid"] #desk-feed .cs-card[data-desk-item] {
+  border-left: 3px solid var(--lane-edge, var(--hair));
+}
+:root[data-theme="vivid"] [data-desk-item="cost"] { --lane-edge: var(--tint-cost); }
+:root[data-theme="vivid"] [data-desk-item="security"] { --lane-edge: var(--tint-security); }
+:root[data-theme="vivid"] [data-desk-item="fraud"] { --lane-edge: var(--tint-fraud); }
+:root[data-theme="vivid"] [data-desk-item="market"] { --lane-edge: var(--tint-market); }
+:root[data-theme="vivid"] [data-desk-item="decision"] { --lane-edge: var(--accent); }
+
+/* the margin — the two rails stop being cards and become what they have
+   always been in this design: ruled columns in the margin of the sheet.
+   No fill, no shadow, no radius; one heavy rule on top, which is the
+   same scotch grammar as a section head, one size down. */
+:root[data-theme="vivid"] .cs-desk-left .cs-card,
+:root[data-theme="vivid"] .cs-desk-right .cs-card,
+:root[data-theme="vivid"] .cs-feed-head {
+  background: transparent;
+  border: 0;
+  border-top: 2px solid var(--rule-heavy);
+  border-radius: 0;
+  box-shadow: none;
+  padding: var(--sp-4) 0 var(--sp-2);
+}
+:root[data-theme="vivid"] .cs-desk-left .cs-card + .cs-card,
+:root[data-theme="vivid"] .cs-desk-right .cs-card + .cs-card { margin-top: var(--sp-6); }
+:root[data-theme="vivid"] .cs-feed-head { padding-bottom: 0; }
+
+/* One rule tells the two kinds of heading apart, and it is the rule a
+   newspaper uses: a DEPARTMENT is set in the serif — the rails, the
+   standfirst, the lead, the head over the feed — and a RECORD is set in
+   the sans, because a record is scanned, not read. Every card the desk
+   generates carries data-desk-item, so the split needs no new markup. */
+:root[data-theme="vivid"] .cs-card:not([data-desk-item]) .cs-card-title {
+  font-family: "Instrument Serif", serif;
+  font-weight: 400;
+  font-size: 24px;
+  line-height: 1.15;
+}
+
+/* ---------- 26.6 · rules and figures ----------
+   WHY: two things carry a ledger — the hairline that separates a row from
+   the next one, and the serif figure that says how much. The capability
+   rows had the first and the stat block had neither: three counts set in
+   Inter semibold, which is a metric, not a figure. */
+
+:root[data-theme="vivid"] .cs-row { border-bottom: 1px solid var(--hair); }
+:root[data-theme="vivid"] .cs-row:last-child { border-bottom: 0; }
+
+/* WHY: the rails were a column of turquoise names beside turquoise
+   figures, which spends the whole signal budget on a table of contents.
+   The name is a link and keeps the colour; the figure is a reading, so
+   it is set in ink — and a reading the endpoint could not give stays
+   faint, which is the row saying so. */
+:root[data-theme="vivid"] .cs-row-value { color: var(--ink); }
+:root[data-theme="vivid"] .cs-row-value.is-off { color: var(--ink-faint); font-weight: 500; }
+:root[data-theme="vivid"] .cs-stat3 {
+  border-top: 1px solid var(--hair);
+  padding-top: var(--sp-4);
+}
+:root[data-theme="vivid"] .cs-stat3 > div + div { border-left: 1px solid var(--hair); }
+:root[data-theme="vivid"] .cs-stat-fig {
+  font-family: "Instrument Serif", serif;
+  font-weight: 400;
+  font-size: 34px;
+  line-height: 1.05;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+:root[data-theme="vivid"] .cs-stat-label {
+  color: color-mix(in srgb, var(--ink) 62%, transparent);
+  font-weight: 600;
+}
+
+/* A category tag is a tag, not a pill: squared off, tracked out, and
+   ruled with its own tint so it survives on white as well as on a wash. */
+:root[data-theme="vivid"] .cs-badge {
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--badge-tint, var(--accent)) 28%, transparent);
+  background: color-mix(in srgb, var(--badge-tint, var(--accent)) 9%, #fff);
+  letter-spacing: 0.12em;
+  font-size: 11px;
+}
+
+/* A filter stays a pill — it is a thing you hit with a thumb. A verb is
+   not: the two primary buttons square up to 8px, which reads as a press
+   control rather than as one more rounded SaaS capsule. The stat chips
+   that carry a scan's arithmetic square up with the badges. */
+:root[data-theme="vivid"] .cs-btn,
+:root[data-theme="vivid"] #rescan,
+:root[data-theme="vivid"] #pulse-run { border-radius: 8px; }
+:root[data-theme="vivid"] .stat-chip {
+  border-radius: 4px;
+  letter-spacing: 0.1em;
+  color: color-mix(in srgb, var(--ink) 70%, transparent);
+}
+
+/* ---------- 26.7 · controls ----------
+   WHY: the colophon is named after the block a printer signs a page with,
+   and it was drawn as a 430px-tall white slab holding six stacked rows.
+   It becomes what it is called: a ruled strip under the summary figures,
+   laid out as a grid so six controls occupy two lines instead of six. */
+
+:root[data-theme="vivid"] .colophon {
+  background: transparent;
+  border: 0;
+  border-top: 2px solid var(--rule-heavy);
+  border-bottom: 1px solid var(--rule-thin);
+  border-radius: 0;
+  box-shadow: none;
+  padding: var(--sp-4) 0 var(--sp-5);
+  margin-top: var(--sp-7);
+}
+:root[data-theme="vivid"] .colophon-row.ctl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--sp-5) var(--sp-6);
+  align-items: start;
+  margin-top: var(--sp-4);
+}
+:root[data-theme="vivid"] .ctl {
+  min-width: 0;
+  border-top: 1px solid var(--hair);
+  padding-top: var(--sp-3);
+}
+:root[data-theme="vivid"] .ctl-note { margin: var(--sp-2) 0 0; }
+:root[data-theme="vivid"] .ctl-inline { margin-top: var(--sp-2); }
+@media (min-width: 760px) {
+  :root[data-theme="vivid"] .ctl-wide { grid-column: span 2; }
+}
+/* the threshold reads as a figure, because it is one */
+:root[data-theme="vivid"] output { font-size: 44px; }
+
+/* ---------- 26.8 · the marks that were always ours ----------
+   The scotch rule under the nameplate, the four figures it introduces,
+   and the radar — the one moving thing the product owns — drawn at a
+   weight that survives daylight. */
+
+:root[data-theme="vivid"] .top-nav { border-bottom: 2px solid var(--rule-heavy); }
+
+/* The strip under the masthead gets its scotch rule back. Section 25 hid
+   it because a 2px black bar is a bruise on a light ground — but the bar
+   was never black, it is the page's ink, and riding a thin companion
+   rule it is the single most recognisable mark this design has. */
+:root[data-theme="vivid"] .summary-strip {
+  padding-top: var(--sp-5);
+  margin-top: var(--sp-6);
+}
+:root[data-theme="vivid"] .summary-strip::before {
+  display: block;
+  top: 0;
+  height: 2px;
+  background: var(--rule-heavy);
+  opacity: 1;
+}
+:root[data-theme="vivid"] .summary-strip::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 5px;
+  height: 1px;
+  background: var(--rule-thin);
+}
+:root[data-theme="vivid"] .sum { border-top: 2px solid transparent; }
+:root[data-theme="vivid"] .sum:hover { border-top-color: var(--accent); }
+
+/* The radar's rings were hairlines tuned for a night sky; on paper they
+   vanished and the sweep swept over nothing. */
+:root[data-theme="vivid"] .radar .ring,
+:root[data-theme="vivid"] .radar .cross { stroke: var(--rule-thin); }
+
+/* The footer and the tour card follow the same ink. */
+:root[data-theme="vivid"] footer { border-top-color: var(--rule-thin); }
+:root[data-theme="vivid"] #tour-card {
+  background: var(--card-bg);
+  box-shadow: var(--card-shadow-lift);
+}
+
+/* Print: the scotch rules are ink and would be stripped as backgrounds,
+   and a dither is never anything but noise on paper. */
+@media print {
+  :root[data-theme="vivid"] body::before { display: none; }
+  :root[data-theme="vivid"] .section-head { border-bottom-color: #000; }
+}
