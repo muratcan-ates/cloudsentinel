@@ -1,0 +1,37 @@
+/* API docs page — the shared top bar over Swagger's own surface.
+
+   The page loads style.css so the top bar matches every other page, but
+   Swagger UI is drawn for a light background: under the dark palettes the
+   site's surface bled through its transparent areas and its own greys went
+   unreadable. So the bar stays themed and the API browser below it keeps a
+   fixed light surface of its own — legible in all five palettes, which for a
+   reference document beats matching the paint. */
+
+.swagger-host {
+  background: #ffffff;
+  color: #3b4151;
+  min-height: 100vh;
+  padding-top: var(--sp-4);
+}
+
+/* Swagger sets its own type colours, but a few nodes inherit from body. */
+.swagger-host .swagger-ui,
+.swagger-host .swagger-ui .info .title,
+.swagger-host .swagger-ui .opblock-tag,
+.swagger-host .swagger-ui .opblock .opblock-summary-description,
+.swagger-host .swagger-ui .opblock .opblock-summary-path,
+.swagger-host .swagger-ui .markdown p,
+.swagger-host .swagger-ui .model-title,
+.swagger-host .swagger-ui table thead tr th {
+  color: #3b4151;
+}
+
+.swagger-host .swagger-ui .opblock-tag small,
+.swagger-host .swagger-ui .info .base-url,
+.swagger-host .swagger-ui .parameter__type {
+  color: #4b5563;
+}
+
+/* The dither the site paints over every page belongs to the product, not to
+   a vendor's reference UI sitting on white. */
+.swagger-host::before { content: none; }

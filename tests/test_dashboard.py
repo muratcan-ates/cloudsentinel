@@ -289,7 +289,8 @@ def test_dashboard_ships_views_and_the_dawn_palette():
         assert "CloudSentinel" in room.text
     app_js = client.get("/static/app.js").text
     assert "VIEW_SECTIONS" in app_js
-    assert '"dawn"' in app_js
+    # the palette list moved to the module every page boots (appearance.js)
+    assert '"dawn"' in client.get("/static/appearance.js").text
     css = client.get("/static/style.css").text
     assert 'data-theme="dawn"' in css
     assert "--glow-a" in css  # layered luminous surface, not a flat dot screen
@@ -438,7 +439,10 @@ def test_the_vivid_palette_is_offered_without_replacing_the_others():
     app_js = client.get("/static/app.js").text
     css = client.get("/static/style.css").text
     assert 'data-theme-choice="vivid"' in page
-    assert '"horizon", "mission", "paper", "dawn", "vivid"' in app_js
+    # one list, in the module the console and the handbook read too
+    appearance = client.get("/static/appearance.js").text
+    assert '"horizon", "mission", "paper", "dawn", "vivid"' in appearance
+    assert "appearance.THEMES" in app_js
     for theme in ("horizon", "mission", "paper", "dawn", "vivid"):
         assert f'[data-theme="{theme}"]' in css
 
@@ -452,7 +456,10 @@ def test_the_accessibility_panel_is_ours_and_local():
     assert 'id="a11y-launch"' in page
     for switch in ("font", "mask", "contrast", "links", "headings", "cursor", "motion"):
         assert f'data-a11y-toggle="{switch}"' in page
-    assert "sentinel-a11y" in app_js
+    # the storage key lives in the shared module so the settings survive a
+    # walk into the console, the handbook or the API docs
+    assert "sentinel-a11y" in client.get("/static/appearance.js").text
+    assert "appearance.A11Y_KEY" in app_js
     # the panel must never reach off-origin for anything
     assert "//cdn" not in app_js and "https://unpkg" not in app_js
 

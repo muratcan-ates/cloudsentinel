@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CloudSentinel — Anomaly Watch</title>
+  <!-- Palette and accessibility settings, stamped before the first paint and
+       shared with the console, the handbook and the API docs. -->
+  <script src="/static/appearance.js?v=s11.0"></script>
   <link rel="stylesheet" href="/static/style.css?v=s11.0" />
   <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
   <meta name="description" content="CloudSentinel — cloud cost and security anomaly watch: detection, evidence-cited AI triage and human-approved remediation, execution simulated by design." />
@@ -25,6 +28,7 @@
       <a class="view-tab" href="/broadsheet" data-view="all" aria-pressed="false" title="Every room on one page, in order — the view to read straight through or to print.">broadsheet</a>
       <a class="view-tab" href="/static/chat.html" title="Ask one of the four agents a question about this estate and read the answer beside the evidence it used.">console</a>
       <a class="view-tab" href="/static/guide.html" title="The whole product in ten minutes: what it is, what each room shows, what is real and what is simulated.">handbook</a>
+      <a class="view-tab" href="/static/docs.html" title="The API browser: every endpoint the product exposes, self-hosted under the same strict policy as the dashboard.">api</a>
       <span class="cs-mega-wrap">
         <button class="view-tab" type="button" id="mega-toggle" aria-expanded="false" aria-controls="mega-panel">what it can prove ▾</button>
         <div class="cs-mega" id="mega-panel" hidden>

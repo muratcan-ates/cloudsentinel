@@ -37,12 +37,17 @@
 
 /* Palette: ?theme=mission|paper|horizon|dawn still wins so review links keep
    working; otherwise the choice persisted from the colophon switch applies.
-   The default identity stays horizon — the switch promotes night (mission)
-   and paper from hidden preview flags to first-class modes. */
-const THEMES = ["horizon", "mission", "paper", "dawn", "vivid"];
+
+   The list, the resolution and the stamping live in appearance.js, which
+   every page of the site loads in <head> — the console and the handbook are
+   separate documents and used to open on their own hardcoded palette. This
+   file only adds the switcher on top of it, so there is one answer to "what
+   palette is this visitor on" instead of two that can drift apart. */
+const appearance = window.SentinelAppearance;
+const THEMES = appearance.THEMES;
 
 function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme;
+  appearance.stampTheme(theme);
   markPressed("[data-theme-choice]", "themeChoice", theme);
 }
 
@@ -3129,21 +3134,13 @@ function syncUrlParams() {
    intervals, view boot and the first paint + scan.
    ====================================================================== */
 
-/* palette boot: ?theme= wins, then the persisted colophon choice */
-const themeParam = new URLSearchParams(location.search).get("theme");
-let storedTheme = null;
-try {
-  storedTheme = localStorage.getItem("sentinel-theme");
-} catch {
-  /* storage can be unavailable (private mode) — the default carries */
-}
-applyTheme(
-  // vivid is the default: the product is a control surface before it is a
-  // broadsheet, and the light card palette is the one that says so on first
-  // paint. ?theme= still wins for a review link, and the four editorial
-  // palettes are one click away in the colophon — nothing was removed.
-  THEMES.includes(themeParam) ? themeParam : THEMES.includes(storedTheme) ? storedTheme : "vivid"
-);
+/* Palette boot: appearance.js already stamped the resolved palette on <html>
+   before the first paint, so this only marks the switcher's pressed state.
+   vivid is the default there: the product is a control surface before it is
+   a broadsheet, and the light card palette is the one that says so on first
+   paint. ?theme= still wins for a review link, and the four editorial
+   palettes are one click away in the colophon — nothing was removed. */
+applyTheme(appearance.resolveTheme());
 
 /* ---------- motion: the two switches and the tab's own attention ----------
    A backgrounded tab gets nothing: requestAnimationFrame stops on its own,
@@ -3206,11 +3203,9 @@ document.addEventListener("click", (event) => {
   const themeChoice = event.target.closest("[data-theme-choice]");
   if (themeChoice) {
     applyTheme(themeChoice.dataset.themeChoice);
-    try {
-      localStorage.setItem("sentinel-theme", themeChoice.dataset.themeChoice);
-    } catch {
-      /* best effort — the choice still applies for this visit */
-    }
+    // best effort — a blocked store still leaves the choice applied for
+    // this visit, and every other page reads the same key
+    appearance.storeTheme(themeChoice.dataset.themeChoice);
     return;
   }
 
@@ -4158,11 +4153,14 @@ document.addEventListener("click", (event) => {
    better failure than refusing to open.
    ====================================================================== */
 
-const A11Y_KEY = "sentinel-a11y";
+/* The key, the toggle list and the stamping are shared with appearance.js so
+   the settings survive a walk into the console, the handbook or the API
+   docs — those are separate documents and this panel does not run there. */
+const A11Y_KEY = appearance.A11Y_KEY;
 const A11Y_SCALE_STEPS = [0.9, 1, 1.15, 1.3, 1.5, 1.75];
 const A11Y_LINE_STEPS = [1, 1.15, 1.3, 1.5];
 const A11Y_TRACK_STEPS = [0, 0.02, 0.05, 0.1];
-const A11Y_TOGGLES = ["font", "mask", "contrast", "links", "headings", "cursor", "motion"];
+const A11Y_TOGGLES = appearance.A11Y_TOGGLES;
 
 const a11y = {
   scale: 1,
@@ -4178,11 +4176,8 @@ const a11y = {
 };
 
 function a11yLoad() {
-  try {
-    Object.assign(a11y, JSON.parse(localStorage.getItem(A11Y_KEY) || "{}"));
-  } catch {
-    /* storage unavailable or corrupt — the defaults above stand */
-  }
+  // storage unavailable or corrupt — the defaults above stand
+  Object.assign(a11y, appearance.readA11y());
 }
 
 function a11ySave() {
@@ -4194,19 +4189,9 @@ function a11ySave() {
 }
 
 function a11yApply() {
-  const root = document.documentElement;
-  root.style.setProperty("--a11y-scale", String(a11y.scale));
-  root.style.setProperty("--a11y-line", String(a11y.line));
-  root.style.setProperty("--a11y-track", `${a11y.track}em`);
-  // the attributes only exist when they are doing something, so the
-  // selectors stay cheap and the DOM stays readable in devtools
-  root.toggleAttribute("data-a11y-scale", a11y.scale !== 1);
-  root.toggleAttribute("data-a11y-line", a11y.line !== 1);
-  root.toggleAttribute("data-a11y-track", a11y.track !== 0);
-  A11Y_TOGGLES.forEach((key) => {
-    if (a11y[key]) root.setAttribute(`data-a11y-${key}`, a11y[key]);
-    else root.removeAttribute(`data-a11y-${key}`);
-  });
+  // the root attributes and variables are stamped by the shared module —
+  // the same call every other page makes on boot
+  appearance.stampA11y(a11y);
 
   const scaleOut = document.getElementById("a11y-scale-out");
   const lineOut = document.getElementById("a11y-line-out");

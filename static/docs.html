@@ -5,12 +5,37 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CloudSentinel API — docs</title>
   <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+  <!-- The same appearance boot the rest of the site runs: a visitor who
+       chose a palette or larger text keeps it here too. -->
+  <script src="/static/appearance.js?v=s11.0"></script>
+  <!-- The site stylesheet carries the shared top bar; swagger's own sheet
+       loads after it and keeps the API browser's own surface intact. -->
+  <link rel="stylesheet" href="/static/style.css?v=s11.0">
   <!-- Self-hosted swagger-ui-dist 5.32.9 (static/vendor/): the API docs run
        under the same script-src 'self' policy as the dashboard — no CDN. -->
   <link rel="stylesheet" href="/static/vendor/swagger-ui.css">
+  <!-- Keeps the API browser legible under the dark palettes (see docs.css). -->
+  <link rel="stylesheet" href="/static/docs.css?v=s11.0">
 </head>
 <body>
-  <div id="swagger-ui"></div>
+  <!-- One nav, same order, on every page: the API browser used to be a dead
+       end reachable only from the console, with no way back to the product. -->
+  <nav class="top-nav" aria-label="Site">
+    <a class="nav-brand pixel-black" href="/">cloudsentinel<span class="period">.</span></a>
+    <div class="nav-links">
+      <a class="view-tab" href="/watch">watch</a>
+      <a class="view-tab" href="/investigate">investigation</a>
+      <a class="view-tab" href="/decide">decision desk</a>
+      <a class="view-tab" href="/intel">intelligence</a>
+      <a class="view-tab" href="/brain">brain</a>
+      <a class="view-tab" href="/broadsheet">broadsheet</a>
+      <a class="view-tab" href="/static/chat.html">console</a>
+      <a class="view-tab" href="/static/guide.html">handbook</a>
+      <a class="view-tab" href="/static/docs.html" aria-current="page" aria-pressed="true">api</a>
+    </div>
+    <span class="nav-live microcap">api</span>
+  </nav>
+  <div id="swagger-ui" class="swagger-host"></div>
   <script src="/static/vendor/swagger-ui-bundle.js"></script>
   <script src="/static/vendor/swagger-init.js"></script>
 </body>
