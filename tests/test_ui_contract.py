@@ -58,7 +58,6 @@ UNEXPLAINED_CONTROLS = {
     # reads as two words for one action. FIX: give #rescan a title —
     # it re-runs detection only, at the slider's current sensitivity,
     # without waking the agents.
-    "button#rescan",
     # The footer's "guided tour ▸" is a control wearing a link's
     # clothes: ?tour=1 launches the overlay walkthrough rather than
     # navigating. FIX: title on the <a data-tour-launch> saying it walks
@@ -391,6 +390,12 @@ HASH_SELECTOR = re.compile(r"""['"`]#([A-Za-z][\w-]*)['"`]""")
 # app.js writes markup of its own; those ids are created, not expected.
 JS_TEMPLATE_ID = re.compile(r"""\bid=["'`]?([A-Za-z][\w-]*)""")
 JS_ASSIGNED_ID = re.compile(r"""\.id\s*=\s*["'`]([A-Za-z][\w-]*)["'`]""")
+# Elements built through a helper that takes an attribute object —
+# svgEl("g", { id: "radar-blips" }) — are created at runtime just as
+# surely as a template string is. Without this the radar's blip layer
+# read as a dead handler when it is the opposite: code that makes the
+# element it then looks for.
+JS_OBJECT_ID = re.compile(r"""\bid\s*:\s*["'`]([A-Za-z][\w-]*)["'`]""")
 
 
 def ids_app_js_reads(source: str) -> set[str]:
@@ -398,7 +403,11 @@ def ids_app_js_reads(source: str) -> set[str]:
 
 
 def ids_app_js_creates(source: str) -> set[str]:
-    return set(JS_TEMPLATE_ID.findall(source)) | set(JS_ASSIGNED_ID.findall(source))
+    return (
+        set(JS_TEMPLATE_ID.findall(source))
+        | set(JS_ASSIGNED_ID.findall(source))
+        | set(JS_OBJECT_ID.findall(source))
+    )
 
 
 def data_hooks_declared(dom: Dom) -> set[str]:
