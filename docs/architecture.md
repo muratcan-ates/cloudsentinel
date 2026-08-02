@@ -490,7 +490,7 @@ claim rather than a measurement.
 | `users`, `sessions` | local identity and roles for live-ops mode; revocable sessions, per-username throttling |
 | `telemetry_usage` | the app's own per-path request counts — the cost lane's dataset under `SENTINEL_COSTS_SOURCE=self`, and `cloudsentinel_requests_served_total` |
 
-## API Surface (implemented — 58 documented paths, 60 operations)
+## API Surface (implemented — 59 documented paths, 61 operations)
 
 Plus eight in-app page routes (`/`, `/watch`, `/investigate`, `/decide`,
 `/intel`, `/brain`, `/broadsheet`, `/docs`) kept out of the schema: they
