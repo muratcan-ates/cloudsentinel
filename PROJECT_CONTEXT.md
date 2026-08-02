@@ -44,7 +44,7 @@ dashboard under a strict CSP (`script-src 'self'`, Swagger self-hosted) ·
 pip + venv · Render (free tier) as the deploy target, Dockerfile as the
 fallback.
 
-Quality bar: **1223 pytest cases** (fake provider, ~35 s), ruff clean, every
+Quality bar: **1270 pytest cases** (fake provider, ~35 s), ruff clean, every
 commit suite-green, CI on every push and PR.
 
 ## How to run it
