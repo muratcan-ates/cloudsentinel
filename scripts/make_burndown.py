@@ -52,6 +52,11 @@ def _series() -> tuple[list[dt.date], list[int]]:
         xs.append(day)
         ys.append(remaining)
         day += dt.timedelta(days=1)
+    # Hold the closing figure for half a day past the last burn. Without it
+    # the line drops to zero exactly on the right-hand boundary, which reads
+    # as a sprint cut off mid-flight rather than one that closed.
+    xs.append(SPRINT_END + dt.timedelta(days=1))
+    ys.append(remaining)
     return xs, ys
 
 
@@ -90,13 +95,35 @@ def main() -> None:
         arrowprops={"arrowstyle": "-", "color": "#8a8a8a", "linewidth": 0.8},
     )
 
+    # The close, stated rather than left to be inferred from a line that
+    # happens to touch the axis.
+    ax.plot(
+        [SPRINT_END],
+        [0],
+        marker="o",
+        markersize=7,
+        color="#1b7f5e",
+        zorder=5,
+        clip_on=False,
+    )
+    ax.annotate(
+        f"{COMMITTED_POINTS} / {COMMITTED_POINTS} completed\nsprint closed 2 Aug",
+        xy=(SPRINT_END, 0),
+        xytext=(dt.date(2026, 7, 30), 1.9),
+        fontsize=8,
+        color="#1b7f5e",
+        fontweight="bold",
+        ha="right",
+        arrowprops={"arrowstyle": "->", "color": "#1b7f5e", "linewidth": 1.0},
+    )
+
     ax.set_title(
         f"Sprint 3 Burndown — Jul 20 → Aug 2, 2026  ({COMMITTED_POINTS} story points)",
         fontsize=11,
     )
     ax.set_ylabel("Story points remaining", fontsize=9)
     ax.set_ylim(-0.4, COMMITTED_POINTS + 0.6)
-    ax.set_xlim(SPRINT_START, SPRINT_END)
+    ax.set_xlim(SPRINT_START, SPRINT_END + dt.timedelta(days=1))
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
     ax.xaxis.set_major_locator(mdates.DayLocator(interval=2))
     ax.grid(True, linewidth=0.4, color="#dddddd")

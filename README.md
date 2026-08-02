@@ -221,6 +221,19 @@ figures the post-check could not verify. A confidence score can be talked
 up; these cannot. The list is byte-identical whether Gemini, the demo
 composer or the rule-based fallback wrote the prose.
 
+**The deterministic provider is a first-class lane, and the demo runs on it
+on purpose.** ([ADR 0005](docs/adr/0005-the-fake-provider-is-a-first-class-lane.md).)
+It is not a stub standing in for missing work: it is a per-schema composer
+that narrates the *real* payload, so the guardrails, the call budget, the
+escalation triggers and the uncertainty codes behave identically to the live
+lane and only the prose changes. That is what makes the whole chain testable
+in 35 seconds and demoable with no network. The live lane is real and was
+measured — the August 1 spike ran the schema end to end at 0.8–2.9 s per
+call — but a demo that can be taken down by someone else's rate limit is not
+a demo. So the honest statement is this: **what a visitor sees on the public
+link was composed deterministically**, `/health` says so, the data badge says
+so, and every figure in it was computed in Python either way.
+
 **And it is measured.** A 288-case adversarial golden set across nine
 families sweeps the *real* analyze → recommend chain
 ([`app/evalset.py`](app/evalset.py), [scorecard](docs/EVAL_SCORECARD.md)):
