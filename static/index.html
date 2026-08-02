@@ -17,12 +17,12 @@
   <nav class="top-nav" id="view-nav" aria-label="Site">
     <a class="nav-brand pixel-black" href="/" data-view="watch">cloudsentinel<span class="period">.</span></a>
     <div class="nav-links">
-      <a class="view-tab" href="/watch" data-view="watch" aria-pressed="false">watch</a>
-      <a class="view-tab" href="/investigate" data-view="investigate" aria-pressed="false">investigation</a>
-      <a class="view-tab" href="/decide" data-view="decide" aria-pressed="false">decision desk</a>
-      <a class="view-tab" href="/intel" data-view="intel" aria-pressed="false">intelligence</a>
-      <a class="view-tab" href="/brain" data-view="brain" aria-pressed="false">brain</a>
-      <a class="view-tab" href="/broadsheet" data-view="all" aria-pressed="false">broadsheet</a>
+      <a class="view-tab" href="/watch" data-view="watch" aria-pressed="false" title="The desk of everything open right now, the anomaly lanes and the cost ledger.">watch</a>
+      <a class="view-tab" href="/investigate" data-view="investigate" aria-pressed="false" title="One signal at a time: fourteen days of evidence, the analyst's cited triage, the recommender's two options.">investigation</a>
+      <a class="view-tab" href="/decide" data-view="decide" aria-pressed="false" title="Where the hand decides: proposals awaiting a verdict, and the sealed chain of the verdicts already given.">decision desk</a>
+      <a class="view-tab" href="/intel" data-view="intel" aria-pressed="false" title="What the decisions added up to: funnel, approved value, agent telemetry and the standing market bands.">intelligence</a>
+      <a class="view-tab" href="/brain" data-view="brain" aria-pressed="false" title="What the system concludes about itself: insights, self-review, routines, runbooks and the detection backtest.">brain</a>
+      <a class="view-tab" href="/broadsheet" data-view="all" aria-pressed="false" title="Every room on one page, in order — the view to read straight through or to print.">broadsheet</a>
       <a class="view-tab" href="/static/chat.html" title="Ask one of the four agents a question about this estate and read the answer beside the evidence it used.">console</a>
       <a class="view-tab" href="/static/guide.html" title="The whole product in ten minutes: what it is, what each room shows, what is real and what is simulated.">handbook</a>
       <span class="cs-mega-wrap">
@@ -74,23 +74,24 @@
       <a class="flow-stop" href="/broadsheet" data-view="all"><b>broadsheet</b><span>the story told</span></a>
     </nav>
 
+    <p class="microcap intel-gap">Where the estate stands <span class="hint">— each figure opens the section it was counted in</span></p>
     <section class="summary-strip" aria-label="Operations summary">
-      <a class="sum" href="#sec-costs">
+      <a class="sum" href="#sec-costs" title="Jump to the cost ledger — this figure broken down by service, with the daily trend it came from.">
         <p class="microcap">Total spend</p>
         <p class="sum-fig" id="sum-total">—</p>
         <p class="sum-sub" id="sum-total-sub">monitored period</p>
       </a>
-      <a class="sum" href="#sec-anomalies">
+      <a class="sum" href="#sec-anomalies" title="Jump to the anomaly lanes — every day that left its own baseline, at the sensitivity set below.">
         <p class="microcap">Open signals</p>
         <p class="sum-fig" id="sum-signals">—</p>
         <p class="sum-sub">at current sensitivity</p>
       </a>
-      <a class="sum" href="/decide" data-room="decide">
+      <a class="sum" href="/decide" data-room="decide" title="Open the decision desk — the proposals that stay inert until you accept or reject them.">
         <p class="microcap">Awaiting the hand</p>
         <p class="sum-fig" id="sum-pending">—</p>
         <p class="sum-sub">no action runs unapproved</p>
       </a>
-      <a class="sum" href="/intel" data-room="intel">
+      <a class="sum" href="/intel" data-room="intel" title="Open the intelligence room — how this figure was computed from the approved decisions, and what else the ledger measures.">
         <p class="microcap">Approved value</p>
         <p class="sum-fig" id="sum-value">—</p>
         <p class="sum-sub">scenario monthly savings — computed, never generated</p>
@@ -128,6 +129,7 @@
             </select>
           </label>
           <p class="meta ctl-note" id="mission-help">One engine, three rulebooks — the next Pulse runs under the one you pick.</p>
+          <p class="meta ctl-note" id="mission-posture"></p>
         </div>
 
         <div class="ctl">
@@ -149,13 +151,13 @@
 
         <div class="ctl ctl-theme">
           <p class="microcap theme-row" role="group" aria-label="Palette">Palette —
-            <button class="row-action" type="button" data-theme-choice="horizon" aria-pressed="false">horizon</button> /
-            <button class="row-action" type="button" data-theme-choice="mission" aria-pressed="false">night</button> /
-            <button class="row-action" type="button" data-theme-choice="paper" aria-pressed="false">paper</button> /
-            <button class="row-action" type="button" data-theme-choice="dawn" aria-pressed="false">dawn</button> /
-            <button class="row-action" type="button" data-theme-choice="vivid" aria-pressed="true">vivid</button>
+            <button class="row-action" type="button" data-theme-choice="horizon" aria-pressed="false" title="Horizon — the signature broadsheet on a deep blue field. Blackletter nameplate, hairline rules, the radar sweeping.">horizon</button> /
+            <button class="row-action" type="button" data-theme-choice="mission" aria-pressed="false" title="Night — near-black mission surface for a dark room, the same broadsheet furniture.">night</button> /
+            <button class="row-action" type="button" data-theme-choice="paper" aria-pressed="false" title="Paper — warm off-white stock with the grain showing: the page as it prints.">paper</button> /
+            <button class="row-action" type="button" data-theme-choice="dawn" aria-pressed="false" title="Dawn — pale cool light, the quietest of the four editorial looks.">dawn</button> /
+            <button class="row-action" type="button" data-theme-choice="vivid" aria-pressed="true" title="Vivid — the light control surface: white cards, wide spacing, the same data and the same nameplate.">vivid</button>
           </p>
-          <p class="meta ctl-note">Five looks for the same data, remembered in this browser.</p>
+          <p class="meta ctl-note">Five looks for the same data, remembered in this browser. Nothing about the numbers changes — only the light they are read in.</p>
         </div>
 
       </div>
@@ -164,6 +166,7 @@
 
     <main id="main-content" tabindex="-1">
       <section class="ledger-wide" id="sec-desk" aria-labelledby="desk-heading">
+        <p class="microcap">the whole estate · one screen</p>
         <header class="section-head">
           <span class="numeral">0</span>
           <h2 class="section-word" id="desk-heading">the desk</h2>
@@ -182,28 +185,28 @@
                 <a class="cs-row-name" href="/watch" data-room="watch">1 · Signals surface</a>
                 <span class="cs-row-note">Cost, security and fraud run through one detector, and a day that leaves its own baseline becomes a signal.</span>
               </span>
-              <span class="cs-row-value">watch →</span>
+              <a class="cs-row-value" href="/watch" data-room="watch" tabindex="-1" aria-hidden="true">watch →</a>
             </li>
             <li class="cs-row cs-step">
               <span>
                 <a class="cs-row-name" href="/investigate" data-room="investigate">2 · Evidence and triage</a>
                 <span class="cs-row-note">The analyst reads the evidence behind one signal and the recommender proposes options, both citing what they used.</span>
               </span>
-              <span class="cs-row-value">investigation →</span>
+              <a class="cs-row-value" href="/investigate" data-room="investigate" tabindex="-1" aria-hidden="true">investigation →</a>
             </li>
             <li class="cs-row cs-step">
               <span>
                 <a class="cs-row-name" href="/decide" data-room="decide">3 · The hand decides</a>
                 <span class="cs-row-note">A proposal stays inert until you accept or reject it, and the verdict is sealed into a hash-chained ledger.</span>
               </span>
-              <span class="cs-row-value">decision desk →</span>
+              <a class="cs-row-value" href="/decide" data-room="decide" tabindex="-1" aria-hidden="true">decision desk →</a>
             </li>
             <li class="cs-row cs-step">
               <span>
                 <a class="cs-row-name" href="/intel" data-room="intel">4 · Results measured</a>
                 <span class="cs-row-note">Acceptance, time to decide and saved run rate are counted from that ledger — arithmetic, never generation.</span>
               </span>
-              <span class="cs-row-value">intelligence →</span>
+              <a class="cs-row-value" href="/intel" data-room="intel" tabindex="-1" aria-hidden="true">intelligence →</a>
             </li>
           </ol>
         </div>
@@ -238,9 +241,9 @@
                 <h3 class="cs-card-title">Run the whole chain</h3>
                 <p class="cs-card-sub">detect → analyst triage → recommender options → the decision desk. Nothing executes: the hand decides, and every figure is computed rather than generated.</p>
                 <div class="cs-hero-actions">
-                  <button class="cs-btn" type="button" id="desk-pulse">Pulse ▸</button>
-                  <button class="cs-btn ghost" type="button" id="desk-rescan">Re-scan</button>
-                  <a class="cs-btn ghost" href="/decide" data-room="decide">Go to the decisions</a>
+                  <button class="cs-btn" type="button" id="desk-pulse" title="Run every agent once over the current signals and file their proposals in the decision inbox. Nothing executes.">Pulse ▸</button>
+                  <button class="cs-btn ghost" type="button" id="desk-rescan" title="Re-read the cost data at the sensitivity set above. Detection only — the agents stay asleep.">Re-scan</button>
+                  <a class="cs-btn ghost" href="/decide" data-room="decide" title="Open the decision desk, where a proposal becomes a verdict.">Go to the decisions</a>
                 </div>
                 <p class="meta">Pulse runs every agent once and files proposals for you. Re-scan only re-reads the cost data at the sensitivity you set above. The third button opens the room where the verdicts are given.</p>
                 <p class="meta" id="desk-pulse-note" aria-live="polite"></p>
@@ -250,9 +253,10 @@
             <div class="cs-card cs-feed-head">
               <div class="cs-card-head">
                 <h3 class="cs-card-title">Everything open right now</h3>
+                <span class="cs-badge" data-lane="ops">every lane</span>
               </div>
-              <p class="meta">One card per thing the estate is holding — a cost signal, a security signal, a fraud score, a decision awaiting your hand, a standing opportunity. The chips keep one lane and hide the rest.</p>
-              <div class="cs-chips" id="desk-chips" role="group" aria-label="Filter the desk by lane"></div>
+              <p class="cs-card-sub">One card per thing the estate is holding — a cost signal, a security signal, a fraud score, a decision awaiting your hand, a standing opportunity. The chips below keep one lane and hide the rest.</p>
+              <div class="cs-chips" id="desk-chips" role="group" aria-label="Filter the desk by lane — pick one lane, or everything"></div>
             </div>
             <div id="desk-feed" aria-live="polite"></div>
           </div>
@@ -280,10 +284,11 @@
         </div>
       </section>
 
-      <section class="ledger-col" id="sec-anomalies">
+      <section class="ledger-col" id="sec-anomalies" aria-labelledby="anomalies-heading">
+        <p class="microcap">one detection line</p>
         <header class="section-head">
           <span class="numeral">I</span>
-          <h2 class="section-word">anomalies</h2>
+          <h2 class="section-word" id="anomalies-heading">anomalies</h2>
         </header>
         <div class="tape" id="live-tape" hidden>
           <p class="microcap tape-label"><span class="tape-dot" aria-hidden="true"></span>live tape <span class="tape-tag">simulated</span></p>
@@ -292,10 +297,11 @@
         </div>
         <svg id="sentinel-radar" class="radar" viewBox="0 0 200 200" role="img" aria-label="Sentinel radar — the live signal field, sweeping"></svg>
         <p class="meta" id="anomaly-meta">scanning…</p>
-        <p class="meta sort-row">sort —
-          <button class="row-action" type="button" data-anomaly-sort="z" aria-pressed="true">z-score</button> /
-          <button class="row-action" type="button" data-anomaly-sort="date" aria-pressed="false">date</button> /
-          <button class="row-action" type="button" data-anomaly-sort="service" aria-pressed="false">a–z</button>
+        <p class="meta">What the detector found in this window: a day that leaves its own baseline becomes a signal, and cost, security and fraud all reach it through the same scorer — arithmetic, with no model in the loop. The radar above carries one contact per open signal, critical close to the centre and security on the outer ring.</p>
+        <p class="meta sort-row" role="group" aria-label="Sort the signals">sort —
+          <button class="row-action" type="button" data-anomaly-sort="z" aria-pressed="true" title="Re-order the list by how far each day sits from its own baseline — the most extreme signal first.">z-score</button> /
+          <button class="row-action" type="button" data-anomaly-sort="date" aria-pressed="false" title="Re-order the list by day, the most recent signal first, whatever it scored.">date</button> /
+          <button class="row-action" type="button" data-anomaly-sort="service" aria-pressed="false" title="Re-order the list by service name, so every signal from one service reads together.">a–z</button>
         </p>
         <div id="anomaly-list" class="fadeable"></div>
         <div class="watch-block" id="watch-block">
@@ -306,15 +312,17 @@
         </div>
       </section>
 
-      <section class="ledger-col col-rule" id="sec-costs">
+      <section class="ledger-col col-rule" id="sec-costs" aria-labelledby="costs-heading">
+        <p class="microcap">measured, never modelled</p>
         <header class="section-head">
           <span class="numeral">II</span>
-          <h2 class="section-word">cost ledger</h2>
-          <a class="head-action" href="/costs/summary/export" download>export csv ↓</a>
+          <h2 class="section-word" id="costs-heading">cost ledger</h2>
+          <a class="head-action" href="/costs/summary/export" download title="Download this table as CSV — one row per service, the same figures the page is showing.">export csv ↓</a>
         </header>
         <p class="meta" id="cost-meta">loading…</p>
+        <p class="meta">What the estate actually spent over the monitored window, service by service. This is the baseline the anomaly lane is scored against, so a figure here and a signal above are always the same arithmetic read twice.</p>
         <div class="hero">
-          <p class="microcap">Total Spend</p>
+          <p class="microcap">Total Spend <span class="hint">— every service, whole window</span></p>
           <p class="hero-figure" id="total-cost">—</p>
           <p class="meta ledger-live" id="ledger-live-rate" hidden></p>
         </div>
@@ -322,29 +330,33 @@
           <p class="microcap">Spend trend <span class="hint">— daily total, all services</span></p>
           <svg id="cost-trend" class="trend-svg" viewBox="0 0 460 132" preserveAspectRatio="none" role="img" aria-label="Daily total spend trend with anomaly days marked"></svg>
           <p class="meta trend-readout" id="trend-readout" aria-live="off">—</p>
+          <p class="meta">One point per day, every service summed, and a marked point is a day the detector flagged. Run the pointer along the line: it drops a probe on the nearest day and reads out that day's total.</p>
           <p class="meta" id="trend-note"></p>
           <p class="meta" id="trend-forecast"></p>
         </div>
-        <p class="meta sort-row">sort —
-          <button class="row-action" type="button" data-sort="cost" aria-pressed="true">cost</button> /
-          <button class="row-action" type="button" data-sort="az" aria-pressed="false">a–z</button>
+        <p class="meta sort-row" role="group" aria-label="Sort the services">sort —
+          <button class="row-action" type="button" data-sort="cost" aria-pressed="true" title="Re-order the services by spend, the largest share of the bill first.">cost</button> /
+          <button class="row-action" type="button" data-sort="az" aria-pressed="false" title="Re-order the services alphabetically, so the same name sits in the same place between scans.">a–z</button>
         </p>
         <div id="cost-bars" class="fadeable"></div>
       </section>
 
       <section class="ledger-wide" id="sec-investigation" aria-labelledby="inv-heading">
+      <p class="microcap">evidence first · every claim cited</p>
       <header class="section-head">
         <span class="numeral">III</span>
         <h2 class="section-word" id="inv-heading">investigation</h2>
       </header>
       <p class="meta">evidence trail per signal — Analyst triage and Recommender proposals run live; execution stays simulated by design</p>
+      <p class="meta">Pick a signal on the left and the panel beside it fills with that one case: fourteen days of its own spend, what the analyst made of it and the two options the recommender costed. Nothing here decides anything — the verdict is given at the decision desk.</p>
       <div class="inv-layout">
-        <nav class="inv-rail" id="signal-rail" aria-label="Open signals"></nav>
+        <nav class="inv-rail" id="signal-rail" aria-label="Open signals — pick one to load its evidence"></nav>
         <article class="inv-detail" id="inv-detail" aria-live="polite"></article>
       </div>
       </section>
 
       <section class="ledger-wide" id="sec-decisions" aria-labelledby="dec-heading">
+      <p class="microcap">inert until a human moves it</p>
       <header class="section-head">
         <span class="numeral">IV</span>
         <h2 class="section-word" id="dec-heading">decision inbox</h2>
@@ -355,21 +367,25 @@
       </section>
 
       <section class="ledger-wide" id="sec-ledger" aria-labelledby="led-heading">
+      <p class="microcap">hash-chained · nothing quietly edited</p>
       <header class="section-head">
         <span class="numeral">V</span>
         <h2 class="section-word" id="led-heading">decision ledger</h2>
+        <a class="head-action" href="/audit/verify" title="Walk the chain end to end and name the first broken link — the proof that no entry below was edited after the fact.">verify the chain ↗</a>
       </header>
       <p class="meta">every review remains visible — why it was proposed, who decided, what followed</p>
+      <p class="meta">Each entry is sealed with the hash of the one before it, so an entry cannot be altered without breaking every entry after it. The list below is the record; the link above is the proof.</p>
       <blockquote class="ledger-quote">“No critical action without an accountable human decision.”</blockquote>
       <ol id="audit-list" class="audit-list"></ol>
       </section>
 
       <section class="ledger-wide" id="sec-intelligence" aria-labelledby="intel-heading">
+      <p class="microcap">arithmetic · never generated</p>
       <header class="section-head">
         <span class="numeral">VI</span>
         <h2 class="section-word" id="intel-heading">operations intelligence</h2>
-        <button class="head-action row-action" type="button" id="copy-brief">copy brief ⧉</button>
-        <button class="head-action row-action" type="button" id="handover-print-btn">handover ↓</button>
+        <button class="head-action row-action" type="button" id="copy-brief" title="Copy the one-line summary of this room to your clipboard — nothing is sent anywhere.">copy brief ⧉</button>
+        <button class="head-action row-action" type="button" id="handover-print-btn" title="Open your printer with a one-page shift brief: what happened, what is still open, what the next operator inherits.">handover ↓</button>
       </header>
       <p class="meta" id="intel-meta">aggregates over everything the pipeline has persisted — pure arithmetic, no generation</p>
       <p class="meta">Copy brief puts the one-line jury summary on your clipboard. Handover prints a one-page shift brief: what happened, what is still open, what the next operator inherits.</p>
@@ -377,6 +393,7 @@
         <div class="intel-block">
           <p class="microcap">Decision funnel <span class="hint">— signals to executions</span></p>
           <div id="intel-funnel"></div>
+          <p class="meta">Seven counts along one path, each of them counted out of the ledger — so the drop between two cells is a real loss, never an estimate.</p>
           <p class="meta" id="intel-quality">—</p>
         </div>
         <div class="intel-block">
@@ -387,17 +404,19 @@
           <p class="meta" id="intel-trend">—</p>
         </div>
         <div class="intel-block">
-          <p class="microcap">Agent telemetry</p>
+          <p class="microcap">Agent telemetry <span class="hint">— what the runs cost</span></p>
           <div id="intel-telemetry"></div>
+          <p class="meta">Receipts from the agent layer itself. A line appears only when something is ledgered behind it, which is why an idle system shows fewer lines rather than a column of zeroes.</p>
         </div>
       </div>
       </section>
 
       <section class="ledger-wide" id="sec-market" aria-labelledby="market-heading">
+      <p class="microcap">published bands · this estate's run rate</p>
       <header class="section-head">
         <span class="numeral">VII</span>
         <h2 class="section-word" id="market-heading">market watch</h2>
-        <span class="head-action microcap" id="market-source">—</span>
+        <span class="head-action microcap" id="market-source" title="Where these bands come from, and when they were last reviewed.">—</span>
       </header>
       <p class="meta" id="market-meta">standing opportunities — published market bands costed against this estate's own run rate; the anomaly lanes answer what changed, this one answers what is worth doing anyway</p>
       <div id="market-table"></div>
@@ -405,39 +424,43 @@
       </section>
 
       <section class="ledger-wide" id="sec-brain" aria-labelledby="brain-heading">
-        <h2 class="section-word" id="brain-heading">the brain</h2>
+        <p class="microcap">the system reading its own history</p>
+        <header class="section-head">
+          <span class="numeral">VIII</span>
+          <h2 class="section-word" id="brain-heading">the brain</h2>
+        </header>
         <p class="meta">what the system concludes from its own history — computed, never generated; every suggestion is a human decision</p>
         <div class="brain-identity" id="brain-identity">
-          <span class="microcap">identity</span>
+          <span class="microcap">identity <span class="hint">— who the ledger will name</span></span>
           <span id="identity-form">
             <input id="auth-username" type="text" placeholder="username" autocomplete="username" aria-label="Username" />
             <input id="auth-password" type="password" placeholder="password" autocomplete="current-password" aria-label="Password" />
-            <button class="head-action" type="button" id="auth-register">register</button>
-            <button class="head-action" type="button" id="auth-login">sign in</button>
+            <button class="head-action" type="button" id="auth-register" title="Create an account on this instance, then sign in with it.">register</button>
+            <button class="head-action" type="button" id="auth-login" title="Sign in, and every verdict you give from then on is sealed with a server-derived identity instead of the typed operator field.">sign in</button>
           </span>
           <span class="meta" id="identity-note">sign in and every decision carries a server-derived identity — the state lives in the masthead</span>
         </div>
         <div class="brain-grid">
           <div class="intel-block">
-            <p class="microcap">observations</p>
+            <p class="microcap">observations <span class="hint">— what the record shows</span></p>
             <ul class="brain-list" id="brain-observations"><li class="meta">—</li></ul>
           </div>
           <div class="intel-block">
-            <p class="microcap">predictions</p>
+            <p class="microcap">predictions <span class="hint">— where it points next</span></p>
             <ul class="brain-list" id="brain-predictions"><li class="meta">—</li></ul>
           </div>
           <div class="intel-block">
-            <p class="microcap">recommendations</p>
+            <p class="microcap">recommendations <span class="hint">— what it asks of you</span></p>
             <ul class="brain-list" id="brain-recommendations"><li class="meta">—</li></ul>
           </div>
         </div>
         <div class="brain-review">
-          <button class="head-action" type="button" id="brain-review">run self-review ↻</button>
+          <button class="head-action" type="button" id="brain-review" title="Run one self-review cycle now: the system re-reads its own history and drafts proposals about itself. Drafts only — nothing is applied.">run self-review ↻</button>
           <p class="meta">One self-review cycle: the system reads its own history and drafts proposals about itself. They are drafts — nothing is applied without a human hand.</p>
           <ul class="brain-list" id="brain-proposals"></ul>
         </div>
         <div class="brain-routines">
-          <h3 class="microcap">routines — saved rituals</h3>
+          <h3 class="microcap">routines <span class="hint">— saved rituals, run in one click</span></h3>
           <p class="meta">suggested from the current state; running one is read-only (insights + pending approvals + cost)</p>
           <ul class="brain-list" id="routine-suggestions"><li class="meta">—</li></ul>
           <p class="microcap routine-saved-head">saved — persisted in the store</p>
@@ -445,13 +468,13 @@
           <pre class="routine-output" id="routine-output" hidden></pre>
         </div>
         <div class="brain-runbooks">
-          <h3 class="microcap">runbooks — remediation library</h3>
+          <h3 class="microcap">runbooks <span class="hint">— the remediation library, searchable</span></h3>
           <p class="meta">curated, keyword-matched playbooks (RAG-lite) — cite a known procedure instead of free-generating one</p>
-          <input class="runbook-search" id="runbook-query" type="search" placeholder="e.g. ec2 cost spike" aria-label="Search remediation runbooks" />
+          <input class="runbook-search" id="runbook-query" type="search" placeholder="e.g. ec2 cost spike" aria-label="Search the remediation runbooks by keyword" title="Type a symptom and the matching playbooks appear below as you type — nothing is generated, the library is fixed." />
           <ul class="brain-list" id="runbook-results"></ul>
         </div>
         <div class="brain-backtest">
-          <h3 class="microcap">detection backtest</h3>
+          <h3 class="microcap">detection backtest <span class="hint">— does the detector actually work</span></h3>
           <p class="meta">recall on planted synthetic ground truth at the current sensitivity — every scorer in the registry side by side, flat baselines against the trend-fitting one; precision and misses ride each bar; measured, not narrated</p>
           <div class="backtest-table" id="backtest-table"></div>
           <p class="meta backtest-legend" id="backtest-legend" hidden>
@@ -492,7 +515,7 @@
             <a class="row-action" href="/broadsheet" data-room="all">broadsheet</a>
             <a class="row-action" href="/static/chat.html">orchestration console</a>
             <a class="row-action" href="/static/guide.html">handbook</a>
-            <a class="row-action" href="?tour=1" data-tour-launch>guided tour ▸</a>
+            <a class="row-action" href="?tour=1" data-tour-launch title="Opens a walkthrough over this page — six stops, one per room, in the order the product is meant to be read. Leave it at any step with skip.">guided tour ▸</a>
           </p>
         </div>
         <div>
@@ -510,7 +533,7 @@
   </div>
 
   <aside class="agent-feed" id="agent-feed" aria-label="Live agent feed">
-    <button id="feed-toggle" type="button" aria-expanded="false" aria-describedby="feed-what">
+    <button id="feed-toggle" type="button" aria-expanded="false" aria-controls="feed-body" aria-describedby="feed-what" title="Open the live agent feed: every hop of the chain as it happens — which agent spoke, to whom, and what it passed on.">
       <span class="live-dot" aria-hidden="true"></span> agent feed
     </button>
     <div class="feed-body" id="feed-body" hidden>

@@ -52,31 +52,22 @@ APP_JS = STATIC_DIR / "app.js"
 
 # Controls whose purpose the markup never states. Each entry names the
 # fix; deleting the entry is the definition of done.
-UNEXPLAINED_CONTROLS = {
-    # "Re-scan →" sits directly beside "Pulse →", which carries a title
-    # explaining the whole chain. Re-scan carries nothing, so the pair
-    # reads as two words for one action. FIX: give #rescan a title —
-    # it re-runs detection only, at the slider's current sensitivity,
-    # without waking the agents.
-    # The footer's "guided tour ▸" is a control wearing a link's
-    # clothes: ?tour=1 launches the overlay walkthrough rather than
-    # navigating. FIX: title on the <a data-tour-launch> saying it walks
-    # the six rooms in order and can be left at any step.
-    'a[href="?tour=1"]',
-}
+#
+# Empty since the footer's "guided tour ▸" was given a title: it is a
+# control wearing a link's clothes (?tour=1 launches the overlay rather
+# than navigating), and the title now says it walks the six rooms in
+# order and can be left at any step. Every control on the page states
+# its purpose somewhere a human can reach.
+UNEXPLAINED_CONTROLS: set[str] = set()
 
 # Ids app.js reads with getElementById()/#selectors that no element in
 # index.html carries and no app.js template creates.
-MISSING_IDS = {
-    # Shipped in 2de862c ("feat: the mission selector states the posture
-    # it resolved to"): renderMissionPosture() runs on every render and
-    # returns at its own first line, because #mission-posture exists in
-    # neither the markup nor any app.js template. The mission switch is
-    # therefore still silent about what it changed — the exact defect
-    # that commit set out to repair. FIX: add the <p id="mission-posture"
-    # class="meta"> host to the colophon, under the mission select.
-    "mission-posture",
-}
+#
+# Empty since the colophon gained <p id="mission-posture">: before it,
+# renderMissionPosture() — shipped in 2de862c — returned at its own
+# first line on every render, so the mission switch never said what it
+# had changed.
+MISSING_IDS: set[str] = set()
 
 # data-* hooks the markup declares that app.js never reads.
 UNREAD_DATA_HOOKS: set[str] = set()
