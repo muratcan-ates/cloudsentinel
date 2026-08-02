@@ -38,6 +38,7 @@ from pathlib import Path
 
 import pytest
 
+from app import chrome
 from main import app
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -443,7 +444,10 @@ def served_paths() -> set[str]:
 
 @pytest.fixture(scope="module")
 def dom() -> Dom:
-    return Dom(INDEX_HTML.read_text(encoding="utf-8"))
+    # The composed page, not the file: the rail is a chrome slot on disk and
+    # only exists as markup once it is rendered. Reading the file here would
+    # walk a document with no navigation in it and quietly pass.
+    return Dom(chrome.page("index.html"))
 
 
 @pytest.fixture(scope="module")

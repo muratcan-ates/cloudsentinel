@@ -27,12 +27,18 @@ from typing import Literal
 from fastapi import Depends, FastAPI, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+    Response,
+)
 from fastapi.staticfiles import StaticFiles
 
 import sqlite3
 
-from app import auth, configcheck, db, feeds, logstream, metrics, telemetry, watchdog
+from app import auth, chrome, configcheck, db, feeds, logstream, metrics, telemetry, watchdog
 from app.actions import router as actions_router
 from app.analyst import router as analyst_router
 from app.auth import router as auth_router
@@ -705,15 +711,35 @@ def get_anomalies(
 
 
 @app.get("/", include_in_schema=False)
-def dashboard() -> FileResponse:
-    """Serve the CloudSentinel dashboard."""
-    return FileResponse(STATIC_DIR / "index.html")
+def dashboard() -> HTMLResponse:
+    """Serve the CloudSentinel dashboard, chrome filled in."""
+    return HTMLResponse(chrome.page("index.html"))
 
 
 # The dashboard's rooms are real URLs (back/forward and sharing work); the
 # client resolves the view from the path, so every room serves the same page.
 for _view_path in ("/watch", "/investigate", "/decide", "/intel", "/brain", "/broadsheet"):
     app.add_api_route(_view_path, dashboard, include_in_schema=False)
+
+
+# The console and the handbook keep the /static/ URLs every page links them by
+# — these routes are declared BEFORE the mount below, so they answer first and
+# the visitor never reaches the unrendered file behind them. They are the two
+# pages that also load pages.css.
+@app.get("/static/chat.html", include_in_schema=False)
+def console_page() -> HTMLResponse:
+    """Serve the orchestration console."""
+    return HTMLResponse(
+        chrome.page("chat.html", current="/static/chat.html", extra_sheets=("pages.css",))
+    )
+
+
+@app.get("/static/guide.html", include_in_schema=False)
+def handbook_page() -> HTMLResponse:
+    """Serve the handbook."""
+    return HTMLResponse(
+        chrome.page("guide.html", current="/static/guide.html", extra_sheets=("pages.css",))
+    )
 
 
 @app.get("/docs", include_in_schema=False)
