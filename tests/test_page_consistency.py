@@ -139,6 +139,29 @@ def test_every_section_link_resolves_to_a_room():
         assert target in mapped, f"{target} is linked but belongs to no room"
 
 
+def test_the_desk_reads_the_field_names_the_api_actually_sends():
+    """A guessed field name renders a confident wrong number, not an error.
+
+    The desk printed "a rolling baseline of 0.00" for every signal because it
+    read `baseline` where the scan sends `service_mean`, and every standing
+    opportunity read "compute · published band · —" because it reached for
+    `title` / `band` / `saving` instead of the market payload's real keys.
+    Both looked like working panels with nothing to say.
+    """
+    app_js = client.get("/static/app.js").text
+
+    anomaly = client.get("/anomalies").json()["anomalies"][0]
+    assert "service_mean" in anomaly
+    assert "anomaly.service_mean" in app_js
+
+    opportunity = client.get("/market/opportunities").json()["opportunities"][0]
+    for field in ("headline", "reduction_band", "monthly_saving_low", "monthly_saving_high"):
+        assert field in opportunity, f"the market payload lost {field}"
+        assert field in app_js, f"the desk stopped reading {field}"
+    for guessed in ("row.saving", "row.band ", "row.title"):
+        assert guessed not in app_js, f"the desk reads {guessed}, which the API never sends"
+
+
 def test_the_appearance_module_survives_blocked_storage():
     """Private windows throw on localStorage; the page must still paint."""
     module = client.get("/static/appearance.js").text

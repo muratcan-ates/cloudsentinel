@@ -3995,8 +3995,10 @@ function renderDeskFeed() {
         lane: "cost",
         badge: `z ${Number(anomaly.z_score ?? 0).toFixed(1)}`,
         title: `${anomaly.service} — ${anomaly.date}`,
+        // the scan calls the baseline service_mean; reading `baseline` here
+        // printed a confident 0.00 on the first card a visitor sees
         body: `Spend of ${Number(anomaly.cost ?? 0).toFixed(2)} against a rolling baseline of ${Number(
-          anomaly.baseline ?? 0
+          anomaly.service_mean ?? anomaly.baseline ?? 0
         ).toFixed(2)}. Deterministic detection, no model involved.`,
         meta: daysAgo(anomaly.date),
       })
@@ -4046,13 +4048,23 @@ function renderDeskFeed() {
     });
 
   (state.market?.opportunities || []).slice(0, 3).forEach((row) => {
+    // same payload shape as the rail below: headline / service / the
+    // computed monthly band, not title / saving
+    const band =
+      row.monthly_saving_low != null
+        ? `≈ ${fmtNumber(Number(row.monthly_saving_low))} – ${fmtNumber(
+            Number(row.monthly_saving_high ?? row.monthly_saving_low)
+          )} / mo`
+        : "";
     cards.push(
       deskCard({
         lane: "market",
-        badge: "opportunity",
-        title: row.title || row.service || "standing opportunity",
-        body: row.rationale || row.note || "A published market band costed against this estate's own run rate.",
-        meta: row.saving ? `≈ ${row.saving}` : "",
+        badge: row.service ? `opportunity · ${row.service}` : "opportunity",
+        title: row.headline || row.service || "standing opportunity",
+        body:
+          row.rationale ||
+          "A published market band costed against this estate's own run rate.",
+        meta: band,
       })
     );
   });
@@ -4125,12 +4137,20 @@ function renderDeskMarket() {
   host.innerHTML = rows.length
     ? rows
         .map(
+          // field names follow /market/opportunities: headline, service,
+          // reduction_band and the computed monthly band. Reading title /
+          // band / saving left every row reading "compute · published band
+          // · —", which looks like the panel has nothing to say.
           (row) => `<li class="cs-row">
             <span>
-              <span class="cs-row-name">${escapeHtml(row.title || row.service || "opportunity")}</span>
-              <span class="cs-row-note">${escapeHtml(row.band || row.note || "published band")}</span>
+              <span class="cs-row-name">${escapeHtml(row.headline || row.service || "opportunity")}</span>
+              <span class="cs-row-note">${escapeHtml(row.service || "")} · ${escapeHtml(
+                row.reduction_band || "published band"
+              )}</span>
             </span>
-            <span class="cs-row-value">${escapeHtml(row.saving || "—")}</span>
+            <span class="cs-row-value">${fmtNumber(Number(row.monthly_saving_low ?? 0))} – ${fmtNumber(
+              Number(row.monthly_saving_high ?? 0)
+            )}</span>
           </li>`
         )
         .join("")
