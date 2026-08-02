@@ -25,7 +25,8 @@
    22 · sprint 3 — self-describing desk: flow map, lifecycle steps, touch
    23 · vivid — the card system (the fifth, light palette)
    24 · accessibility — preferences the visitor sets, not the designer
-   25 · vivid, second pass — from a palette to a design system
+   25 · the fixes vivid found, kept for all five palettes
+   26 · vivid — the palette, and nothing but the palette
 
    Rules only moved between layers when the cascade could not change:
    same-specificity overrides (chips, bar-fill, input focus, .meta vs
@@ -521,6 +522,13 @@ h1 .period { color: var(--accent); }
   color: var(--ink);
   white-space: nowrap;
 }
+/* One rail in every palette. The voice is the broadsheet's — tracked
+   capitals at the smallest size the type scale allows, and a box rather
+   than a pill, because a room tab is a heading in a rail and not a
+   control in a toolbar. The measurements are the ones the light palette
+   got right: a target big enough to hit, a hover that washes instead of
+   drawing a hairline, and a faint accent ground under the box that says
+   "you are here" before the colour of the word does. */
 .view-tab {
   font: 500 var(--fs-micro)/1.6 "Inter", sans-serif;
   letter-spacing: var(--track-caps);
@@ -528,15 +536,25 @@ h1 .period { color: var(--accent); }
   color: var(--ink-dim);
   background: none;
   border: 1px solid transparent;
-  padding: 6px 12px;
+  padding: 8px 14px;
   cursor: pointer;
   text-decoration: none;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
-.view-tab:hover { color: var(--ink); border-color: var(--hair); }
-.view-tab[aria-pressed="true"] {
+/* A border that only appears on hover competes with the border that means
+   "current" — two hairlines, one of them a lie. The wash is quieter and
+   leaves the box to the page you are actually on. */
+.view-tab:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+/* The open mega panel is a current state too; before this it was the one
+   tab in the rail that could be active and not look it. */
+.view-tab[aria-pressed="true"],
+.view-tab[aria-expanded="true"] {
   color: var(--accent);
   border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 .view-hidden { display: none; }
 
@@ -588,6 +606,10 @@ main.room-enter section:not(.view-hidden) { animation: room-in 0.28s ease; }
   font-variant-numeric: tabular-nums;
   margin-top: var(--sp-2);
 }
+/* The unit is one word however many spaces it contains: "USD / mo" was
+   breaking after the slash, leaving "mo" alone on a line under a figure
+   it no longer looked attached to. It may fall below the number when the
+   column is narrow — it may not come apart doing it. */
 .sum-fig small {
   font-family: "Inter", sans-serif;
   font-size: 0.26em;
@@ -595,6 +617,7 @@ main.room-enter section:not(.view-hidden) { animation: room-in 0.28s ease; }
   letter-spacing: var(--track-caps);
   color: var(--ink-dim);
   vertical-align: 14%;
+  white-space: nowrap;
 }
 .sum-sub {
   font-size: var(--fs-meta);
@@ -605,6 +628,12 @@ main.room-enter section:not(.view-hidden) { animation: room-in 0.28s ease; }
 
 @media (max-width: 980px) {
   .summary-strip { grid-template-columns: repeat(2, 1fr); }
+  /* `.sum + .sum` is a sibling rule and a sibling rule cannot see a grid
+     wrap: in two columns the third figure starts a row and was still
+     being given the left rule and the left indent that belong to a
+     second column, so the bottom row sat shifted against the top one.
+     In a two-column grid the odd children are the ones at the margin. */
+  .sum:nth-child(odd) { border-left: none; padding-left: 0; }
 }
 @media (max-width: 560px) {
   .summary-strip { grid-template-columns: 1fr; }
@@ -2140,7 +2169,6 @@ footer {
 }
 
 :root[data-theme="vivid"] body { background-image: none; background: var(--surface); }
-:root[data-theme="vivid"] .top-nav { background: rgba(255, 255, 255, 0.92); border-bottom: 1px solid var(--hair); }
 :root[data-theme="vivid"] .masthead h1 { color: var(--ink); }
 
 /* ---------- the card ---------- */
@@ -2215,7 +2243,7 @@ a.cs-card:focus-visible, button.cs-card:focus-visible {
   border-color: var(--chip-on);
   color: #fff;
 }
-:root:not([data-theme="vivid"]) .cs-chip[aria-pressed="true"] { color: var(--surface); }
+:root .cs-chip[aria-pressed="true"] { color: var(--surface); }
 
 /* ---------- three-figure stat block (the estate at a glance) ---------- */
 .cs-stat3 {
@@ -2285,7 +2313,7 @@ a.cs-card:focus-visible, button.cs-card:focus-visible {
   font: inherit; font-size: var(--fs-meta);
   cursor: pointer;
 }
-:root:not([data-theme="vivid"]) .cs-btn { color: var(--surface); }
+:root .cs-btn { color: var(--surface); }
 .cs-btn.ghost { background: transparent; color: var(--accent); }
 .cs-btn:hover, .cs-btn:focus-visible { filter: brightness(1.06); }
 
@@ -2306,7 +2334,15 @@ a.cs-card:focus-visible, button.cs-card:focus-visible {
   border-radius: var(--card-radius);
   box-shadow: var(--card-shadow-lift);
 }
-:root:not([data-theme="vivid"]) .cs-mega { background: var(--surface); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45); }
+/* The panel lifts off the bar in every palette. A shadow is always cast
+   in black — mixing it toward `--ink` would make it a glow on the three
+   dark palettes, where the ink is nearly white — so the colour stays and
+   only the weight changes: 45% reads as depth against a night sky and as
+   a smudge on paper. Stated for the two light grounds, like the radar's
+   rings, because it is a fact about the medium and not a house style. */
+:root .cs-mega { background: var(--surface); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45); }
+:root[data-theme="paper"] .cs-mega,
+:root[data-theme="vivid"] .cs-mega { box-shadow: 0 18px 50px rgba(0, 0, 0, 0.16); }
 @media (max-width: 720px) { .cs-mega { grid-template-columns: 1fr; min-width: min(420px, 92vw); } }
 .cs-mega[hidden] { display: none; }
 .cs-mega-item { display: block; text-decoration: none; color: inherit; padding: var(--sp-2); border-radius: 10px; }
@@ -2456,7 +2492,7 @@ a.cs-card:focus-visible, button.cs-card:focus-visible {
   cursor: pointer;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
 }
-:root:not([data-theme="vivid"]) .a11y-launch { color: var(--surface); }
+:root .a11y-launch { color: var(--surface); }
 .a11y-panel {
   position: fixed;
   right: var(--sp-4);
@@ -2471,7 +2507,7 @@ a.cs-card:focus-visible, button.cs-card:focus-visible {
   border-radius: var(--card-radius);
   box-shadow: var(--card-shadow-lift), 0 20px 60px rgba(0, 0, 0, 0.3);
 }
-:root:not([data-theme="vivid"]) .a11y-panel { background: var(--surface); }
+:root .a11y-panel { background: var(--surface); }
 .a11y-panel[hidden] { display: none; }
 .a11y-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); margin-bottom: var(--sp-3); }
 .a11y-group { margin-top: var(--sp-4); }
@@ -2532,16 +2568,12 @@ a.cs-card:focus-visible, button.cs-card:focus-visible {
 .cs-row-note { display: block; margin-top: 2px; }
 .cs-row-value { padding-top: 1px; }
 
-/* The measure belongs to the medium. A broadsheet column is 960px because
-   prose wants roughly seventy characters; a control surface wants room for
-   three columns of objects. So the width travels with the palette: vivid
-   widens the page, the four editorial palettes keep the newspaper exactly
-   as it was. No negative margins, no breakout, no horizontal overflow. */
-:root[data-theme="vivid"] .page { max-width: 1320px; }
-:root[data-theme="vivid"] main { column-gap: var(--sp-6); }
-:root[data-theme="vivid"] .cs-desk { grid-template-columns: 260px minmax(0, 1fr) 280px; }
-@media (max-width: 1240px) { :root[data-theme="vivid"] .cs-desk { grid-template-columns: 240px minmax(0, 1fr); } }
-@media (max-width: 820px) { :root[data-theme="vivid"] .cs-desk { grid-template-columns: minmax(0, 1fr); } }
+/* The measure used to belong to the palette: vivid widened the page to
+   1320px and cut its own desk grid, the four editorial palettes kept the
+   newspaper at 960. That is the divergence in its purest form — the same
+   room was a different shape depending on the light you read it in. The
+   page is 960 in all five, and the desk grid is declared once, in 25.5,
+   at a width that holds a label beside a figure. */
 
 /* The stylesheet sets every button in small caps; that is right for a room
    tab and wrong for a sentence. The panel's switches carry prose, so they
@@ -2556,35 +2588,55 @@ a.cs-card:focus-visible, button.cs-card:focus-visible {
 .a11y-state { text-transform: uppercase; letter-spacing: var(--track-caps); }
 
 /* ======================================================================
-   25 · vivid, second pass — from a palette to a design system
+   25 · the fixes vivid found, kept for all five palettes
    ----------------------------------------------------------------------
-   Section 23 picked the right instrument and then played it badly. The
-   tokens were honest — a light ground, white cards, one saturated blue —
-   but the geometry underneath still belonged to the broadsheet: 200px
-   rails that broke every label into single words, 12px gutters between
-   objects that were supposed to breathe, prose set at 13px in 0.14em
-   small caps, and two fixed widgets fighting over the same 46px square
-   in the bottom-right corner.
+   This section used to be called "from a palette to a design system", and
+   that is exactly what went wrong with it. Section 23 picked the right
+   instrument and played it badly — 200px rails that broke every label
+   into single words, 12px gutters between objects that were supposed to
+   breathe, prose set at 13px in 0.14em small caps, two fixed widgets
+   fighting over the same 46px square. All real defects. But the
+   correction was written behind [data-theme="vivid"], so one palette got
+   the fixes and four kept the bugs, and the product ended up with two
+   design languages that shared a stylesheet and nothing else. The top
+   bar was where you saw it: tracked capitals in a box on four palettes,
+   capitalised pills on the fifth, changing under you as you switched.
 
-   This section is the correction, and it is deliberately last in the
-   file. Every rule below either shares specificity with the one it
-   replaces and wins on source order, or names [data-theme="vivid"] so
-   the four editorial palettes never see it. Nothing above is deleted:
-   horizon, mission, paper and dawn render exactly as they did. Where a
-   rule DOES apply to every palette it is because the thing it fixes was
-   broken in every palette — an overlap or a missing focus ring is a bug,
+   So the divergence is gone and the diagnosis is kept. What remains here
+   is the half of the old section that was always right: the things it
+   found were broken in EVERY palette. A rail too narrow to hold a label
+   beside a figure, a focus ring that only one palette had, a corner two
+   widgets shared without arbitration, a shadow cast in a colour only a
+   night sky could carry. None of those are a house style, and none of
+   them are scoped now.
+
+   The half that is gone was the half that re-cut the furniture: a second
+   type scale, pill chips, filled buttons, slab summary strips, a 1320px
+   page, a rail in a different voice. Those went back to the base layer,
+   which was drawing all of them correctly the whole time. Section 26 had
+   spent four hundred lines putting the product's own marks back onto the
+   palette this section had stripped them from; most of it became
+   unnecessary the moment the stripping stopped, and went with it.
+
+   What is left of vivid is a palette: tokens, a ground, and the two
+   places where a light medium genuinely behaves differently from a dark
+   one (a radar's stroke, a shadow's weight). Nothing above is deleted
+   for the four editorial palettes except where they were sharing a bug.
+   Where a rule applies to every palette it is because the thing it fixes
+   was broken in every palette — an overlap or a missing focus ring is a bug,
    not a house style.
 
+   Kept, and now unscoped:
    25.1  the corner dock — one column for the two fixed widgets
-   25.2  page rhythm — sections that breathe
-   25.3  type — 16/1.6, and no prose in small caps
-   25.4  links and focus — blue, quiet, and always visible to a keyboard
-   25.5  the desk grid and the capability row
-   25.6  cards
-   25.7  chips, badges, buttons
-   25.8  navigation and the mega menu
-   25.9  the summary strip and the colophon as objects
+   25.4  focus — a keyboard ring, in every palette
+   25.5  the desk grid and the capability row — a rail wide enough to be one
+   25.8  the mega menu — anchored to the bar, not to a word
    25.10 print — the dock is chrome, and chrome never prints
+
+   Folded back into the base, with a note at each site saying what it did:
+   25.2  page rhythm          25.6  cards
+   25.3  type                 25.7  chips, badges, buttons
+                              25.9  the summary strip and the colophon
    ====================================================================== */
 
 /* ---------- 25.1 · the corner dock ----------
@@ -2666,148 +2718,46 @@ a.cs-card:focus-visible, button.cs-card:focus-visible {
   #tour-card { bottom: calc(var(--dock-lift) + 48px); }
 }
 
-/* ---------- 25.2 · page rhythm ----------
-   WHY: the brief's word for the old surface was "cramped". It was
-   measurable: sections were 12px apart, panels carried 26px of padding
-   and a shadow tuned for a dark ground (rgba(0,0,0,.16) reads as dirt on
-   #eef3f9). A card system earns its keep only if the cards are separated
-   by more than a hairline's worth of air. */
+/* ---------- 25.2 · page rhythm — folded into the base ----------
+   A second page: 1320px instead of 960, its own gutters, its own column
+   gaps, and the ledger columns re-drawn as raised cards. That is not a
+   rhythm, it is a different sheet of paper — and it is the reason the
+   same room measured differently depending on which light you read it
+   in. The base page is the page. */
 
-/* A 960px broadsheet wants a 6vw gutter so the prose column stays a prose
-   column. A 1320px control surface does not: 64px of air either side is
-   64px stolen from the centre feed, which is the one column the brief
-   calls "wide". The gutter halves; the page keeps its margins. */
-:root[data-theme="vivid"] .page {
-  padding-left: clamp(20px, 3vw, 44px);
-  padding-right: clamp(20px, 3vw, 44px);
-}
-:root[data-theme="vivid"] main {
-  column-gap: var(--sp-6);
-  row-gap: var(--sp-7);
-  margin-top: var(--sp-7);
-}
-:root[data-theme="vivid"] .ledger-wide { margin-top: 0; }
-:root[data-theme="vivid"] main .ledger-col,
-:root[data-theme="vivid"] main .ledger-wide {
-  background: var(--card-bg);
-  border: 1px solid var(--hair);
-  border-radius: var(--card-radius);
-  padding: var(--sp-6) clamp(20px, 3vw, 32px) var(--sp-7);
-  box-shadow: var(--card-shadow);
-}
-:root[data-theme="vivid"] .section-head {
-  padding-bottom: var(--sp-4);
-  margin-bottom: var(--sp-2);
-}
-:root[data-theme="vivid"] .masthead { padding-top: var(--sp-8); }
-:root[data-theme="vivid"] .colophon { padding: var(--sp-5) 0; }
+/* ---------- 25.3 · type — folded into the base ----------
+   This section ran a second type scale (12/13/15/16 against the base's
+   11/12/13/15) and then de-cased half the sheet to suit it: the identity
+   line, .meta, the service name, every button, the head and row actions.
+   Section 26.4 put the service name and the kickers straight back. Two
+   layers arguing across four hundred lines about whether a label is a
+   label, and a top bar that changed its language when you switched
+   palette because only one of them reached it.
 
-/* ---------- 25.3 · type ----------
-   WHY: the scale was built for a poster — 13px prose, 11px meta, 12px
-   captions — and then half of it was tracked out into small caps. A
-   control surface is read, not admired: the brief asks for 15-16px body
-   at 1.6, 13px meta, and small caps reserved for the things that are
-   genuinely labels (a badge, a stat's caption, a switch's state). The
-   scale moves inside the vivid block only, so the broadsheet keeps its
-   own voice. */
+   Both sides are gone. The base rules were right the first time: a label
+   is set in tracked capitals in every palette, prose is not, and the one
+   scale serves all five. Where the light palette genuinely needs
+   different arithmetic it is because it raises real cards, and that lives
+   in the token block — not in a parallel set of type rules.
 
-:root[data-theme="vivid"] {
-  --fs-micro: 12px;   /* the smallest label the palette will allow */
-  --fs-meta: 13px;
-  --fs-body: 15px;
-  --fs-base: 16px;
-}
+   One thing was lost on purpose and is worth naming: the 15/16px body
+   this section introduced is easier to read than the base's 13px. The
+   answer to that is to raise the scale for all five palettes at once, in
+   :root, not to run a second one here. */
 
-/* Prose that was shouting. Each of these is a sentence a human reads, not
-   a label they scan: the identity line, every .meta run, the anomaly's
-   service name, the operator field, the room select. */
-:root[data-theme="vivid"] .identity-line,
-:root[data-theme="vivid"] .meta,
-:root[data-theme="vivid"] .entry .service,
-:root[data-theme="vivid"] select,
-:root[data-theme="vivid"] #operator-name,
-:root[data-theme="vivid"] .rationale-input {
-  text-transform: none;
-  letter-spacing: normal;
-}
-:root[data-theme="vivid"] .identity-line { font-size: var(--fs-meta); }
-:root[data-theme="vivid"] .meta {
-  font-size: var(--fs-meta);
-  line-height: var(--lh-body);
-  margin: var(--sp-3) 0 var(--sp-4);
-}
-:root[data-theme="vivid"] .entry .service { font-weight: 600; font-size: var(--fs-body); }
-:root[data-theme="vivid"] select,
-:root[data-theme="vivid"] #operator-name,
-:root[data-theme="vivid"] .rationale-input { font-size: var(--fs-meta); }
+/* ---------- 25.4 · focus ----------
+   The link half of this section is gone: it re-coloured and re-weighted
+   every anchor in one palette, with an eight-class exclusion list to stop
+   the rule eating the objects that are anchors without being links. A
+   rule that needs to name eight exceptions is describing the base layer
+   badly. The base link treatment now runs in all five.
 
-/* Every button in the sheet inherited 11px small caps and an underline
-   from the base `button` rule. On a light card that reads as a broken
-   link, which is precisely what "dandik" describes. */
-:root[data-theme="vivid"] button {
-  text-transform: none;
-  letter-spacing: normal;
-  text-decoration: none;
-  font-size: var(--fs-meta);
-}
-:root[data-theme="vivid"] .head-action,
-:root[data-theme="vivid"] .row-action {
-  text-transform: none;
-  letter-spacing: normal;
-  text-decoration: none;
-  font-size: var(--fs-meta);
-  font-weight: 500;
-  color: var(--accent);
-}
-:root[data-theme="vivid"] .head-action:hover,
-:root[data-theme="vivid"] .row-action:hover,
-:root[data-theme="vivid"] .row-action:focus-visible {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-/* Blue means "you can press this", so the one that IS pressed has to stop
-   being blue — otherwise the palette row is five identical links and the
-   current choice is invisible. */
-:root[data-theme="vivid"] .row-action[aria-pressed="true"] {
-  color: var(--ink);
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  text-decoration-thickness: 2px;
-  text-decoration-color: var(--accent);
-}
-
-/* The tiny labels that keep their small caps — and get one more pixel so
-   they are legible rather than merely decorative. */
-:root[data-theme="vivid"] .microcap,
-:root[data-theme="vivid"] .cs-stat-label,
-:root[data-theme="vivid"] .cs-mega-col-head,
-:root[data-theme="vivid"] .a11y-state { letter-spacing: 0.1em; }
-
-/* ---------- 25.4 · links and focus ----------
-   WHY: the desk's rails were a column of default-underlined links, which
-   is the cheapest texture a page can have. Youthall's rule is simpler:
-   the blue IS the affordance, the underline is the confirmation you get
-   when you point at it. The exclusion list is explicit because a card, a
-   tab, a brand and a button are anchors too, and none of them should turn
-   blue or sprout an underline across their whole body. */
-
-:root[data-theme="vivid"] a:not(.nav-brand, .view-tab, .sum, .cs-card, .cs-mega-item, .flow-stop, .cs-btn, .skip-link) {
-  color: var(--accent);
-  font-weight: 500;
-  text-decoration: none;
-}
-:root[data-theme="vivid"] a:not(.nav-brand, .view-tab, .sum, .cs-card, .cs-mega-item, .flow-stop, .cs-btn, .skip-link):hover,
-:root[data-theme="vivid"] a:not(.nav-brand, .view-tab, .sum, .cs-card, .cs-mega-item, .flow-stop, .cs-btn, .skip-link):focus-visible {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  text-decoration-thickness: 2px;
-}
-
-/* The ring is the accent, not the purple --info: on a light ground the
-   accent is the only colour the visitor has learned to read as "this is
-   interactive". */
-:root[data-theme="vivid"] :focus-visible {
+   The focus ring stays, and stops being vivid's: the accent is the colour
+   every palette teaches as "this is interactive", and a keyboard ring is
+   not a house style — it is the thing that makes the page usable without
+   a mouse. It was scoped to one palette, which meant four of them had the
+   purple --info ring or none at all. */
+:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -2829,44 +2779,23 @@ a.cs-card:focus-visible, button.cs-card:focus-visible {
    the remainder, and "Runbook hit rate" came out as one word per line
    with the value printed through it. Two fixes, both structural: a rail
    wide enough to be a rail, and a row that lets a long value fall to its
-   own line instead of strangling the label beside it. */
+   own line instead of strangling the label beside it.
 
-:root[data-theme="vivid"] .cs-desk {
-  grid-template-columns: minmax(280px, 300px) minmax(0, 1fr) minmax(272px, 300px);
-  column-gap: var(--sp-5);
-  row-gap: var(--sp-6);
-}
-:root[data-theme="vivid"] .cs-desk-left,
-:root[data-theme="vivid"] .cs-desk-main,
-:root[data-theme="vivid"] .cs-desk-right { grid-column: auto; min-width: 0; }
-:root[data-theme="vivid"] .cs-sticky { position: sticky; top: 76px; }
+   Only the second fix survives here, and that is the important half.
 
-/* Two columns: the right rail lies down under the feed as a pair of
-   cards rather than being squeezed into a third of nothing. */
-@media (max-width: 1240px) {
-  :root[data-theme="vivid"] .cs-desk { grid-template-columns: minmax(260px, 300px) minmax(0, 1fr); }
-  :root[data-theme="vivid"] .cs-desk-left { grid-column: auto; }
-  :root[data-theme="vivid"] .cs-desk-right { grid-column: 1 / -1; }
-  :root[data-theme="vivid"] .cs-sticky { position: static; }
-}
+   The first one — 280px and 272px rails — was drawn for a 1320px page,
+   which is what this section's own 25.2 had widened vivid to. Carried
+   onto the 960px measure the four editorial palettes keep, those two
+   rails eat 600px of it and the middle column, the one holding the
+   transcript and the cards a person actually reads, is left with 230.
+   The desk's own note above `.cs-desk` says why the measure is 960 and
+   what it costs: two narrow rails and a middle column that still holds
+   a readable card. It is right, so the grid stays as it declares it.
 
-/* One column. 900px rather than 820px: at 860 the rail is already too
-   narrow to hold a figure beside a label, and a column that has to be
-   apologised for should not exist. */
-@media (max-width: 900px) {
-  :root[data-theme="vivid"] .cs-desk { grid-template-columns: minmax(0, 1fr); }
-  :root[data-theme="vivid"] .cs-desk-left,
-  :root[data-theme="vivid"] .cs-desk-right { grid-column: auto; }
-  :root[data-theme="vivid"] .cs-desk-right .cs-sticky {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--sp-5);
-    align-items: start;
-  }
-}
-@media (max-width: 700px) {
-  :root[data-theme="vivid"] .cs-desk-right .cs-sticky { grid-template-columns: 1fr; }
-}
+   The label breaking was never really the rail's width anyway. It was a
+   row that forced a nowrap figure and a label to share one line at any
+   measure — so the row is where it is fixed, just below, and that fix is
+   unscoped because the row behaved that way in all five palettes. */
 
 /* The row itself. `flex-wrap` plus a floor under the label is the whole
    mechanism: a short value ("6 sealed") stays on the label's line, a
@@ -2893,175 +2822,52 @@ a.cs-row-name:focus-visible {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-:root[data-theme="vivid"] .cs-rows { display: block; }
-:root[data-theme="vivid"] .cs-row { padding: var(--sp-4) 0; }
-:root[data-theme="vivid"] .cs-row-name { font-weight: 500; line-height: 1.45; }
-:root[data-theme="vivid"] .cs-row-note {
+/* The row's own measure — a line a sentence can sit on. Unscoped for the
+   same reason as the grid: the note under a capability is prose in every
+   palette, and prose at a squeezed leading is unreadable in all five. The
+   two font-weights that came with this block are gone; weight is voice,
+   and the base already says what a row name weighs. */
+.cs-rows { display: block; }
+.cs-row { padding: var(--sp-4) 0; }
+.cs-row-name { line-height: 1.45; }
+.cs-row-note {
   margin-top: var(--sp-1);
   line-height: var(--lh-body);
   color: var(--ink-dim);
 }
-:root[data-theme="vivid"] .cs-row-value { font-weight: 600; }
 
 /* The three-figure block: borders need padding either side of them or
    they are just a squeeze. */
-:root[data-theme="vivid"] .cs-stat3 {
+.cs-stat3 {
   margin-top: var(--sp-4);
   gap: 0;
 }
-:root[data-theme="vivid"] .cs-stat3 > div { padding: 0 var(--sp-2); min-width: 0; }
-:root[data-theme="vivid"] .cs-stat-fig { font-size: 26px; font-weight: 600; }
-:root[data-theme="vivid"] .cs-stat-label { margin-top: var(--sp-1); }
+.cs-stat3 > div { padding: 0 var(--sp-2); min-width: 0; }
+.cs-stat-label { margin-top: var(--sp-1); }
 
-/* ---------- 25.6 · cards ----------
-   WHY: the brief's number is 20-24px of padding, and the desk's own
-   override had pushed it back down to 16. A card with 16px of padding and
-   16px between it and the next card reads as a table row with a border
-   radius; the radius is not what makes it an object, the air is. */
+/* ---------- 25.6 · cards — folded into the base ----------
+   Padding, title sizes, hover lift and stack margins, all re-cut for one
+   palette. A card is one object with one geometry; the light palette's
+   contribution was the raised surface itself, which lives in the tokens,
+   not a second set of measurements. */
 
-:root[data-theme="vivid"] .cs-card { padding: var(--sp-5); }
-:root[data-theme="vivid"] .cs-desk .cs-card { padding: var(--sp-5); }
-:root[data-theme="vivid"] .cs-card + .cs-card { margin-top: var(--sp-5); }
-:root[data-theme="vivid"] .cs-desk-right .cs-sticky .cs-card + .cs-card { margin-top: var(--sp-5); }
-@media (max-width: 900px) {
-  :root[data-theme="vivid"] .cs-desk-right .cs-sticky .cs-card + .cs-card { margin-top: 0; }
-}
-:root[data-theme="vivid"] .cs-card-head { margin-bottom: var(--sp-4); gap: var(--sp-4); }
-:root[data-theme="vivid"] .cs-card-title { font-size: var(--fs-base); line-height: 1.4; }
-:root[data-theme="vivid"] .cs-card-sub { font-size: var(--fs-meta); }
+/* ---------- 25.7 · chips, badges, buttons — folded into the base ----------
+   This is where the controls became somebody else's: pill chips with
+   their own shadow, a filled primary button, 999px radii on #rescan and
+   #pulse-run, a circular stepper. The base draws these as the rest of
+   the product draws them — a box, a rule, a word in tracked capitals —
+   and it draws them that way in all five palettes now. */
 
-/* A card that is a <button> inherited the base button rule: 11px, small
-   caps, tracked out, underlined. Whatever that is, it is not a card. */
-a.cs-card,
-button.cs-card {
-  font: inherit;
-  text-transform: none;
-  letter-spacing: normal;
-  text-decoration: none;
-  color: inherit;
-}
-:root[data-theme="vivid"] a.cs-card:hover,
-:root[data-theme="vivid"] button.cs-card:hover,
-:root[data-theme="vivid"] a.cs-card:focus-visible,
-:root[data-theme="vivid"] button.cs-card:focus-visible { transform: translateY(-2px); }
+/* ---------- 25.8 · the mega menu ----------
+   WHY: the mega menu answered a bold blue title with a grey sentence —
+   blue is the colour of "you can click this", and in a panel where
+   everything is clickable it says nothing. The item is a plain title and
+   one grey line; the blue arrives on hover, where it means something.
 
-/* The hero card: a 3px accent edge and 40px mark against 16px of padding
-   looked like a bookmark on a receipt. */
-:root[data-theme="vivid"] .cs-hero {
-  gap: var(--sp-5);
-  border-left-width: 4px;
-  padding-left: calc(var(--sp-5) - 1px);
-}
-:root[data-theme="vivid"] .cs-hero-mark { width: 46px; height: 46px; border-radius: 14px; }
-:root[data-theme="vivid"] .cs-hero-actions { gap: var(--sp-3); margin-top: var(--sp-4); }
-
-/* The feed's own cards, and the strip of chips above them, need the same
-   air as everything else — they are the widest column, not the tightest. */
-:root[data-theme="vivid"] .cs-chips { gap: var(--sp-3); margin: var(--sp-5) 0; }
-:root[data-theme="vivid"] #desk-feed .cs-card + .cs-card { margin-top: var(--sp-4); }
-
-/* ---------- 25.7 · chips, badges, buttons ----------
-   WHY: all three are <button> or inline text that inherited the sheet's
-   caption voice. Youthall's grammar is unambiguous: a filter is a rounded
-   pill you can hit with a thumb, a category is a small tinted badge, a
-   primary verb is a solid blue pill and a secondary verb is the same pill
-   with the fill taken out. */
-
-.cs-chip,
-.cs-btn {
-  text-transform: none;
-  letter-spacing: normal;
-  text-decoration: none;
-}
-:root[data-theme="vivid"] .cs-chip {
-  padding: 9px 18px;
-  font-size: var(--fs-meta);
-  font-weight: 500;
-  background: var(--card-bg);
-  box-shadow: var(--card-shadow);
-}
-/* The white fill above outranks the pressed state declared in section 23,
-   which would leave the selected chip as white text on a white pill — an
-   invisible label is worse than the cramped one we started with. The
-   pressed chip restates its own fill, and drops the shadow because it is
-   pressed IN. */
-:root[data-theme="vivid"] .cs-chip[aria-pressed="true"] {
-  background: var(--chip-on);
-  border-color: var(--chip-on);
-  color: #fff;
-  font-weight: 600;
-  box-shadow: none;
-}
-
-:root[data-theme="vivid"] .cs-badge {
-  padding: 4px 10px;
-  font-weight: 600;
-  background: color-mix(in srgb, var(--badge-tint, var(--accent)) 12%, var(--card-bg));
-}
-
-:root[data-theme="vivid"] .cs-btn {
-  padding: 10px 20px;
-  font-size: var(--fs-meta);
-  font-weight: 600;
-}
-:root[data-theme="vivid"] .cs-btn.ghost { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
-:root[data-theme="vivid"] .cs-btn.ghost:hover,
-:root[data-theme="vivid"] .cs-btn.ghost:focus-visible {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-
-/* The colophon's two verbs are the same object as .cs-btn, drawn by an
-   older hand. In vivid they join the pill family. */
-:root[data-theme="vivid"] #rescan,
-:root[data-theme="vivid"] #pulse-run {
-  border-radius: 999px;
-  padding: 9px 18px;
-  font-weight: 600;
-}
-:root[data-theme="vivid"] #pulse-run { background: var(--accent); color: #fff; border-color: var(--accent); }
-:root[data-theme="vivid"] #pulse-run:hover,
-:root[data-theme="vivid"] #pulse-run:focus-visible { box-shadow: var(--card-shadow-lift); }
-:root[data-theme="vivid"] #pulse-run:disabled { background: none; color: var(--ink-faint); border-color: var(--hair); }
-
-/* The accessibility panel's switches are prose in a box; give them the
-   card's padding and radius so the panel stops looking like a form. */
-:root[data-theme="vivid"] .a11y-switch { padding: var(--sp-4); border-radius: 14px; }
-:root[data-theme="vivid"] .a11y-stepper button { border-radius: 50%; font-size: var(--fs-base); }
-
-/* ---------- 25.8 · navigation and the mega menu ----------
-   WHY: the rail was seven runs of tracked-out capitals and the mega menu
-   answered a bold blue title with a grey sentence — blue is the colour of
-   "you can click this", and in a panel where everything is clickable it
-   says nothing. Youthall's mega item is a black title and one grey line;
-   the blue arrives on hover, where it means something. */
-
-:root[data-theme="vivid"] .top-nav {
-  /* the same gutter the page uses, so the brand lines up with the content */
-  padding: 14px clamp(20px, 3vw, 44px);
-  box-shadow: 0 1px 3px rgba(14, 31, 56, 0.06);
-}
-:root[data-theme="vivid"] .view-tab {
-  text-transform: capitalize;
-  letter-spacing: normal;
-  text-decoration: none;
-  font-size: var(--fs-meta);
-  font-weight: 500;
-  padding: 8px 14px;
-  border-radius: 999px;
-}
-:root[data-theme="vivid"] .view-tab:hover {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--ink) 5%, transparent);
-}
-:root[data-theme="vivid"] .view-tab[aria-pressed="true"],
-:root[data-theme="vivid"] .view-tab[aria-expanded="true"] {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent);
-  font-weight: 600;
-}
-:root[data-theme="vivid"] .nav-links { gap: var(--sp-1); }
+   The rail itself used to be re-cut here — capitalized, untracked, set in
+   pills — which is why the top bar was the one surface that changed its
+   language when a visitor switched palette. It is now drawn once, for
+   every palette, at `.view-tab`. */
 
 /* WHY, and in every palette: the panel was 680px anchored to the left edge
    of the *word* "what it can prove". At 1440 that word starts at x=776, so
@@ -3076,7 +2882,8 @@ button.cs-card {
 .cs-mega {
   top: calc(100% + 10px);
   left: auto;
-  right: clamp(20px, 3vw, 44px);
+  /* the bar's own gutter, which is now the same one in every palette */
+  right: clamp(20px, 6vw, 64px);
   width: min(680px, calc(100vw - 40px));
   min-width: 0;
 }
@@ -3087,75 +2894,16 @@ button.cs-card {
    pinned to the top edge, the dock to the bottom one. */
 .top-nav { z-index: 62; }
 
-:root[data-theme="vivid"] .cs-mega { padding: var(--sp-6); gap: var(--sp-3) var(--sp-6); }
-:root[data-theme="vivid"] .cs-mega-item { padding: var(--sp-3); border-radius: 12px; }
-:root[data-theme="vivid"] .cs-mega-item b {
-  color: var(--ink);
-  font-size: var(--fs-body);
-  margin-bottom: 2px;
-}
-:root[data-theme="vivid"] .cs-mega-item:hover b,
-:root[data-theme="vivid"] .cs-mega-item:focus-visible b { color: var(--accent); }
-:root[data-theme="vivid"] .cs-mega-col-head { margin-top: var(--sp-2); }
+/* The panel's own geometry was re-cut for one palette — 12px radii, a
+   different padding, a different title size. It is one object; it is
+   drawn once, above. */
 
-/* ---------- 25.9 · the summary strip and the colophon as objects ----------
-   WHY: the strip is four numbers a visitor is meant to compare, drawn as
-   four regions of one flat surface divided by hairlines, under a 2px
-   black scotch rule borrowed from a press room. On a light ground that
-   rule is a bruise and the hairlines are noise. In vivid the four numbers
-   become four cards — the same object the rest of the room is made of. */
-
-:root[data-theme="vivid"] .summary-strip {
-  gap: var(--sp-4);
-  border-top: 0;
-  margin-top: var(--sp-7);
-}
-:root[data-theme="vivid"] .summary-strip::before { display: none; }
-:root[data-theme="vivid"] .sum {
-  background: var(--card-bg);
-  border: 1px solid var(--hair);
-  border-top: 1px solid var(--hair);
-  border-radius: var(--card-radius);
-  box-shadow: var(--card-shadow);
-  padding: var(--sp-5);
-}
-:root[data-theme="vivid"] .sum + .sum { border-left: 1px solid var(--hair); padding-left: var(--sp-5); }
-:root[data-theme="vivid"] .sum:hover {
-  background: var(--card-bg);
-  border-top-color: var(--accent);
-  box-shadow: var(--card-shadow-lift);
-}
-:root[data-theme="vivid"] .sum-sub { font-size: var(--fs-meta); line-height: var(--lh-body); margin-top: var(--sp-2); }
-
-:root[data-theme="vivid"] .colophon {
-  background: var(--card-bg);
-  border: 1px solid var(--hair);
-  border-radius: var(--card-radius);
-  box-shadow: var(--card-shadow);
-  padding: var(--sp-5);
-  margin-top: var(--sp-6);
-}
-:root[data-theme="vivid"] .colophon-row { gap: var(--sp-5); margin-top: var(--sp-4); }
-
-:root[data-theme="vivid"] footer { margin-top: var(--section-gap); }
-:root[data-theme="vivid"] .footer-links a { margin-top: var(--sp-2); }
-
-/* The docked feed reads on white too: a pill and a card, not a tab torn
-   off the edge of a dark page. */
-:root[data-theme="vivid"] #feed-toggle {
-  background: var(--card-bg);
-  box-shadow: var(--card-shadow);
-}
-:root[data-theme="vivid"] .feed-body {
-  background: var(--card-bg);
-  box-shadow: var(--card-shadow-lift);
-  padding: var(--sp-4);
-}
-:root[data-theme="vivid"] .feed-item {
-  grid-template-columns: 58px 104px minmax(0, 1fr);
-  padding: var(--sp-2) 0;
-}
-:root[data-theme="vivid"] .feed-msg { min-width: 0; overflow-wrap: anywhere; }
+/* ---------- 25.9 · the summary strip and the colophon — folded ----------
+   The strip's four figures became four floating slabs and the colophon
+   became a fifth. Both are strips: ruled, hairline-separated, sitting on
+   the page rather than hovering over it. Section 26.7 and 26.8 spent
+   another eighty lines arguing this back; with the slabs gone neither
+   side is needed. */
 
 /* ---------- 25.10 · print ----------
    WHY: section 21 already refuses to print the agent feed. The launcher
@@ -3170,29 +2918,34 @@ button.cs-card {
 }
 
 /* ======================================================================
-   26 · vivid, third pass — the signature, carried into the light room
+   26 · vivid — the palette, and nothing but the palette
    ----------------------------------------------------------------------
-   Section 25 fixed vivid's ergonomics and lost its face. Everything that
-   makes this page CloudSentinel — the scotch rule under a head, the roman
+   This section was written as a rescue. Section 25 had fixed vivid's
+   ergonomics and lost its face: the scotch rule under a head, the roman
    numeral beside the section word, the small-caps kicker, serif figures
    for money, the dither, an ink that is night-blue rather than black —
-   survived only in the masthead. Below it the room was white cards, a
-   stock blue and a lot of pills: correct, clear, and indistinguishable
-   from any other dashboard.
+   all of it survived only in the masthead, and below it the room was
+   white cards, a stock blue and a lot of pills. So this layer put the
+   furniture back, one object at a time, for one palette.
 
-   This layer gives the furniture back without giving the clarity up. It
-   is scoped to [data-theme="vivid"] almost throughout, so horizon,
-   mission, paper and dawn are untouched; the one unscoped rule declares
-   two tokens nothing else reads.
+   It was the right diagnosis and the wrong cure. The furniture was never
+   missing from the design — only from the palette that had overridden it.
+   Deleting the overrides brought all of it back at once, for all five,
+   and four hundred lines of restoration stopped having anything to
+   restore. 26.3 through 26.8 are gone with the sections they answered.
 
-   26.1  the ink and the signal — a palette that belongs to the product
+   What is left is what a palette actually is:
+
+   26.1  the ink and the signal — the product's own pair, inverted
    26.2  the ground — dither and wash, so the page is not a white void
-   26.3  section heads — a newspaper head in a light room
-   26.4  kickers — the small-caps label, with its accent tick back
-   26.5  hierarchy — the lead, the body and the margin read differently
-   26.6  rules and figures — hairlines that separate, serifs that count
-   26.7  controls — the colophon as a ruled strip, not a slab
-   26.8  the marks that were always ours — nameplate rule, radar, chrome
+
+   plus the two facts about a light medium that no token can express: a
+   radar ring is a stroke and needs more of it on paper, and a shadow is
+   cast in black and needs less of it. Both are stated for paper and
+   vivid together, because both are light — which is the test any rule
+   down here has to pass. If it is true of the ground, it belongs to the
+   palettes with that ground. If it is true of the product, it belongs in
+   the base layer, and it applies to all five.
    ====================================================================== */
 
 /* ---------- 26.1 · the ink and the signal ----------
@@ -3301,306 +3054,58 @@ button.cs-card {
   background-position: 0 0, 0 0, 0 0, 0 0, 3.5px 3.5px;
 }
 
-/* ---------- 26.3 · section heads ----------
-   WHY: the head was a numeral and a word over one hairline — a heading in
-   any dashboard. A newspaper head is a scotch rule: one heavy line riding
-   one thin one, the pair that tells a reader a new department has begun.
-   The numeral takes the accent for the same reason the nameplate's period
-   does — it is the mark, not the label. */
+/* ---------- 26.3 · section heads — folded into the base ----------
+   25.2 flattened the section head and this put the scotch rule back. With
+   25.2 gone the base head — the rule, the numeral, the section word —
+   applies untouched, which is what it was always for. */
 
-:root[data-theme="vivid"] .section-head {
-  position: relative;
-  gap: var(--sp-4);
-  padding-bottom: var(--sp-3);
-  margin-bottom: var(--sp-5);
-  border-bottom: 2px solid var(--rule-heavy);
-}
-:root[data-theme="vivid"] .section-head::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -5px;
-  height: 1px;
-  background: var(--rule-thin);
-}
-:root[data-theme="vivid"] .numeral {
-  color: var(--accent);
-  line-height: 0.92;
-}
-:root[data-theme="vivid"] .section-word { color: var(--ink); }
+/* ---------- 26.4 · kickers — folded into the base ----------
+   This section existed to undo 25.3: it put the service name back into
+   small caps and re-inked the kicker that 25.3 had bleached. With 25.3
+   gone the base rule does both, in every palette, and the round trip
+   costs nothing.
 
-/* The investigation room's own head is the same object one size down. */
-:root[data-theme="vivid"] .inv-head { border-bottom-color: var(--rule-thin); }
+   The accent tick beside a kicker went with it. It was good furniture —
+   but it was furniture only one palette had, which is the thing this
+   pass is for. If the tick is worth keeping it belongs on `.microcap`
+   in the base layer, where all five get it. */
 
-/* ---------- 26.4 · kickers ----------
-   WHY: `.microcap` is this product's kicker — the tracked-out label over
-   a block. Section 25 kept the small caps and left the colour at
-   --ink-dim, which on white is a grey line of nothing. A kicker is set
-   in ink, and the accent tick beside it is the same mark that leads the
-   edition line: one signal, used consistently. */
+/* ---------- 26.5 · hierarchy — folded into the base ----------
+   Ledger columns, the hero, the steps block and the feed items, all
+   re-tinted and re-radiused to survive the card system 25.2 and 25.6
+   introduced. The card system is gone from those sections, so the
+   compensation goes with it. */
 
-:root[data-theme="vivid"] .microcap {
-  color: color-mix(in srgb, var(--ink) 74%, transparent);
-  font-weight: 600;
-  letter-spacing: 0.12em;
-}
-:root[data-theme="vivid"] .microcap .hint {
-  color: var(--ink-faint);
-  font-weight: 400;
-  letter-spacing: 0.01em;
-}
-:root[data-theme="vivid"] .hero > .microcap,
-:root[data-theme="vivid"] .trend-block > .microcap,
-:root[data-theme="vivid"] .watch-block > .microcap,
-:root[data-theme="vivid"] .colophon > .microcap,
-:root[data-theme="vivid"] .ctl > .microcap {
-  position: relative;
-  padding-left: 15px;
-}
-:root[data-theme="vivid"] .hero > .microcap::before,
-:root[data-theme="vivid"] .trend-block > .microcap::before,
-:root[data-theme="vivid"] .watch-block > .microcap::before,
-:root[data-theme="vivid"] .colophon > .microcap::before,
-:root[data-theme="vivid"] .ctl > .microcap::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0.62em;
-  width: 8px;
-  height: 2px;
-  background: var(--accent);
-}
+/* ---------- 26.6 · rules and figures — folded into the base ----------
+   Hairlines that separate and serifs that count are the base layer's
+   job, and it does it for every palette. This section re-declared them
+   for one, which is how the two halves of the product drifted apart in
+   the first place. */
 
-/* A service name is a label, not prose: it goes back into the ledger's
-   small caps, which is where every other service name on the page —
-   the cost line, the watch row, the market row — already lives. */
-:root[data-theme="vivid"] .entry .service {
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-size: var(--fs-meta);
-  font-weight: 600;
-}
-
-/* ---------- 26.5 · hierarchy ----------
-   A note that cost us a real defect: these tints mix toward var(--card-bg),
-   never toward a literal #fff. Forced contrast (section 24) repaints
-   --card-bg black, and a surface that insists on white there puts white
-   ink on a white sheet — the exact failure the switch exists to prevent.
-   WHY: the room was one weight. A section panel, the hero, a feed card
-   and a rail card were all white, all shadowed, all 16px-rounded, so the
-   eye had nothing to climb. A broadsheet solves this without colour: the
-   lead is boxed, the body is set on the sheet, and the margin is a ruled
-   column with no box at all. Four levels, top to bottom. */
-
-/* the sheet — every room is a page, and pages do not stack shadows */
-:root[data-theme="vivid"] main .ledger-col,
-:root[data-theme="vivid"] main .ledger-wide {
-  border-radius: 12px;
-  padding: var(--sp-6) clamp(20px, 3vw, 34px) var(--sp-7);
-}
-
-/* the lead — the one card that starts something: a turquoise spine, a
-   wash of the same colour, and the only lifted shadow on the page */
-:root[data-theme="vivid"] .cs-hero {
-  background: color-mix(in srgb, var(--accent) 5%, var(--card-bg));
-  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
-  border-left: 4px solid var(--accent);
-  box-shadow: var(--card-shadow-lift);
-}
-:root[data-theme="vivid"] .cs-hero .cs-card-title { font-size: 28px; }
-:root[data-theme="vivid"] .cs-hero-mark {
-  background: color-mix(in srgb, var(--accent) 14%, var(--card-bg));
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
-  border-radius: 10px;
-}
-
-/* the standfirst — "how this page works" explains the room rather than
-   reporting from it, so it is set INTO the sheet, not raised off it */
-:root[data-theme="vivid"] .cs-steps {
-  background: color-mix(in srgb, var(--ink) 3%, var(--card-bg));
-  box-shadow: none;
-  border-color: var(--hair);
-}
-
-/* the body — feed cards are raised, and each one wears its lane on the
-   spine, so a column of ten cards is readable as five lanes at a glance */
-:root[data-theme="vivid"] #desk-feed .cs-card[data-desk-item] {
-  border-left: 3px solid var(--lane-edge, var(--hair));
-}
-:root[data-theme="vivid"] [data-desk-item="cost"] { --lane-edge: var(--tint-cost); }
-:root[data-theme="vivid"] [data-desk-item="security"] { --lane-edge: var(--tint-security); }
-:root[data-theme="vivid"] [data-desk-item="fraud"] { --lane-edge: var(--tint-fraud); }
-:root[data-theme="vivid"] [data-desk-item="market"] { --lane-edge: var(--tint-market); }
-:root[data-theme="vivid"] [data-desk-item="decision"] { --lane-edge: var(--accent); }
-
-/* the margin — the two rails stop being cards and become what they have
-   always been in this design: ruled columns in the margin of the sheet.
-   No fill, no shadow, no radius; one heavy rule on top, which is the
-   same scotch grammar as a section head, one size down. */
-:root[data-theme="vivid"] .cs-desk-left .cs-card,
-:root[data-theme="vivid"] .cs-desk-right .cs-card,
-:root[data-theme="vivid"] .cs-feed-head {
-  background: transparent;
-  border: 0;
-  border-top: 2px solid var(--rule-heavy);
-  border-radius: 0;
-  box-shadow: none;
-  padding: var(--sp-4) 0 var(--sp-2);
-}
-:root[data-theme="vivid"] .cs-desk-left .cs-card + .cs-card,
-:root[data-theme="vivid"] .cs-desk-right .cs-card + .cs-card { margin-top: var(--sp-6); }
-:root[data-theme="vivid"] .cs-feed-head { padding-bottom: 0; }
-
-/* One rule tells the two kinds of heading apart, and it is the rule a
-   newspaper uses: a DEPARTMENT is set in the serif — the rails, the
-   standfirst, the lead, the head over the feed — and a RECORD is set in
-   the sans, because a record is scanned, not read. Every card the desk
-   generates carries data-desk-item, so the split needs no new markup. */
-:root[data-theme="vivid"] .cs-card:not([data-desk-item]) .cs-card-title {
-  font-family: "Instrument Serif", serif;
-  font-weight: 400;
-  font-size: 24px;
-  line-height: 1.15;
-}
-
-/* ---------- 26.6 · rules and figures ----------
-   WHY: two things carry a ledger — the hairline that separates a row from
-   the next one, and the serif figure that says how much. The capability
-   rows had the first and the stat block had neither: three counts set in
-   Inter semibold, which is a metric, not a figure. */
-
-:root[data-theme="vivid"] .cs-row { border-bottom: 1px solid var(--hair); }
-:root[data-theme="vivid"] .cs-row:last-child { border-bottom: 0; }
-
-/* WHY: the rails were a column of turquoise names beside turquoise
-   figures, which spends the whole signal budget on a table of contents.
-   The name is a link and keeps the colour; the figure is a reading, so
-   it is set in ink — and a reading the endpoint could not give stays
-   faint, which is the row saying so. */
-:root[data-theme="vivid"] .cs-row-value { color: var(--ink); }
-:root[data-theme="vivid"] .cs-row-value.is-off { color: var(--ink-faint); font-weight: 500; }
-:root[data-theme="vivid"] .cs-stat3 {
-  border-top: 1px solid var(--hair);
-  padding-top: var(--sp-4);
-}
-:root[data-theme="vivid"] .cs-stat3 > div + div { border-left: 1px solid var(--hair); }
-:root[data-theme="vivid"] .cs-stat-fig {
-  font-family: "Instrument Serif", serif;
-  font-weight: 400;
-  font-size: 34px;
-  line-height: 1.05;
-  letter-spacing: 0;
-  color: var(--ink);
-}
-:root[data-theme="vivid"] .cs-stat-label {
-  color: color-mix(in srgb, var(--ink) 62%, transparent);
-  font-weight: 600;
-}
-
-/* A category tag is a tag, not a pill: squared off, tracked out, and
-   ruled with its own tint so it survives on white as well as on a wash. */
-:root[data-theme="vivid"] .cs-badge {
-  border-radius: 4px;
-  border: 1px solid color-mix(in srgb, var(--badge-tint, var(--accent)) 28%, transparent);
-  background: color-mix(in srgb, var(--badge-tint, var(--accent)) 9%, var(--card-bg));
-  letter-spacing: 0.12em;
-  font-size: 11px;
-}
-
-/* A filter stays a pill — it is a thing you hit with a thumb. A verb is
-   not: the two primary buttons square up to 8px, which reads as a press
-   control rather than as one more rounded SaaS capsule. The stat chips
-   that carry a scan's arithmetic square up with the badges. */
-:root[data-theme="vivid"] .cs-btn,
-:root[data-theme="vivid"] #rescan,
-:root[data-theme="vivid"] #pulse-run { border-radius: 8px; }
-:root[data-theme="vivid"] .stat-chip {
-  border-radius: 4px;
-  letter-spacing: 0.1em;
-  color: color-mix(in srgb, var(--ink) 70%, transparent);
-}
-
-/* ---------- 26.7 · controls ----------
-   WHY: the colophon is named after the block a printer signs a page with,
-   and it was drawn as a 430px-tall white slab holding six stacked rows.
-   It becomes what it is called: a ruled strip under the summary figures,
-   laid out as a grid so six controls occupy two lines instead of six. */
-
-:root[data-theme="vivid"] .colophon {
-  background: transparent;
-  border: 0;
-  border-top: 2px solid var(--rule-heavy);
-  border-bottom: 1px solid var(--rule-thin);
-  border-radius: 0;
-  box-shadow: none;
-  padding: var(--sp-4) 0 var(--sp-5);
-  margin-top: var(--sp-7);
-}
-:root[data-theme="vivid"] .colophon-row.ctl-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: var(--sp-5) var(--sp-6);
-  align-items: start;
-  margin-top: var(--sp-4);
-}
-:root[data-theme="vivid"] .ctl {
-  min-width: 0;
-  border-top: 1px solid var(--hair);
-  padding-top: var(--sp-3);
-}
-:root[data-theme="vivid"] .ctl-note { margin: var(--sp-2) 0 0; }
-:root[data-theme="vivid"] .ctl-inline { margin-top: var(--sp-2); }
-@media (min-width: 760px) {
-  :root[data-theme="vivid"] .ctl-wide { grid-column: span 2; }
-}
-/* the threshold reads as a figure, because it is one */
-:root[data-theme="vivid"] output { font-size: 44px; }
+/* ---------- 26.7 · controls — folded into the base ----------
+   The colophon as a ruled strip rather than a slab. It is a ruled strip
+   in the base layer too; the slab it was correcting came from 25.9, and
+   25.9 is gone. */
 
 /* ---------- 26.8 · the marks that were always ours ----------
    The scotch rule under the nameplate, the four figures it introduces,
    and the radar — the one moving thing the product owns — drawn at a
    weight that survives daylight. */
 
-:root[data-theme="vivid"] .top-nav { border-bottom: 2px solid var(--rule-heavy); }
+/* The scotch rule, the strip and the radar all came back to the base when
+   25.9 stopped turning them into slabs — the marks were never missing
+   from the design, only from this one palette's version of it.
 
-/* The strip under the masthead gets its scotch rule back. Section 25 hid
-   it because a 2px black bar is a bruise on a light ground — but the bar
-   was never black, it is the page's ink, and riding a thin companion
-   rule it is the single most recognisable mark this design has. */
-:root[data-theme="vivid"] .summary-strip {
-  padding-top: var(--sp-5);
-  margin-top: var(--sp-6);
-}
-:root[data-theme="vivid"] .summary-strip::before {
-  display: block;
-  top: 0;
-  height: 2px;
-  background: var(--rule-heavy);
-  opacity: 1;
-}
-:root[data-theme="vivid"] .summary-strip::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 5px;
-  height: 1px;
-  background: var(--rule-thin);
-}
-:root[data-theme="vivid"] .sum { border-top: 2px solid transparent; }
-:root[data-theme="vivid"] .sum:hover { border-top-color: var(--accent); }
-
-/* The radar's rings were hairlines tuned for a night sky; on paper they
-   vanished and the sweep swept over nothing. */
+   The radar is the exception worth keeping: its rings are strokes, not
+   borders, so they read off `--hair` rather than the rule tokens, and a
+   hairline tuned for a night sky does vanish on a light ground. That is
+   a contrast fact about the medium, not a house style, so it is stated
+   for both light palettes rather than for vivid alone. */
+:root[data-theme="paper"] .radar .ring,
+:root[data-theme="paper"] .radar .cross,
 :root[data-theme="vivid"] .radar .ring,
-:root[data-theme="vivid"] .radar .cross { stroke: var(--rule-thin); }
-
-/* The footer and the tour card follow the same ink. */
-:root[data-theme="vivid"] footer { border-top-color: var(--rule-thin); }
-:root[data-theme="vivid"] #tour-card {
-  background: var(--card-bg);
-  box-shadow: var(--card-shadow-lift);
+:root[data-theme="vivid"] .radar .cross {
+  stroke: color-mix(in srgb, var(--ink) 22%, transparent);
 }
 
 /* Print: the scotch rules are ink and would be stripped as backgrounds,

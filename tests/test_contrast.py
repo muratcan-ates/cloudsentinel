@@ -443,19 +443,6 @@ FAILING_PAIRS = {
 
     # THE UNREADABLE ONE. `.cs-btn.ghost` (style.css:2289) sets
     # color: var(--accent) at specificity (0,2,0). Twelve lines earlier,
-    # `:root:not([data-theme="vivid"]) .cs-btn` (style.css:2288) sets
-    # color: var(--surface) at (0,3,0) and wins. A ghost button therefore
-    # paints the surface colour onto the surface: "Re-scan" (#desk-rescan)
-    # and "Go to the decisions" (.cs-hero-actions a.cs-btn.ghost) are
-    # invisible in all four editorial palettes.
-    # FIX: one line — give the ghost rule equal reach,
-    #   :root .cs-btn.ghost { background: transparent; color: var(--accent); }
-    # which is (0,3,0) and later in source order, so it wins.
-    ("horizon", "ghost button label on raised2"): 1.27,
-    ("mission", "ghost button label on raised2"): 1.27,
-    ("paper", "ghost button label on raised2"): 1.17,
-    ("dawn", "ghost button label on raised2"): 1.32,
-
     # `.brain-identity` (style.css:1717) paints background: rgba(0,0,0,0.18)
     # — a hard-coded black wash written for a dark palette. On the two light
     # palettes it drops the panel to #bfbdb7 (paper) / #d1d1d1 (vivid) and
@@ -469,25 +456,24 @@ FAILING_PAIRS = {
 }
 
 
-# The one failure that is a cascade fact rather than a ratio. Keyed by the
-# pair of rules, so the moment either moves the pin stops matching and
+# Cascade failures that are a specificity fact rather than a ratio. Keyed by
+# the pair of rules, so the moment either moves the pin stops matching and
 # test_the_allow_list_does_not_rot says so.
 #
-# `.cs-btn.ghost` at style.css:2289 declares color: var(--accent) with
-# specificity (0,2,0). One line ABOVE it, style.css:2288 declares
-# `:root:not([data-theme="vivid"]) .cs-btn { color: var(--surface) }` with
-# specificity (0,3,0) — and wins, because specificity beats source order.
-# So in horizon/mission/paper/dawn a ghost button paints --surface onto
-# --surface: "Re-scan" (#desk-rescan) and "Go to the decisions"
-# (.cs-hero-actions a.cs-btn.ghost) are invisible. This is the reported
-# "black text that cannot be read".
+# Empty, and it should stay that way. The one entry that lived here was the
+# ghost button: `:root:not([data-theme="vivid"]) .cs-btn { color: var(--surface) }`
+# reached for a palette scope, picked up a class of specificity doing it,
+# and at (0,3,0) outranked `.cs-btn.ghost` (0,2,0) one line below — so in
+# horizon, mission, paper and dawn a ghost button painted --surface onto
+# --surface and "Re-scan" and "Go to the decisions" could not be read.
 #
-# FIX (one line): give the ghost rule the same reach as the themed base —
-#   :root .cs-btn.ghost { background: transparent; color: var(--accent); }
-# (0,3,0) and later in source order, so the variant decides its own colour.
-PINNED_CASCADE_TRAPS = {
-    ("style.css:2288", "style.css:2289"),
-}
+# It was healed by removing the reason the scope existed. The palette
+# exclusion was there because vivid ran its own button system; with the
+# five palettes sharing one, the selector is plain `:root .cs-btn` at
+# (0,2,0), the ghost rule matches it and comes later, and the variant
+# decides its own colour. Lowering the base cost nothing that raising the
+# variant would have bought.
+PINNED_CASCADE_TRAPS = set()
 
 
 # --------------------------------------------------------------------------
@@ -672,9 +658,9 @@ def test_every_rule_that_paints_its_own_background_reads_on_it(palette, rules, t
 MEASURED_PAIRS = (
     # id, fg expression, [background layers over the page], where
     ("ghost button label on raised2",
-     "var(--surface)",
+     "var(--accent)",
      ["var(--surface-raised)", "var(--surface-raised)"],
-     "style.css:2288 beats style.css:2289 on specificity"),
+     "style.css:2305 .cs-btn.ghost, which now decides its own colour"),
     ("brain-identity panel ink",
      "var(--ink-dim)",
      ["var(--surface-raised)", "rgba(0, 0, 0, 0.18)"],
@@ -690,19 +676,21 @@ MEASURED_PAIRS = (
 def test_the_pairs_the_rendered_page_proved(palette, tokens):
     """The cross-rule pairs a browser walk found and a parser could not.
 
-    `ghost button label` is the reported bug: --surface painted onto
-    --surface. It is expressed here as a colour pair so the ratio is
-    re-derived from whatever the tokens become, and as a cascade fact in
+    `ghost button label` was the reported bug: --surface painted onto
+    --surface, because a themed base rule outranked the variant. It is
+    expressed here as a colour pair so the ratio is re-derived from
+    whatever the tokens become, and as a cascade fact in
     test_a_variant_button_is_not_outranked_by_its_themed_base, so the fix
     cannot be a recolour that leaves the specificity trap in place.
+
+    It reads var(--accent) in all five palettes now. There is no longer a
+    palette that is exempt: the exclusion that let vivid through was the
+    trap, and it went when the five stopped running separate button
+    systems.
     """
     table = tokens[palette]
     bad = []
     for pair_id, fg_expr, layers, where in MEASURED_PAIRS:
-        if pair_id.startswith("ghost button") and palette == "vivid":
-            # vivid is the one palette the :not() lets through, so its
-            # ghost button keeps the accent it was given.
-            continue
         bg = flatten(resolve("var(--surface)", table), (255.0, 255.0, 255.0, 1.0))
         for layer in layers:
             bg = flatten(resolve(layer, table), bg)
